@@ -1,22 +1,88 @@
 import 'reflect-metadata';
-import { Controller, Get, Module } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import {
+  Controller,
+  Get,
+  Module,
+  Catch,
+  HttpException,
+  type ArgumentsHost,
+  type ExceptionFilter,
+} from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import type { FastifyReply, FastifyRequest } from 'fastify';
+import { denyIdentity, type IdentityVerifier } from './auth';
+import { type UserDatabase } from './database';
+import { DATABASE, IDENTITY, UserController } from './users';
 @Controller()
 class HealthController {
   @Get('health') health() {
     return { status: 'ok', environment: 'development', financialData: false };
   }
+  @Get('v1') version() {
+    return { version: '1', stage: 'P04', financialCore: false };
+  }
 }
-@Module({ controllers: [HealthController] })
-class AppModule {}
-export async function createApp() {
-  const app = await NestFactory.create<NestFastifyApplication>(
-    AppModule,
-    new FastifyAdapter({ logger: false }),
-    { logger: false },
+@Catch()
+class SafeErrors implements ExceptionFilter {
+  catch(error: unknown, host: ArgumentsHost) {
+    const status = error instanceof HttpException ? error.getStatus() : 500;
+    const reply = host.switchToHttp().getResponse<FastifyReply>();
+    const request = host.switchToHttp().getRequest<FastifyRequest>();
+    reply.status(status).send({
+      error:
+        status === 401
+          ? 'unauthorized'
+          : status === 400
+            ? 'invalid_request'
+            : status === 404
+              ? 'not_found'
+              : 'request_failed',
+      requestId: request.id,
+    });
+  }
+}
+export interface AppOptions {
+  identity?: IdentityVerifier;
+  database?: UserDatabase;
+  log?: (event: { requestId: string; method: string; status: number }) => void;
+}
+export async function createApp(options: AppOptions = {}) {
+  @Module({
+    controllers: [HealthController, UserController],
+    providers: [
+      { provide: IDENTITY, useValue: options.identity ?? denyIdentity },
+      { provide: DATABASE, useValue: options.database ?? null },
+    ],
+  })
+  class AppModule {}
+  const adapter = new FastifyAdapter({
+    logger: false,
+    bodyLimit: 16_384,
+    requestIdHeader: false,
+    genReqId: () => randomUUID(),
+  });
+  adapter.getInstance().addHook('onSend', async (_request, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    reply.header('X-Content-Type-Options', 'nosniff');
+    reply.header('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
+  });
+  adapter.getInstance().addHook('onResponse', async (request, reply) => {
+    options.log?.({ requestId: request.id, method: request.method, status: reply.statusCode });
+  });
+  const app = await NestFactory.create<NestFastifyApplication>(AppModule, adapter, {
+    logger: false,
+  });
+  app.useGlobalFilters(new SafeErrors());
+  const spec = SwaggerModule.createDocument(
+    app,
+    new DocumentBuilder().setTitle('Finanzas API').setVersion('1.0').addBearerAuth().build(),
   );
+  // JSON only: no third-party scripts or public interactive console.
+  adapter.getInstance().get('/openapi.json', async () => spec);
   await app.init();
-  await app.getHttpAdapter().getInstance().ready();
+  await adapter.getInstance().ready();
   return app;
 }

@@ -28,6 +28,9 @@
     "format:check": "prettier --check apps packages backend tests scripts *.json *.mjs .github/workflows",
     "test": "vitest run --exclude **/*.integration.test.ts",
     "test:integration": "vitest run tests/api.integration.test.ts",
+    "test:postgres": "node scripts/test-postgres.mjs",
+    "db:migrate": "node scripts/migrate.mjs",
+    "start:api": "node dist/api/main.js",
     "test:e2e": "playwright test",
     "cap:sync": "npm run build:mobile && npm exec -w @finanzas/mobile -- cap sync && node scripts/normalize-native.mjs",
     "security": "npm audit --audit-level=high"
@@ -66,6 +69,7 @@
     "@eslint/js": "10.0.1",
     "@playwright/test": "1.63.0",
     "@types/node": "24.10.1",
+    "@types/pg": "8.23.1",
     "eslint": "10.10.0",
     "fake-indexeddb": "6.2.5",
     "prettier": "3.9.6",
