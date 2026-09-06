@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node", "vitest/globals"]
+  },
+  "include": [
+    "packages/**/*.ts",
+    "backend/**/*.ts",
+    "tests/**/*.ts",
+    "apps/mobile/capacitor.config.ts"
+  ]
+}

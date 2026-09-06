@@ -1,0 +1,80 @@
+name: Calidad
+on:
+  push:
+    branches: [main, 'feature/**', 'fix/**']
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  quality:
+    name: Lint, tests y builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm install --global npm@11.6.1
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run test:integration
+      - run: npm run build
+      - run: npm run security
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: builds-${{ github.sha }}
+          path: dist/
+  android:
+    name: Android debug APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+      - run: npm install --global npm@11.6.1
+      - run: npm ci
+      - run: npm run cap:sync
+      - name: Build debug
+        working-directory: apps/mobile/android
+        run: bash ./gradlew assembleDebug --no-daemon
+      - name: Build provenance
+        env:
+          BUILD_COMMIT: ${{ github.sha }}
+        run: node scripts/build-info.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: android-demo-debug-${{ github.sha }}
+          path: |
+            apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+            dist/build-info.json
+          retention-days: 14
+  ios:
+    name: iOS simulator sin firma
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm install --global npm@11.6.1
+      - run: npm ci
+      - run: npm run cap:sync
+      - name: Build simulator only
+        run: xcodebuild -project apps/mobile/ios/App/App.xcodeproj -scheme App -sdk iphonesimulator -configuration Debug -derivedDataPath dist/ios CODE_SIGNING_ALLOWED=NO build
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ios-simulator-unsigned-${{ github.sha }}
+          path: dist/ios/Build/Products/Debug-iphonesimulator/*.app
+          retention-days: 7
