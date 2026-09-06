@@ -1,5 +1,6 @@
 # Sistema de diseño y wireframes textuales
 
+> Baseline de fase 0. Las aprobaciones y el orden de ejecución actuales están en [decisiones vigentes](09-aprobacion-ejecucion.md); prevalecen sobre estados pendientes históricos de este documento.
 Estado: especificación original propuesta; no son pantallas implementadas. Referencias conceptuales de claridad y calma del PDF, sin copiar interfaces.
 
 ## Tokens

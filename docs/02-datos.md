@@ -1,5 +1,6 @@
 # Modelo lógico e integridad financiera
 
+> Baseline de fase 0. Las aprobaciones y el orden de ejecución actuales están en [decisiones vigentes](09-aprobacion-ejecucion.md); prevalecen sobre estados pendientes históricos de este documento.
 Estado: propuesto; no se han creado tablas definitivas. PostgreSQL es la autoridad confirmada. Los modelos del dispositivo son proyecciones versionadas de los modelos del servidor.
 
 ## Convenciones de campos, claves y seguridad

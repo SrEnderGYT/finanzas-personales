@@ -1,5 +1,6 @@
 # Producto y descubrimiento
 
+> Baseline de fase 0. Las aprobaciones y el orden de ejecución actuales están en [decisiones vigentes](09-aprobacion-ejecucion.md); prevalecen sobre estados pendientes históricos de este documento.
 Estado: propuesto · 6 septiembre 2026 · responsable de aprobación: propietario del producto.
 
 ## Resumen ejecutivo

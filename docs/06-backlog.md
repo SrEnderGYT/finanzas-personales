@@ -1,5 +1,6 @@
 # Backlog, historias y aceptación
 
+> Baseline de fase 0. Las aprobaciones y el orden de ejecución actuales están en [decisiones vigentes](09-aprobacion-ejecucion.md); prevalecen sobre estados pendientes históricos de este documento.
 Estado: propuesto. P0 necesario para beta, P1 siguiente valor, P2 posterior. Cada historia debe enlazar implementación y evidencia al cerrarse; hoy ninguna se declara implementada.
 
 | ID / prioridad / versión | Historia de usuario | Criterios observables de aceptación | PR |

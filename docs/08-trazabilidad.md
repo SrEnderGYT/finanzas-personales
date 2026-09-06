@@ -1,5 +1,6 @@
 # Entrega inicial y trazabilidad
 
+> Baseline de fase 0. Las aprobaciones y el orden de ejecución actuales están en [decisiones vigentes](09-aprobacion-ejecucion.md); prevalecen sobre estados pendientes históricos de este documento.
 Estado: **22 entregables documentados para revisión; implementación pendiente**. Fuente exclusiva de requisitos para esta fase: [PDF original](referencia/Plan_Maestro_Codex_App_Finanzas.pdf). No se reutilizó código ni datos de repositorios anteriores.
 
 ## Los 22 entregables
@@ -57,7 +58,7 @@ El PDF numera esta lista del 11 al 32 en su sección 21; aquí se asignan IDs E0
 | D04 Offline/retención | Bloqueo5min, renovar online7d, tombstones90d, backups30d | Pendiente de revisión |
 | D05 Publicación | Beta privada con pruebas Android/iOS reales | Cuentas y dispositivos pendientes |
 
-No se pide autorización para preparar documentación ni crear el repositorio privado: ya fueron solicitados. La revisión pendiente proviene del PDF, página 10: «Después de mi revisión, implementa por fases y PRs pequeños». Es un requisito del documento adoptado como especificación, no una exigencia de las habilidades utilizadas. No se ha inferido que esta revisión haya ocurrido.
+No se pide autorización para preparar documentación ni crear el repositorio privado: ya fueron solicitados. La revisión pendiente proviene del PDF, página 10: «Después de mi revisión, implementa por fases y PRs pequeños». Es un requisito del documento adoptado como especificación, no una exigencia de las habilidades utilizadas. La revisión D01–D05 ya fue realizada explícitamente por el propietario; véase la decisión posterior enlazada arriba.
 
 ## Estado de ejecución
 

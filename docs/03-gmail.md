@@ -1,5 +1,6 @@
 # Arquitectura Gmail y automatizaciones
 
+> Baseline de fase 0. Las aprobaciones y el orden de ejecución actuales están en [decisiones vigentes](09-aprobacion-ejecucion.md); prevalecen sobre estados pendientes históricos de este documento.
 Estado: diseño propuesto. No hay OAuth activo, correos leídos ni parsers verificados con mensajes reales.
 
 ## Consentimiento y mínimos permisos

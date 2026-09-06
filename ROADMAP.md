@@ -1,6 +1,6 @@
 # Roadmap y plan de PRs pequeños
 
-Estado: propuesta. No hay fechas de entrega prometidas: dependen de dedicación, presupuesto, revisión y cuentas de distribución. Ninguna fase está implementada. Fase 0 documental preparada; aprobación pendiente.
+Fase 0 aprobada por el propietario. Ejecutar P01–P03 y detenerse para revisión antes del core; después P04–P14 y otra revisión antes de Gmail. [Decisiones vigentes](docs/09-aprobacion-ejecucion.md). No hay fechas prometidas; infraestructura y dispositivos siguen por validar.
 
 ## Fases del Plan Maestro
 

@@ -1,5 +1,6 @@
 # Arquitecturas Web, Mobile y offline
 
+> Baseline de fase 0. Las aprobaciones y el orden de ejecución actuales están en [decisiones vigentes](09-aprobacion-ejecucion.md); prevalecen sobre estados pendientes históricos de este documento.
 Estado: contratos propuestos, pendientes de prototipo y pruebas.
 
 ## Web/PWA

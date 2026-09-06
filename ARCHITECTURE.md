@@ -1,6 +1,6 @@
 # ADR-001 · Plataforma y arquitectura
 
-Estado: **Propuesto** · Fecha: 2026-09-06 · Decisor: propietario del producto tras revisar el PR.
+Estado: **D01 y D02 aprobadas por el propietario**. Detalles operativos sujetos a prototipo. Véase [decisiones vigentes](docs/09-aprobacion-ejecucion.md).
 
 ## Contexto y restricciones
 
@@ -23,7 +23,7 @@ Evaluación cualitativa de ingeniería para este producto, no resultados de benc
 | Costos | Más esfuerzo inicial estimado, sin presupuesto monetario inventado | Menor esfuerzo estimado para equipo pequeño; plugins/Apple/cloud pueden costar | Esfuerzo móvil favorable; escritorio puede exigir más adaptación |
 | Velocidad | Más lenta estimada por doble implementación | Más rápida estimada para formularios financieros compartidos | Rápida si el equipo domina Dart, dato aún desconocido |
 
-## Decisión propuesta y motivos
+## Decisión aprobada y motivos
 
 Elegir B. Compartir reglas e idempotencia reduce divergencias entre clientes, manteniendo una presentación específica de escritorio y otra móvil. No se promete una UI totalmente nativa: Capacitor empaqueta una aplicación web con acceso a capacidades nativas. Si una prueba muestra UX, accesibilidad o cifrado inaceptables, revisar ADR y considerar A antes del core; el contrato backend y las reglas financieras seguirán documentados.
 

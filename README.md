@@ -1,12 +1,12 @@
-# Finanzas personales · propuesta de fase 0
+# Finanzas personales · fase 0 aprobada
 
 Una plataforma personal para entender gastos, ingresos, cuentas y compromisos, registrar operaciones sin conexión e incorporar avisos bancarios autorizados. Web de escritorio, PWA y aplicaciones Android/iOS compartirán las reglas financieras y el backend.
 
-**Estado: propuesta preparada para revisión; aplicación no implementada ni publicada.** Este repositorio es nuevo, privado e independiente. No contiene código, Excel, fotos bancarias ni datos reales importados de proyectos anteriores. No se ha conectado Gmail ni autorizado ningún cobro o mensaje a terceros.
+**Estado: fase 0 aprobada; implementación P01–P03 autorizada.** Repositorio público e independiente, sin datos financieros reales. La futura aplicación será beta privada; los previews públicos contendrán exclusivamente DEMO.
 
-Consulta el [resumen de lo realizado](RESUMEN.md) y el [PR #1 abierto para revisión](https://github.com/SrEnderGYT/finanzas-personales/pull/1). La protección técnica de main no está activa: GitHub exige Pro para habilitarla en este repositorio privado.
+Main está protegida mediante PR y validación, incluidos administradores. [Aprobación y auditoría de publicación](docs/09-aprobacion-ejecucion.md). [Resumen histórico](RESUMEN.md).
 
-## Decisión propuesta
+## Decisión aprobada
 
 Angular para la web e Ionic/Capacitor para móvil, dominio TypeScript compartido y backend modular con PostgreSQL. La elección prioriza mantenimiento y rapidez para una beta pequeña; depende de validar almacenamiento cifrado y UX en dispositivos reales. Alternativas y límites en [ARCHITECTURE.md](ARCHITECTURE.md).
 
@@ -29,7 +29,7 @@ Angular para la web e Ionic/Capacitor para móvil, dominio TypeScript compartido
 | Diseño OAuth y parser BCP inicial | Configuración Google, consentimiento y parser validado |
 | CI de integridad documental | Compilación, tests del producto, staging y producción |
 
-El PDF establece: «Después de mi revisión, implementa por fases y PRs pequeños». La siguiente acción es revisar esta propuesta y registrar decisiones en el PR; después se abrirá el primer PR de implementación. Una propuesta no equivale a arquitectura aprobada ni a controles de seguridad activos.
+El PDF establece: «Después de mi revisión, implementa por fases y PRs pequeños». El propietario ya revisó y aprobó D01–D05. La siguiente puerta de revisión es después de P03, antes del core financiero. Los detalles operativos pendientes no se consideran controles implementados.
 
 ## Estructura
 

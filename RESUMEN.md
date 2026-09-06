@@ -1,4 +1,6 @@
-# Resumen de lo realizado
+# Resumen histórico de la entrega inicial
+
+> Este documento describe la primera entrega privada. Estado actual: repositorio público, main protegida y fase 0 aprobada. Véase [decisiones vigentes](docs/09-aprobacion-ejecucion.md).
 
 Fecha: 6 septiembre 2026.
 
