@@ -4,6 +4,8 @@ Una plataforma personal para entender gastos, ingresos, cuentas y compromisos, r
 
 **Estado: propuesta preparada para revisión; aplicación no implementada ni publicada.** Este repositorio es nuevo, privado e independiente. No contiene código, Excel, fotos bancarias ni datos reales importados de proyectos anteriores. No se ha conectado Gmail ni autorizado ningún cobro o mensaje a terceros.
 
+Consulta el [resumen de lo realizado](RESUMEN.md) y el [PR #1 abierto para revisión](https://github.com/SrEnderGYT/finanzas-personales/pull/1). La protección técnica de main no está activa: GitHub exige Pro para habilitarla en este repositorio privado.
+
 ## Decisión propuesta
 
 Angular para la web e Ionic/Capacitor para móvil, dominio TypeScript compartido y backend modular con PostgreSQL. La elección prioriza mantenimiento y rapidez para una beta pequeña; depende de validar almacenamiento cifrado y UX en dispositivos reales. Alternativas y límites en [ARCHITECTURE.md](ARCHITECTURE.md).

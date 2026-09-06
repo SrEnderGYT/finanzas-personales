@@ -35,7 +35,7 @@ Objetivos iniciales a calibrar: escritura local percibida <=200 ms; dashboard ya
 | Crecimiento de alcance | Alta/medio | MVP exacto, V2/V3 y revisión por historias; propietario |
 | Push no entregado | Media/medio | Avisos persistentes, estado consultable, sin depender de background para Gmail |
 | Proyección engañosa | Media/alto | Mostrar supuestos/cobertura; no tratar cobranzas futuras como caja; producto |
-| Protección main no disponible por plan | Por comprobar/medio | Intentar activar; documentar respuesta; PR obligatorio por política sin fingir enforcement |
+| Protección main no disponible por plan | Confirmado/medio | API403 exige Pro en privado; mantener repo privado y flujo PR por política; enforcement no activo |
 | Pérdida/restauración DB | Baja/alto | Backups, simulacro restore, registro de supresiones, generación cursor; operación |
 
 ## CI/CD actual y previsto

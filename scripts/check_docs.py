@@ -7,7 +7,7 @@ from urllib.parse import unquote
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED = [
     "README.md", "ARCHITECTURE.md", "ROADMAP.md", "SECURITY.md",
-    "CONTRIBUTING.md", "CHANGELOG.md", "docs/01-producto.md",
+    "CONTRIBUTING.md", "CHANGELOG.md", "RESUMEN.md", "docs/01-producto.md",
     "docs/02-datos.md", "docs/03-gmail.md", "docs/04-clientes-sync.md",
     "docs/05-diseno.md", "docs/06-backlog.md", "docs/07-calidad-entrega.md",
     "docs/08-trazabilidad.md", "docs/referencia/Plan_Maestro_Codex_App_Finanzas.pdf",
