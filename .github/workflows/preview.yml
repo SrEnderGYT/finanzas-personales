@@ -1,0 +1,58 @@
+name: Preview DEMO
+on:
+  push:
+    branches: ['feature/p02-*', 'feature/p03-*']
+  pull_request:
+    paths: ['apps/**', 'packages/**', 'tests/**', 'scripts/**']
+permissions:
+  contents: read
+concurrency:
+  group: preview-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  preview-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm install --global npm@11.6.1
+      - run: npm ci
+      - run: npm run build
+      - run: npm exec playwright -- install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: visual-evidence-${{ github.sha }}
+          path: |
+            docs/evidence/
+            playwright-report/
+            test-results/
+      - name: Build public static preview
+        run: |
+          npm exec ng -- build web --base-href /finanzas-personales/
+          npm exec ng -- build mobile --base-href /finanzas-personales/mobile/
+          mkdir -p dist/pages/mobile
+          cp -R dist/web/browser/. dist/pages/
+          cp -R dist/mobile/browser/. dist/pages/mobile/
+          printf '{"commit":"%s","environment":"synthetic-demo"}\n' "$GITHUB_SHA" > dist/pages/build-info.json
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa
+        with:
+          path: dist/pages
+  deploy:
+    if: github.event_name == 'push'
+    needs: preview-build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy DEMO only
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e

@@ -1,14 +1,19 @@
-import { Component } from '@angular/core';
+import { Component, isDevMode } from '@angular/core';
 import { bootstrapApplication } from '@angular/platform-browser';
+import { provideRouter, withHashLocation, withComponentInputBinding } from '@angular/router';
+import { provideServiceWorker } from '@angular/service-worker';
+import { Shell, DEMO_ROUTES } from '@finanzas/ui';
 
-@Component({
-  selector: 'app-root',
-  template: `<main>
-    <h1>Finanzas · DEMO</h1>
-    <p>Workspace web preparado. Sin datos reales.</p>
-  </main>`,
-})
+@Component({ selector: 'app-root', imports: [Shell], template: `<fp-shell />` })
 class App {}
-bootstrapApplication(App, { providers: [] }).catch(() => {
-  document.body.textContent = 'No se pudo iniciar la aplicación.';
+bootstrapApplication(App, {
+  providers: [
+    provideRouter(DEMO_ROUTES, withHashLocation(), withComponentInputBinding()),
+    provideServiceWorker('ngsw-worker.js', {
+      enabled: !isDevMode(),
+      registrationStrategy: 'registerImmediately',
+    }),
+  ],
+}).catch(() => {
+  document.body.textContent = 'No se pudo iniciar. Recarga para volver a intentar.';
 });

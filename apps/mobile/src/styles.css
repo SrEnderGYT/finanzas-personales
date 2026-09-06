@@ -1,7 +1,1 @@
-body {
-  margin: 0;
-  font-family: system-ui, sans-serif;
-  padding: 2rem;
-  background: #f8fafc;
-  color: #0f172a;
-}
+@import '../../../packages/ui/src/theme.css';
