@@ -12,6 +12,14 @@ describe('Nest/Fastify integration', () => {
         financialData: false,
       });
       expect((await app.inject({ method: 'GET', url: '/v1/accounts' })).statusCode).toBe(404);
+      expect((await app.inject({ method: 'GET', url: '/v1' })).json().version).toBe('1');
+      expect((await app.inject({ method: 'GET', url: '/v1/me' })).statusCode).toBe(401);
+      const spec = (await app.inject({ method: 'GET', url: '/openapi.json' })).json();
+      expect(
+        spec.paths['/v1/me/preferences'].patch.requestBody.content['application/json'].schema
+          .additionalProperties,
+      ).toBe(false);
+      expect(spec.paths['/v1/me'].get.security).toEqual([{ bearer: [] }]);
     } finally {
       await app.close();
     }

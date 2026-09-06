@@ -7,6 +7,7 @@ Web Angular, UI móvil Ionic/Capacitor y PWA con datos exclusivamente sintético
 - [P01 — workspace](docs/P01-workspace.md) · [PR #2](https://github.com/SrEnderGYT/finanzas-personales/pull/2)
 - [P02 — diseño, capturas y PWA](docs/P02-preview.md) · [PR #3](https://github.com/SrEnderGYT/finanzas-personales/pull/3)
 - [P03 — prototipo cifrado](docs/P03-almacenamiento.md)
+- [P04 — backend, PostgreSQL y aislamiento](docs/P04-backend.md)
 
 La URL muestra el último preview publicado; `build-info.json` identifica el commit. Consultar las ejecuciones Actions antes de asociar un binario o despliegue a una revisión. Los PR de implementación siguen abiertos, apilados; sólo fase0 fue fusionada con aprobación del propietario.
 
@@ -28,8 +29,8 @@ apps/mobile       Ionic/Capacitor + Android/iOS
 packages/domain   Lugar del dominio P06; aún no core financiero
 packages/shared   Contratos DEMO y prototipo cifrado
 packages/ui       Componentes, temas y experiencia DEMO
-backend/api       Nest/Fastify health; sin API financiera
-infra             PostgreSQL previsto para P04
+backend/api       Nest/Fastify, User, migraciones PostgreSQL y RLS
+infra             Configuración de infraestructura; secretos externos
 docs              Arquitectura, decisiones, entregas y evidencia
 ```
 
@@ -37,6 +38,6 @@ docs              Arquitectura, decisiones, entregas y evidencia
 
 Main protegida por PR/checks, incluidos administradores. [Auditoría de publicación y decisiones aprobadas](docs/09-aprobacion-ejecucion.md). Secretos externos al repositorio; fixtures sintéticas. El repositorio público no publica infraestructura ni datos reales.
 
-**Puerta obligatoria: revisión después de P03 antes de P04/core financiero.** Después del core manual habrá otra revisión antes de Gmail. No hay merge automático de PR grandes.
+**Continuación después de P03 autorizada por el propietario.** P04 añade preferencias persistentes protegidas; `npm run test:postgres` verifica aislamiento en PostgreSQL real con Docker. El dashboard permanece DEMO. Después del core manual habrá otra revisión antes de Gmail. No hay merge automático de PR grandes.
 
 [Arquitectura](ARCHITECTURE.md) · [Roadmap](ROADMAP.md) · [Seguridad](SECURITY.md) · [22 entregables de fase0](docs/08-trazabilidad.md) · [Plan Maestro histórico](docs/referencia/Plan_Maestro_Codex_App_Finanzas.pdf)
