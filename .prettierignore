@@ -1,0 +1,8 @@
+node_modules
+dist
+coverage
+package-lock.json
+apps/mobile/android
+apps/mobile/ios
+docs/referencia
+.git

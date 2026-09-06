@@ -1,0 +1,8 @@
+{
+  "name": "@finanzas/ui",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    "default": "./src/index.ts"
+  }
+}

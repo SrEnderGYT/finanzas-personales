@@ -26,9 +26,15 @@ def check():
         path = ROOT / name
         if not path.is_file() or not path.stat().st_size:
             errors.append(f"Missing/empty: {name}")
-    for path in ROOT.rglob("*.md"):
-        if ".git" in path.parts:
-            continue
+    import os
+    markdown = []
+    for folder, directories, files in os.walk(ROOT):
+        directories[:] = [d for d in directories if d not in {
+            '.git', 'node_modules', 'dist', '.angular', 'android', 'ios',
+            'coverage', 'test-results', 'playwright-report',
+        }]
+        markdown.extend(Path(folder) / name for name in files if name.endswith('.md'))
+    for path in markdown:
         content = path.read_text(encoding="utf-8")
         for link in re.findall(r"\[[^\]\n]+\]\(([^)]+)\)", content):
             target = link.split("#", 1)[0].strip("<>")

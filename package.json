@@ -1,0 +1,69 @@
+{
+  "name": "finanzas-personales",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "npm@11.6.1",
+  "engines": {
+    "node": ">=24.14.1 <25",
+    "npm": ">=11.6.1 <12"
+  },
+  "workspaces": [
+    "apps/web",
+    "apps/mobile",
+    "packages/domain",
+    "packages/shared",
+    "packages/ui",
+    "backend/api"
+  ],
+  "scripts": {
+    "start": "ng serve web --host 127.0.0.1",
+    "start:mobile": "ng serve mobile --host 127.0.0.1 --port 4201",
+    "build:web": "ng build web",
+    "build:mobile": "ng build mobile",
+    "build:backend": "tsc -p backend/api/tsconfig.json",
+    "build": "npm run build:web && npm run build:mobile && npm run build:backend",
+    "typecheck": "tsc --noEmit -p tsconfig.check.json && ngc --noEmit -p apps/web/tsconfig.app.json && ngc --noEmit -p apps/mobile/tsconfig.app.json",
+    "lint": "eslint apps packages backend tests scripts --no-warn-ignored",
+    "format": "prettier --write .",
+    "format:check": "prettier --check apps packages backend tests scripts *.json *.mjs .github/workflows",
+    "test": "vitest run --exclude **/*.integration.test.ts",
+    "test:integration": "vitest run tests/api.integration.test.ts",
+    "test:e2e": "playwright test",
+    "cap:sync": "npm run build:mobile && npm exec -w @finanzas/mobile -- cap sync",
+    "security": "npm audit --audit-level=high"
+  },
+  "dependencies": {
+    "@angular/common": "21.2.22",
+    "@angular/compiler": "21.2.22",
+    "@angular/core": "21.2.22",
+    "@angular/forms": "21.2.22",
+    "@angular/platform-browser": "21.2.22",
+    "@angular/router": "21.2.22",
+    "@angular/service-worker": "21.2.22",
+    "@capacitor/android": "8.4.3",
+    "@capacitor/core": "8.4.3",
+    "@capacitor/ios": "8.4.3",
+    "@ionic/angular": "9.0.2",
+    "@nestjs/common": "12.0.1",
+    "@nestjs/core": "12.0.1",
+    "@nestjs/platform-fastify": "12.0.1",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2",
+    "tslib": "2.8.1",
+    "zone.js": "0.15.1"
+  },
+  "devDependencies": {
+    "@angular/build": "21.2.23",
+    "@angular/cli": "21.2.23",
+    "@angular/compiler-cli": "21.2.22",
+    "@capacitor/cli": "8.4.3",
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.63.0",
+    "@types/node": "24.10.1",
+    "eslint": "10.10.0",
+    "prettier": "3.9.6",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.69.0",
+    "vitest": "4.1.11"
+  }
+}
