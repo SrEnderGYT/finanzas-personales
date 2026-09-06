@@ -26,7 +26,7 @@
     "lint": "eslint apps packages backend tests scripts --no-warn-ignored",
     "format": "prettier --write .",
     "format:check": "prettier --check apps packages backend tests scripts *.json *.mjs .github/workflows",
-    "test": "vitest run --exclude **/*.integration.test.ts",
+    "test": "vitest run --exclude \"**/*.integration.test.ts\"",
     "test:integration": "vitest run tests/api.integration.test.ts",
     "test:postgres": "node scripts/test-postgres.mjs",
     "db:migrate": "node scripts/migrate.mjs",
