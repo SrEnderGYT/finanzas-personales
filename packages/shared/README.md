@@ -1,3 +1,3 @@
-# Dominio y contratos compartidos
+# Compartido
 
-Directorio reservado para value objects, contratos y reglas TypeScript. Sin código todavía. No incluir secretos, SDK administrador ni persistencia concreta. Véase [ADR](../../ARCHITECTURE.md).
+Contratos DEMO, helpers de muestra y adaptadores del prototipo cifrado. No hay secretos constantes ni acceso de administrador. [Almacenamiento](../../docs/P03-almacenamiento.md).

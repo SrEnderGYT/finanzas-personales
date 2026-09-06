@@ -4,5 +4,13 @@ const config: CapacitorConfig = {
   appName: 'Finanzas DEMO',
   webDir: '../../dist/mobile/browser',
   android: { allowMixedContent: false },
+  plugins: {
+    CapacitorSQLite: {
+      iosDatabaseLocation: 'Library/CapacitorDatabase',
+      iosIsEncryption: true,
+      iosKeychainPrefix: 'finanzas-prototype',
+      androidIsEncryption: true,
+    },
+  },
 };
 export default config;

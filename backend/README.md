@@ -1,3 +1,3 @@
 # Backend
 
-Directorio reservado para API y trabajadores del monolito modular. Sin infraestructura activa ni tablas definitivas. Véase [modelo lógico](../docs/02-datos.md).
+Nest/Fastify mínimo en api; health no expone datos financieros. PostgreSQL y autorización empiezan después de revisar P03. [Plan](../ROADMAP.md).

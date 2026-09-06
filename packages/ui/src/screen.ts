@@ -11,10 +11,11 @@ import {
 } from '../../shared/src/demo';
 import { DemoState } from './demo-state';
 import { UI_PRIMITIVES } from './primitives';
+import { StorageLab } from './storage-lab';
 
 @Component({
   selector: 'fp-screen',
-  imports: [FormsModule, RouterLink, ...UI_PRIMITIVES],
+  imports: [FormsModule, RouterLink, StorageLab, ...UI_PRIMITIVES],
   template: `
     <div class="page-heading">
       <div>
@@ -300,6 +301,7 @@ import { UI_PRIMITIVES } from './primitives';
       </div>
     }
     @if (view() === 'configuracion') {
+      <fp-storage-lab />
       <div class="settings-grid">
         <fp-card
           ><h2>Apariencia</h2>
@@ -481,7 +483,7 @@ export class Screen {
       )
       .reduce((n, r) => n + BigInt(r.minor), 0n),
   );
-  readonly budgetLimit = computed(() => (this.state.currency() === 'PEN' ? 180000n : 20000n));
+  readonly budgetLimit = computed(() => (this.state.currency() === 'PEN' ? 180000n : 30000n));
   readonly budgetRemaining = computed(() => this.budgetLimit() - this.monthExpense());
   readonly budgetPercent = computed(() =>
     Math.min(100, Number((this.monthExpense() * 100n) / this.budgetLimit())),
