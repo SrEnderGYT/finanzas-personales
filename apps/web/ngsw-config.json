@@ -9,5 +9,13 @@
         "files": ["/index.html", "/*.css", "/*.js", "/manifest.webmanifest", "/icons/**"]
       }
     }
+  ],
+  "navigationUrls": [
+    "/**",
+    "!/**/*.*",
+    "!/mobile/**",
+    "!/mobile",
+    "!/finanzas-personales/mobile/**",
+    "!/finanzas-personales/mobile"
   ]
 }

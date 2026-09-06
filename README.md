@@ -1,51 +1,42 @@
-# Finanzas personales · fase 0 aprobada
+# Finanzas personales · preview DEMO
 
-Una plataforma personal para entender gastos, ingresos, cuentas y compromisos, registrar operaciones sin conexión e incorporar avisos bancarios autorizados. Web de escritorio, PWA y aplicaciones Android/iOS compartirán las reglas financieras y el backend.
+Web Angular, UI móvil Ionic/Capacitor y PWA con datos exclusivamente sintéticos. Repositorio público; la futura aplicación real tendrá beta privada. No se conectó Gmail ni se importaron proyectos o datos financieros anteriores.
 
-**Estado: fase 0 aprobada; implementación P01–P03 autorizada.** Repositorio público e independiente, sin datos financieros reales. La futura aplicación será beta privada; los previews públicos contendrán exclusivamente DEMO.
+- [Preview Web](https://srendergyt.github.io/finanzas-personales/)
+- [Preview Mobile](https://srendergyt.github.io/finanzas-personales/mobile/)
+- [P01 — workspace](docs/P01-workspace.md) · [PR #2](https://github.com/SrEnderGYT/finanzas-personales/pull/2)
+- [P02 — diseño, capturas y PWA](docs/P02-preview.md) · [PR #3](https://github.com/SrEnderGYT/finanzas-personales/pull/3)
+- [P03 — prototipo cifrado](docs/P03-almacenamiento.md)
 
-Main está protegida mediante PR y validación, incluidos administradores. [Aprobación y auditoría de publicación](docs/09-aprobacion-ejecucion.md). [Resumen histórico](RESUMEN.md).
+La URL muestra el último preview publicado; `build-info.json` identifica el commit. Consultar las ejecuciones Actions antes de asociar un binario o despliegue a una revisión. Los PR de implementación siguen abiertos, apilados; sólo fase0 fue fusionada con aprobación del propietario.
 
-## Decisión aprobada
+## Qué puedes probar
 
-Angular para la web e Ionic/Capacitor para móvil, dominio TypeScript compartido y backend modular con PostgreSQL. La elección prioriza mantenimiento y rapidez para una beta pequeña; depende de validar almacenamiento cifrado y UX en dispositivos reales. Alternativas y límites en [ARCHITECTURE.md](ARCHITECTURE.md).
+Dashboard DEMO, monedas PEN/USD separadas, rangos de fechas, búsqueda, formulario efímero de muestra, tarjetas/cuentas ilustrativas, presupuestos y temas claro/oscuro/sistema. En Configuración, P03 añade bóveda local cifrada con comandos sintéticos pendientes. No representa sincronización bancaria ni aplicación lista para datos reales.
 
-## Leer en este orden
+## Reproducir
 
-1. [Producto, descubrimiento y versiones](docs/01-producto.md): objetivos, supuestos y MVP exacto.
-2. [Arquitectura y matriz tecnológica](ARCHITECTURE.md).
-3. [Modelo de datos](docs/02-datos.md), [seguridad](SECURITY.md) y [Gmail](docs/03-gmail.md).
-4. [Web, móvil y sincronización](docs/04-clientes-sync.md), [sistema de diseño y wireframes](docs/05-diseno.md).
-5. [Roadmap](ROADMAP.md), [backlog e historias](docs/06-backlog.md), [pruebas, riesgos y entrega](docs/07-calidad-entrega.md).
-6. [Índice de los 22 entregables y decisiones a revisar](docs/08-trazabilidad.md).
+Node24.14.1 y npm11.6.1. `npm ci`; `npm run build`; `npm start` (web); `npm run start:mobile` (móvil). `npm run cap:sync` genera activos y registra plugins en Android/iOS. `npm run lint`, `npm run format:check`, `npm run typecheck`, `npm test`, `npm run test:integration`, `npm run test:e2e`, `npm run security`.
 
-## Qué hay y qué falta
-
-| Preparado | Pendiente de implementación y evidencia |
-| --- | --- |
-| Documentación de fase 0 y estructura del proyecto | Login, pantallas, API y bases de datos |
-| Modelo lógico y reglas financieras | Migraciones y pruebas financieras automáticas |
-| Contrato de sincronización e idempotencia | Offline real y pruebas Android/iOS |
-| Diseño OAuth y parser BCP inicial | Configuración Google, consentimiento y parser validado |
-| CI de integridad documental | Compilación, tests del producto, staging y producción |
-
-El PDF establece: «Después de mi revisión, implementa por fases y PRs pequeños». El propietario ya revisó y aprobó D01–D05. La siguiente puerta de revisión es después de P03, antes del core financiero. Los detalles operativos pendientes no se consideran controles implementados.
+GitHub Actions produce APK debug con metadata de commit/versión/fecha/entorno y compilación de simulador iOS sin firma. No hay certificados, provisioning ni TestFlight configurados. Pruebas físicas de biometría/almacenamiento nativo pendientes; pruebas web no las sustituyen.
 
 ## Estructura
 
 ```text
-apps/web/           # Futuro cliente Angular y PWA
-apps/mobile/        # Futuro cliente Ionic/Capacitor Android/iOS
-packages/shared/   # Futuras reglas, contratos y sincronización compartidos
-backend/           # Futuro monolito modular API + trabajadores
-infra/             # Futuro aprovisionamiento separado por entorno
-docs/              # Entregables de fase 0 y referencia original
-scripts/           # Validación documental; no código del producto
-.github/workflows/ # CI documental actual
+apps/web          Angular web/PWA
+apps/mobile       Ionic/Capacitor + Android/iOS
+packages/domain   Lugar del dominio P06; aún no core financiero
+packages/shared   Contratos DEMO y prototipo cifrado
+packages/ui       Componentes, temas y experiencia DEMO
+backend/api       Nest/Fastify health; sin API financiera
+infra             PostgreSQL previsto para P04
+docs              Arquitectura, decisiones, entregas y evidencia
 ```
 
-## Validación actual
+## Revisión y seguridad
 
-Con Python 3.11 o posterior, ejecutar desde la raíz: `python scripts/check_docs.py`. Comprueba entregables, carpetas, enlaces Markdown locales y presencia de las entidades mínimas del modelo. No comprueba aún funcionalidades financieras.
+Main protegida por PR/checks, incluidos administradores. [Auditoría de publicación y decisiones aprobadas](docs/09-aprobacion-ejecucion.md). Secretos externos al repositorio; fixtures sintéticas. El repositorio público no publica infraestructura ni datos reales.
 
-Fuente de requisitos: [Plan Maestro original](docs/referencia/Plan_Maestro_Codex_App_Finanzas.pdf). Las decisiones de este repositorio se identifican como propuestas, supuestos o pendientes; no se presentan como instrucciones adicionales del usuario.
+**Puerta obligatoria: revisión después de P03 antes de P04/core financiero.** Después del core manual habrá otra revisión antes de Gmail. No hay merge automático de PR grandes.
+
+[Arquitectura](ARCHITECTURE.md) · [Roadmap](ROADMAP.md) · [Seguridad](SECURITY.md) · [22 entregables de fase0](docs/08-trazabilidad.md) · [Plan Maestro histórico](docs/referencia/Plan_Maestro_Codex_App_Finanzas.pdf)

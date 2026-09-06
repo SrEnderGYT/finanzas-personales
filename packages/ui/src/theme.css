@@ -1526,3 +1526,21 @@ html body ion-app {
   contain: none !important;
   height: auto !important;
 }
+
+.lab-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 20px;
+}
+.lab-count {
+  margin-top: 24px;
+}
+fp-storage-lab {
+  display: block;
+  margin: 20px 0;
+}
+fp-storage-lab .small {
+  margin: 12px 0;
+}

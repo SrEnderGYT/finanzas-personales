@@ -1,5 +1,15 @@
 {
   "name": "@finanzas/mobile",
   "version": "0.1.0",
-  "private": true
+  "private": true,
+  "dependencies": {
+    "@aparajita/capacitor-biometric-auth": "10.0.0",
+    "@aparajita/capacitor-secure-storage": "8.0.0",
+    "@capacitor-community/sqlite": "8.1.1",
+    "@capacitor/android": "8.4.3",
+    "@capacitor/app": "8.0.0",
+    "@capacitor/core": "8.4.3",
+    "@capacitor/ios": "8.4.3",
+    "@capacitor/keyboard": "8.0.0"
+  }
 }
