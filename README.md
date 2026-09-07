@@ -8,6 +8,7 @@ Web Angular, UI móvil Ionic/Capacitor y PWA con datos exclusivamente sintético
 - [P02 — diseño, capturas y PWA](docs/P02-preview.md) · [PR #3](https://github.com/SrEnderGYT/finanzas-personales/pull/3)
 - [P03 — prototipo cifrado](docs/P03-almacenamiento.md)
 - [P04 — backend, PostgreSQL y aislamiento](docs/P04-backend.md)
+- [P05 — autenticación y sesiones, en desarrollo](docs/P05-autenticacion.md)
 
 La URL muestra el último preview publicado; `build-info.json` identifica el commit. Consultar las ejecuciones Actions antes de asociar un binario o despliegue a una revisión. Los PR de implementación siguen abiertos, apilados; sólo fase0 fue fusionada con aprobación del propietario.
 

@@ -16,13 +16,15 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { denyIdentity, type IdentityVerifier } from './auth';
 import { type UserDatabase } from './database';
 import { DATABASE, IDENTITY, UserController } from './users';
+import { SessionController, SESSIONS } from './session-controller';
+import { type SessionAuthority } from './sessions';
 @Controller()
 class HealthController {
   @Get('health') health() {
     return { status: 'ok', environment: 'development', financialData: false };
   }
   @Get('v1') version() {
-    return { version: '1', stage: 'P04', financialCore: false };
+    return { version: '1', stage: 'P05-in-progress', financialCore: false };
   }
 }
 @Catch()
@@ -47,14 +49,16 @@ class SafeErrors implements ExceptionFilter {
 export interface AppOptions {
   identity?: IdentityVerifier;
   database?: UserDatabase;
+  sessions?: SessionAuthority;
   log?: (event: { requestId: string; method: string; status: number }) => void;
 }
 export async function createApp(options: AppOptions = {}) {
   @Module({
-    controllers: [HealthController, UserController],
+    controllers: [HealthController, UserController, SessionController],
     providers: [
       { provide: IDENTITY, useValue: options.identity ?? denyIdentity },
       { provide: DATABASE, useValue: options.database ?? null },
+      { provide: SESSIONS, useValue: options.sessions ?? null },
     ],
   })
   class AppModule {}

@@ -2,6 +2,7 @@ import { Pool } from 'pg';
 import { createApp } from './app';
 import { JwtIdentityVerifier } from './auth';
 import { UserDatabase } from './database';
+import { SessionAuthority } from './sessions';
 async function main() {
   const required = (name: string) => {
     const value = process.env[name];
@@ -19,14 +20,16 @@ async function main() {
   try {
     const database = new UserDatabase(pool);
     await database.assertRuntimeRole();
-    const identity = new JwtIdentityVerifier(
+    const loginProof = new JwtIdentityVerifier(
       JSON.parse(required('AUTH_PUBLIC_JWKS')),
       required('AUTH_ISSUER'),
       required('AUTH_AUDIENCE'),
     );
+    const sessions = new SessionAuthority(database, loginProof);
     const app = await createApp({
       database,
-      identity,
+      identity: sessions,
+      sessions,
       log: (event) => process.stdout.write(JSON.stringify(event) + '\n'),
     });
     for (const signal of ['SIGTERM', 'SIGINT'] as const) {

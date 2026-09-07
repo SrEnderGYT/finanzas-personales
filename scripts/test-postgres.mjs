@@ -59,7 +59,12 @@ try {
   );
   const result = spawnSync(
     process.execPath,
-    ['node_modules/vitest/vitest.mjs', 'run', 'tests/postgres.integration.test.ts'],
+    [
+      'node_modules/vitest/vitest.mjs',
+      'run',
+      'tests/postgres.integration.test.ts',
+      'tests/sessions.integration.test.ts',
+    ],
     {
       stdio: 'inherit',
       env: {
