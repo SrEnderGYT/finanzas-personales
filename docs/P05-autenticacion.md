@@ -28,6 +28,8 @@ El diseño sigue las recomendaciones de [gestión de sesiones de OWASP](https://
 
 ## Evidencia y trabajo restante
 
+El módulo `passwords.ts` prepara el login por correo: scrypt nativo de Node con N=131072, r=8, p=1, salt aleatorio de 32 bytes y comparación en tiempo constante. Se eligió scrypt estable sin un binding nativo adicional; parámetros basados en [OWASP Password Storage](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html). Admite de 15 a 128 caracteres Unicode y como máximo 512 bytes, preservando espacios y contenido exacto. Usuarios inexistentes recorren también la derivación costosa. Se limitan a dos derivaciones simultáneas por proceso para acotar memoria; esto no reemplaza el rate limiting por cuenta/IP pendiente. Las tres pruebas usan el coste real, sin reducir parámetros para obtener resultados favorables. El módulo todavía no está conectado a endpoints de registro/login.
+
 `npm run test:postgres` ejecuta los tests P04 y P05 en PostgreSQL 17.11 desechable. P05 prueba emisión, persistencia de hash, cinco canjes concurrentes, rechazo de JWT directo, logout, A contra B, prohibición de leer hashes/asumir rol privilegiado, revocación entre instancias y expiración. CI debe aprobarlos antes de considerar validado este bloque; los enlaces y resultados se registran en el PR.
 
 No hay cambios visuales en este bloque. El [preview](https://srendergyt.github.io/finanzas-personales/) y las [capturas](P02-preview.md) siguen mostrando DEMO. No hay autenticación de producto publicada ni datos reales.
