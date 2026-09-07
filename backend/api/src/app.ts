@@ -20,6 +20,8 @@ import { SessionController, SESSIONS } from './session-controller';
 import { type SessionAuthority } from './sessions';
 import { EmailController, EMAIL_AUTH } from './email-controller';
 import { type EmailAuth } from './email-auth';
+import { GoogleController, GOOGLE_AUTH } from './google-controller';
+import { type GoogleAuth } from './google-auth';
 @Controller()
 class HealthController {
   @Get('health') health() {
@@ -53,16 +55,24 @@ export interface AppOptions {
   database?: UserDatabase;
   sessions?: SessionAuthority;
   emailAuth?: EmailAuth;
+  googleAuth?: GoogleAuth;
   log?: (event: { requestId: string; method: string; status: number }) => void;
 }
 export async function createApp(options: AppOptions = {}) {
   @Module({
-    controllers: [HealthController, UserController, SessionController, EmailController],
+    controllers: [
+      HealthController,
+      UserController,
+      SessionController,
+      EmailController,
+      GoogleController,
+    ],
     providers: [
       { provide: IDENTITY, useValue: options.identity ?? denyIdentity },
       { provide: DATABASE, useValue: options.database ?? null },
       { provide: SESSIONS, useValue: options.sessions ?? null },
       { provide: EMAIL_AUTH, useValue: options.emailAuth ?? null },
+      { provide: GOOGLE_AUTH, useValue: options.googleAuth ?? null },
     ],
   })
   class AppModule {}

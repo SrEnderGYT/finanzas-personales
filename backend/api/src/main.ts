@@ -5,6 +5,8 @@ import { UserDatabase } from './database';
 import { SessionAuthority } from './sessions';
 import { EmailAuth } from './email-auth';
 import { EmailOutbox } from './email-outbox';
+import { GoogleAuth } from './google-auth';
+import { LiveGoogleProvider } from './google-provider';
 async function main() {
   const required = (name: string) => {
     const value = process.env[name];
@@ -36,11 +38,25 @@ async function main() {
       new EmailOutbox(Buffer.from(required('AUTH_MAIL_KEY'), 'base64')),
     );
     await emailAuth.assertRole();
+    const googleAuth = process.env['GOOGLE_CLIENT_ID']
+      ? new GoogleAuth(
+          authPool,
+          sessions,
+          new LiveGoogleProvider(
+            required('GOOGLE_CLIENT_ID'),
+            required('GOOGLE_CLIENT_SECRET'),
+            required('GOOGLE_REDIRECT_URI'),
+          ),
+          Buffer.from(required('GOOGLE_FLOW_KEY'), 'base64'),
+          new URL(required('GOOGLE_REDIRECT_URI')).origin,
+        )
+      : undefined;
     const app = await createApp({
       database,
       identity: sessions,
       sessions,
       emailAuth,
+      googleAuth,
       log: (event) => process.stdout.write(JSON.stringify(event) + '\n'),
     });
     for (const signal of ['SIGTERM', 'SIGINT'] as const) {

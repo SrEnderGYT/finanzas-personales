@@ -69,6 +69,7 @@ try {
       'tests/postgres.integration.test.ts',
       'tests/sessions.integration.test.ts',
       'tests/email-auth.integration.test.ts',
+      'tests/google-auth.integration.test.ts',
     ],
     {
       stdio: 'inherit',
