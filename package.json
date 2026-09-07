@@ -29,6 +29,7 @@
     "test": "vitest run --exclude \"**/*.integration.test.ts\"",
     "test:integration": "vitest run tests/api.integration.test.ts",
     "test:postgres": "node scripts/test-postgres.mjs",
+    "test:auth-system": "node scripts/test-postgres.mjs --browser",
     "db:migrate": "node scripts/migrate.mjs",
     "start:api": "node dist/api/main.js",
     "mail:deliver": "node dist/api/mail-worker.js",

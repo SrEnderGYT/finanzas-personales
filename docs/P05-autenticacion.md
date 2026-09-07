@@ -77,3 +77,11 @@ Para un staging futuro, servir frontend y `/v1` en el mismo origen HTTPS, cambia
 Las pruebas de navegador verifican preview desactivada, registro visual, responsive, contraste/accesibilidad automatizada, contrato login/sesiones, expiración y ausencia de token en storage. El contrato HTTP del navegador está simulado: no se presenta como E2E completo con PostgreSQL o Google. Las pruebas API con PostgreSQL sí prueban autoridad, aislamiento y concurrencia reales. El commit 349a344 pasó calidad, Android e iOS simulator en [CI](https://github.com/SrEnderGYT/finanzas-personales/actions/runs/34086264600).
 
 Siguiente trabajo dentro de P05: E2E completos, evaluación MFA y validación real del proveedor/retorno nativo. Credenciales Google y envío real se configurarán fuera de Git cuando exista el entorno. Su ausencia no detiene el desarrollo del código y pruebas sintéticas. No hay autenticación de producto publicada ni datos reales.
+
+## Pruebas de sistema con navegador y PostgreSQL
+
+`npm run test:auth-system` crea su propio PostgreSQL desechable con credenciales aleatorias, ejecuta las migraciones y arranca el backend compilado y el frontend Angular compilado en loopback. Requiere previamente `npm run build:web`, `npm run build:backend` y Chromium de Playwright. El job `Browser + PostgreSQL auth` prepara y ejecuta todo en cada PR. No usa DATABASE_URL existente, cuentas reales ni servicios externos.
+
+El navegador registra y verifica dos usuarios sintéticos; el transporte de correo se sustituye por un receptor en memoria mediante el método real de entrega de la outbox cifrada. Login, recuperación, hashing, sesiones, autorizaciones, RLS y respuestas HTTP son reales, sin interceptación Playwright. Recuperar A debe revocar sus dos sesiones y conservar B. El token de A no puede revocar la sesión de B. Otra prueba comprueba el fallo de logout offline, reintento online y pérdida local de sesión al recargar. La PWA permanece activada y su manifest corresponde al index de staging aislado. No se guardan trazas con tokens.
+
+Este bloque sólo puede declararse validado tras aprobar el job en CI. No cubre todavía Google real, transporte real de correo, retorno nativo ni MFA. Los resultados y el commit se registran en el PR.
