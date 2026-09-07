@@ -85,3 +85,13 @@ Siguiente trabajo dentro de P05: evaluación MFA y validación real del proveedo
 El navegador registra y verifica dos usuarios sintéticos; el transporte de correo se sustituye por un receptor en memoria mediante el método real de entrega de la outbox cifrada. Login, recuperación, hashing, sesiones, autorizaciones, RLS y respuestas HTTP son reales, sin interceptación Playwright. Recuperar A debe revocar sus dos sesiones y conservar B. El token de A no puede revocar la sesión de B. Otra prueba comprueba el fallo de logout offline, reintento online y pérdida local de sesión al recargar. La PWA permanece activada y su manifest corresponde al index de staging aislado. No se guardan trazas con tokens.
 
 Este bloque sólo puede declararse validado tras aprobar el job en CI. No cubre todavía Google real, transporte real de correo, retorno nativo ni MFA. Los resultados y el commit se registran en el PR.
+
+## Base TOTP para MFA — todavía no habilitada
+
+`totp.ts` implementa la generación y comprobación de códigos de autenticador según [RFC 6238](https://datatracker.ietf.org/doc/html/rfc6238): HMAC-SHA1, secreto aleatorio de 160 bits, seis dígitos y periodos de treinta segundos. La comprobación acepta el periodo actual y uno adyacente por lado, compara con timingSafeEqual y devuelve el periodo aceptado. Rechaza periodos ya consumidos según el estado proporcionado. Cuatro pruebas verifican los seis vectores SHA1 publicados, fechas posteriores a 2038, límites de reloj, formatos, reutilización secuencial y parámetros de configuración.
+
+No se expone todavía un endpoint ni una opción visual de MFA. Esta función no impide por sí sola la reutilización concurrente: el servicio deberá bloquear la fila y guardar el periodo aceptado atómicamente antes de emitir una sesión. El reloj y el último periodo usado procederán del servidor, nunca del navegador.
+
+La integración pendiente debe cifrar los secretos por usuario, limitar intentos de forma persistente, confirmar posesión antes de activar el factor, exigir el segundo factor tanto tras contraseña como tras Google y no desactivarlo al recuperar la contraseña. También deberá implementar códigos de recuperación de un solo uso y exigir reautenticación para cambios del factor. Los criterios siguen la [guía MFA de OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Multifactor_Authentication_Cheat_Sheet.html). La protección frente a phishing mediante passkeys requiere evaluación adicional; no se atribuye esa propiedad a TOTP.
+
+Criterio de cierre MFA: pruebas concurrentes en PostgreSQL, aislamiento A/B, rechazo de desafíos caducados, recuperación sin bypass y flujo completo desde navegador. La base criptográfica probada no cumple por sí sola ese criterio ni cierra P05.
