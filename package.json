@@ -31,6 +31,7 @@
     "test:postgres": "node scripts/test-postgres.mjs",
     "db:migrate": "node scripts/migrate.mjs",
     "start:api": "node dist/api/main.js",
+    "mail:deliver": "node dist/api/mail-worker.js",
     "test:e2e": "playwright test",
     "cap:sync": "npm run build:mobile && npm exec -w @finanzas/mobile -- cap sync && node scripts/normalize-native.mjs",
     "security": "npm audit --audit-level=high"

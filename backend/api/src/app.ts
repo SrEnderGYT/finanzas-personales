@@ -18,6 +18,8 @@ import { type UserDatabase } from './database';
 import { DATABASE, IDENTITY, UserController } from './users';
 import { SessionController, SESSIONS } from './session-controller';
 import { type SessionAuthority } from './sessions';
+import { EmailController, EMAIL_AUTH } from './email-controller';
+import { type EmailAuth } from './email-auth';
 @Controller()
 class HealthController {
   @Get('health') health() {
@@ -50,15 +52,17 @@ export interface AppOptions {
   identity?: IdentityVerifier;
   database?: UserDatabase;
   sessions?: SessionAuthority;
+  emailAuth?: EmailAuth;
   log?: (event: { requestId: string; method: string; status: number }) => void;
 }
 export async function createApp(options: AppOptions = {}) {
   @Module({
-    controllers: [HealthController, UserController, SessionController],
+    controllers: [HealthController, UserController, SessionController, EmailController],
     providers: [
       { provide: IDENTITY, useValue: options.identity ?? denyIdentity },
       { provide: DATABASE, useValue: options.database ?? null },
       { provide: SESSIONS, useValue: options.sessions ?? null },
+      { provide: EMAIL_AUTH, useValue: options.emailAuth ?? null },
     ],
   })
   class AppModule {}

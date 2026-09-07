@@ -2,9 +2,33 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { HttpException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { type IdentityVerifier, UUID } from './auth';
 import { UserDatabase } from './database';
+import { type PoolClient } from 'pg';
 
 export function tokenHash(token: string): string {
   return createHash('sha256').update(token).digest('hex');
+}
+/** Internal only: caller must authenticate and establish transaction-local user context. */
+export async function createSession(client: PoolClient, userId: string) {
+  await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [userId]);
+  const count = await client.query<{ count: string }>(
+    `SELECT count(*) FROM app.sessions WHERE user_id=$1
+    AND revoked_at IS NULL AND expires_at>now() AND last_seen_at>now()-interval '30 minutes'`,
+    [userId],
+  );
+  if (Number(count.rows[0]?.count) >= 10) throw new HttpException('Session limit reached', 429);
+  const token = 'fp_' + randomBytes(32).toString('base64url');
+  const sessionId = randomUUID();
+  const result = await client.query<{ expires_at: Date }>(
+    `INSERT INTO app.sessions(user_id,id,token_hash)
+    VALUES($1,$2,$3) RETURNING expires_at`,
+    [userId, sessionId, tokenHash(token)],
+  );
+  return {
+    token,
+    sessionId,
+    expiresAt: result.rows[0]!.expires_at.toISOString(),
+    tokenType: 'Bearer' as const,
+  };
 }
 export class SessionAuthority implements IdentityVerifier {
   constructor(
@@ -15,32 +39,17 @@ export class SessionAuthority implements IdentityVerifier {
   async issue(authorization: string | undefined) {
     const userId = await this.loginProof.verify(authorization);
     if (!authorization) throw new UnauthorizedException();
-    const token = 'fp_' + randomBytes(32).toString('base64url');
-    const sessionId = randomUUID();
-    const expiresAt = await this.database.asUser(userId, async (client) => {
+    return this.database.asUser(userId, async (client) => {
       if (!(await client.query('SELECT id FROM app.users WHERE id=$1', [userId])).rowCount)
         throw new UnauthorizedException();
-      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [userId]);
-      const count = await client.query<{ count: string }>(
-        `SELECT count(*) FROM app.sessions
-        WHERE user_id=$1 AND revoked_at IS NULL AND expires_at>now() AND last_seen_at>now()-interval '30 minutes'`,
-        [userId],
-      );
-      if (Number(count.rows[0]?.count) >= 10) throw new HttpException('Session limit reached', 429);
       const receipt = await client.query(
         `INSERT INTO app.login_receipts(proof_hash,user_id)
         VALUES ($1,$2) ON CONFLICT DO NOTHING`,
         [tokenHash(authorization), userId],
       );
       if (receipt.rowCount !== 1) throw new UnauthorizedException();
-      const result = await client.query<{ expires_at: Date }>(
-        `INSERT INTO app.sessions(user_id,id,token_hash)
-        VALUES ($1,$2,$3) RETURNING expires_at`,
-        [userId, sessionId, tokenHash(token)],
-      );
-      return result.rows[0]!.expires_at;
+      return createSession(client, userId);
     });
-    return { token, sessionId, expiresAt: expiresAt.toISOString(), tokenType: 'Bearer' as const };
   }
   async resolve(authorization: string | undefined) {
     if (!authorization || !/^Bearer fp_[A-Za-z0-9_-]{43}$/.test(authorization))
