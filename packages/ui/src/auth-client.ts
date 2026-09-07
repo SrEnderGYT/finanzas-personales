@@ -9,6 +9,13 @@ export interface AuthSession {
 /** Tokens live only in this instance, never in browser storage or URLs. */
 export class AuthClient {
   private token: string | undefined;
+  private challenge: string | undefined;
+  get mfaPending() {
+    return this.challenge !== undefined;
+  }
+  cancelMfa() {
+    this.challenge = undefined;
+  }
   constructor(
     readonly enabled: boolean,
     private readonly transport: typeof fetch = (...args) => fetch(...args),
@@ -61,6 +68,19 @@ export class AuthClient {
   }
   private acceptSession(value: unknown) {
     if (
+      value &&
+      typeof value === 'object' &&
+      'mfaRequired' in value &&
+      value.mfaRequired === true &&
+      'challenge' in value &&
+      typeof value.challenge === 'string' &&
+      /^fpm_[A-Za-z0-9_-]{43}$/.test(value.challenge)
+    ) {
+      this.token = undefined;
+      this.challenge = value.challenge;
+      return;
+    }
+    if (
       !value ||
       typeof value !== 'object' ||
       !('token' in value) ||
@@ -69,6 +89,14 @@ export class AuthClient {
     )
       throw new Error('El servicio devolvió una respuesta de acceso no válida.');
     this.token = value.token;
+    this.challenge = undefined;
+  }
+  async completeMfa(code: string) {
+    if (!this.challenge || !/^\d{6}$/.test(code))
+      throw new Error('Introduce los seis dígitos del autenticador.');
+    this.acceptSession(
+      await this.request('mfa/complete', 'POST', { challenge: this.challenge, code }),
+    );
   }
   async login(email: string, password: string) {
     this.acceptSession(await this.request('login', 'POST', { email, password }));

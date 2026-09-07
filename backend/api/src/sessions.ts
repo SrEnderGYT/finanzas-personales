@@ -8,7 +8,16 @@ export function tokenHash(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 /** Internal only: caller must authenticate and establish transaction-local user context. */
-export async function createSession(client: PoolClient, userId: string) {
+export async function createSession(client: PoolClient, userId: string, mfaVerified = false) {
+  await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,5))', [
+    userId.toLowerCase(),
+  ]);
+  const factor = (
+    await client.query<{ active: boolean }>('SELECT active FROM app.mfa_factors WHERE user_id=$1', [
+      userId,
+    ])
+  ).rows[0];
+  if (factor?.active && !mfaVerified) throw new UnauthorizedException();
   await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [userId]);
   const count = await client.query<{ count: string }>(
     `SELECT count(*) FROM app.sessions WHERE user_id=$1

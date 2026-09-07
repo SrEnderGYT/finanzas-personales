@@ -15,6 +15,32 @@ test.beforeEach(async () => {
   await system.admin.query('DELETE FROM app.auth_rate_limits');
 });
 
+test('browser requires an authenticator code before a real session is created', async ({
+  page,
+}) => {
+  const email = `${randomUUID()}@example.test`;
+  await register(page, email);
+  const code = await system.seedFactor(email);
+  await page.getByLabel('Correo electrónico').fill(email);
+  await page.getByLabel('Contraseña', { exact: true }).fill(password);
+  await page.getByRole('button', { name: 'Entrar', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Verifica que eres tú' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Tu sesión', exact: true })).toHaveCount(0);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.screenshot({ path: 'docs/evidence/P05/mfa-desktop.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const theme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme: theme });
+    await page.screenshot({ path: `docs/evidence/P05/mfa-mobile-${theme}.png`, fullPage: true });
+  }
+  await page.getByLabel('Código del autenticador').fill(code());
+  await page.getByRole('button', { name: 'Verificar y entrar' }).click();
+  await expect(page.getByRole('heading', { name: 'Tu sesión', exact: true })).toBeVisible();
+  expect(
+    await page.evaluate(() => JSON.stringify(localStorage) + JSON.stringify(sessionStorage)),
+  ).not.toContain('fpm_');
+});
+
 async function register(page: Page, email: string) {
   await page.goto(`${system.url}/#/acceso`);
   await page.getByRole('button', { name: 'Crear una cuenta' }).click();

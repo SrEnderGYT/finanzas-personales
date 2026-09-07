@@ -7,7 +7,8 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Pool, type PoolClient } from 'pg';
-import { createSession, SessionAuthority, tokenHash } from './sessions';
+import { SessionAuthority, tokenHash } from './sessions';
+import { primaryLogin } from './mfa-login';
 import { type GoogleProvider } from './google-provider';
 import { authFields } from './email-auth';
 interface Flow {
@@ -146,6 +147,7 @@ export class GoogleAuth {
       if (flow.link) {
         userId = flow.link.user_id;
         await client.query("SELECT set_config('app.user_id',$1,true)", [userId]);
+        await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,5))', [userId]);
         const valid = await client.query(
           `SELECT id FROM app.sessions WHERE user_id=$1 AND id=$2 AND revoked_at IS NULL
           AND expires_at>now() AND last_seen_at>now()-interval '30 minutes' FOR UPDATE`,
@@ -181,7 +183,7 @@ export class GoogleAuth {
         ]);
       }
       await client.query("SELECT set_config('app.user_id',$1,true)", [userId]);
-      return createSession(client, userId);
+      return primaryLogin(client, userId);
     });
   }
   private async transaction<T>(operation: (client: PoolClient) => Promise<T>) {

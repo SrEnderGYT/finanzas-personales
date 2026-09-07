@@ -5,6 +5,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { Pool } from 'pg';
 import type { AuthMail } from '../../backend/api/src/email-outbox';
+import { totpAt } from '../../backend/api/src/totp';
 
 // Load the same compiled Nest application shipped by build:backend.
 const load = createRequire(resolve('package.json'));
@@ -22,6 +23,15 @@ const { EmailAuth } = load(
 const { EmailOutbox } = load(
   './dist/api/email-outbox.js',
 ) as typeof import('../../backend/api/src/email-outbox');
+const { MfaStore } = load(
+  './dist/api/mfa-store.js',
+) as typeof import('../../backend/api/src/mfa-store');
+const { MfaSecrets } = load(
+  './dist/api/mfa-secrets.js',
+) as typeof import('../../backend/api/src/mfa-secrets');
+const { MfaLogin } = load(
+  './dist/api/mfa-login.js',
+) as typeof import('../../backend/api/src/mfa-login');
 
 export async function authSystem() {
   for (const key of ['P04_TEST_DATABASE_URL', 'P05_TEST_AUTH_URL', 'P04_TEST_ADMIN_URL']) {
@@ -40,6 +50,7 @@ export async function authSystem() {
   const emailAuth = new EmailAuth(authPool, outbox);
   const database = new UserDatabase(runtime);
   const sessions = new SessionAuthority(database, denyIdentity);
+  const factors = new MfaStore(authPool, new MfaSecrets(randomBytes(32)));
   const logs: unknown[] = [];
   await database.assertRuntimeRole();
   await emailAuth.assertRole();
@@ -48,6 +59,7 @@ export async function authSystem() {
     sessions,
     identity: sessions,
     emailAuth,
+    mfaLogin: new MfaLogin(authPool, factors),
     log: (event) => logs.push(event),
   });
   await app.listen(0, '127.0.0.1');
@@ -122,6 +134,22 @@ export async function authSystem() {
     url: `http://127.0.0.1:${address.port}`,
     logs,
     admin,
+    async seedFactor(email: string) {
+      const id = (
+        await admin.query<{ user_id: string }>(
+          'SELECT user_id FROM app.credentials WHERE email=$1',
+          [email],
+        )
+      ).rows[0]!.user_id;
+      const enrollment = await factors.beginEnrollment(id);
+      const time = Number(
+        (await admin.query('SELECT floor(extract(epoch FROM clock_timestamp())) AS seconds'))
+          .rows[0].seconds,
+      );
+      if (!(await factors.confirmEnrollment(id, totpAt(enrollment.secret, time - 30))))
+        throw new Error('Synthetic factor setup failed');
+      return () => totpAt(enrollment.secret, Math.floor(Date.now() / 1000));
+    },
     async mail(recipient: string, kind: 'verify' | 'reset') {
       const messages: AuthMail[] = [];
       // The actual encrypted outbox is decrypted by its real delivery method;

@@ -11,7 +11,7 @@ export const AUTH_CLIENT = new InjectionToken<AuthClient>('AUTH_CLIENT', {
         'same-origin',
     ),
 });
-type Mode = 'login' | 'register' | 'forgot-password' | 'verify-email' | 'reset-password';
+type Mode = 'mfa' | 'login' | 'register' | 'forgot-password' | 'verify-email' | 'reset-password';
 
 // Capture once before Angular's hash router replaces the initial URL.
 function captureCallback() {
@@ -106,14 +106,16 @@ let pendingCallback = captureCallback();
                 placeholder="tu@correo.com"
               />
             } @else {
-              <label for="auth-code">Código del correo</label>
+              <label for="auth-code">{{
+                mode() === 'mfa' ? 'Código del autenticador' : 'Código del correo'
+              }}</label>
               <input
                 id="auth-code"
                 name="code"
                 type="password"
                 autocomplete="one-time-code"
                 required
-                pattern="[A-Za-z0-9_-]{43}"
+                [pattern]="mode() === 'mfa' ? '[0-9]{6}' : '[A-Za-z0-9_-]{43}'"
                 [(ngModel)]="code"
                 [disabled]="busy() || !client.enabled"
                 aria-describedby="code-help"
@@ -196,7 +198,7 @@ export class AuthScreen {
   readonly client = inject(AUTH_CLIENT);
   readonly signedIn = signal(this.client.signedIn);
   readonly sessions = signal<AuthSession[]>([]);
-  readonly mode = signal<Mode>('login');
+  readonly mode = signal<Mode>(this.client.mfaPending ? 'mfa' : 'login');
   readonly busy = signal(false);
   readonly failed = signal(false);
   readonly message = signal('');
@@ -204,6 +206,7 @@ export class AuthScreen {
   password = '';
   code = '';
   readonly titles = {
+    mfa: 'Verifica que eres tú',
     login: 'Bienvenido de nuevo',
     register: 'Crea tu cuenta',
     'forgot-password': 'Recupera tu acceso',
@@ -211,6 +214,7 @@ export class AuthScreen {
     'reset-password': 'Elige una nueva contraseña',
   };
   readonly descriptions = {
+    mfa: 'Completa el segundo paso para acceder a tu cuenta.',
     login: 'Entra para gestionar tu acceso.',
     register: 'Primero verificaremos que el correo te pertenece.',
     'forgot-password': 'Te enviaremos un código si existe una cuenta verificada.',
@@ -218,6 +222,7 @@ export class AuthScreen {
     'reset-password': 'Las sesiones anteriores se cerrarán al cambiarla.',
   };
   readonly actions = {
+    mfa: 'Verificar y entrar',
     login: 'Entrar',
     register: 'Enviar código de verificación',
     'forgot-password': 'Enviar código de recuperación',
@@ -232,13 +237,13 @@ export class AuthScreen {
       if (state && code && !error) {
         void this.run(async () => {
           await this.client.completeGoogle(state, code);
-          this.sessions.set(await this.client.sessions());
-          this.message.set('Acceso con Google completado.');
+          await this.afterPrimary();
         });
       } else this.message.set('El acceso con Google no se completó. Puedes volver a intentarlo.');
     }
   }
   change(mode: Mode) {
+    this.client.cancelMfa();
     this.mode.set(mode);
     this.password = '';
     this.code = '';
@@ -270,8 +275,10 @@ export class AuthScreen {
       const mode = this.mode();
       if (mode === 'login') {
         await this.client.login(this.email, this.password);
-        this.sessions.set(await this.client.sessions());
-        this.message.set('Sesión iniciada.');
+        await this.afterPrimary();
+      } else if (mode === 'mfa') {
+        await this.client.completeMfa(this.code);
+        await this.afterPrimary();
       } else if (mode === 'register' || mode === 'forgot-password') {
         await this.client.requestEmail(mode, this.email);
         this.mode.set(mode === 'register' ? 'verify-email' : 'reset-password');
@@ -287,6 +294,16 @@ export class AuthScreen {
         this.message.set('Contraseña guardada. Ya puedes entrar.');
       }
     });
+  }
+  private async afterPrimary() {
+    if (this.client.mfaPending) {
+      this.mode.set('mfa');
+      this.message.set('La sesión se abrirá al verificar tu código.');
+    } else {
+      this.mode.set('login');
+      this.sessions.set(await this.client.sessions());
+      this.message.set('Sesión iniciada.');
+    }
   }
   refresh() {
     return this.run(async () => {

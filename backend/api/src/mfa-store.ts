@@ -55,10 +55,27 @@ export class MfaStore {
     });
   }
   async confirmEnrollment(userId: string, code: unknown) {
-    return this.transaction(userId, (client) => this.consume(client, userId, code, false));
+    return this.transaction(userId, async (client) => {
+      const valid = await this.consume(client, userId, code, false);
+      if (valid) {
+        await client.query(
+          'UPDATE app.sessions SET revoked_at=coalesce(revoked_at,clock_timestamp()) WHERE user_id=$1',
+          [userId],
+        );
+        await client.query(
+          'UPDATE app.mfa_challenges SET consumed_at=clock_timestamp() WHERE user_id=$1 AND consumed_at IS NULL',
+          [userId],
+        );
+      }
+      return valid;
+    });
   }
   async consumeActive(userId: string, code: unknown) {
     return this.transaction(userId, (client) => this.consume(client, userId, code, true));
+  }
+  /** Caller owns a transaction, derived user context and the per-user advisory lock. */
+  consumeInTransaction(client: PoolClient, userId: string, code: unknown) {
+    return this.consume(client, userId, code, true);
   }
   private async consume(client: PoolClient, userId: string, code: unknown, active: boolean) {
     const row = (

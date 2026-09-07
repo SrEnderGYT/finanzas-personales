@@ -7,6 +7,9 @@ import { EmailAuth } from './email-auth';
 import { EmailOutbox } from './email-outbox';
 import { GoogleAuth } from './google-auth';
 import { LiveGoogleProvider } from './google-provider';
+import { MfaLogin } from './mfa-login';
+import { MfaStore } from './mfa-store';
+import { MfaSecrets } from './mfa-secrets';
 async function main() {
   const required = (name: string) => {
     const value = process.env[name];
@@ -57,6 +60,15 @@ async function main() {
       sessions,
       emailAuth,
       googleAuth,
+      mfaLogin: process.env['MFA_ENCRYPTION_KEY']
+        ? new MfaLogin(
+            authPool,
+            new MfaStore(
+              authPool,
+              new MfaSecrets(Buffer.from(required('MFA_ENCRYPTION_KEY'), 'base64')),
+            ),
+          )
+        : undefined,
       log: (event) => process.stdout.write(JSON.stringify(event) + '\n'),
     });
     for (const signal of ['SIGTERM', 'SIGINT'] as const) {

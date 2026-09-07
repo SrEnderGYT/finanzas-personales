@@ -22,6 +22,8 @@ import { EmailController, EMAIL_AUTH } from './email-controller';
 import { type EmailAuth } from './email-auth';
 import { GoogleController, GOOGLE_AUTH } from './google-controller';
 import { type GoogleAuth } from './google-auth';
+import { MfaController, MFA_LOGIN } from './mfa-controller';
+import { type MfaLogin } from './mfa-login';
 @Controller()
 class HealthController {
   @Get('health') health() {
@@ -56,6 +58,7 @@ export interface AppOptions {
   sessions?: SessionAuthority;
   emailAuth?: EmailAuth;
   googleAuth?: GoogleAuth;
+  mfaLogin?: MfaLogin;
   log?: (event: { requestId: string; method: string; status: number }) => void;
 }
 export async function createApp(options: AppOptions = {}) {
@@ -66,6 +69,7 @@ export async function createApp(options: AppOptions = {}) {
       SessionController,
       EmailController,
       GoogleController,
+      MfaController,
     ],
     providers: [
       { provide: IDENTITY, useValue: options.identity ?? denyIdentity },
@@ -73,6 +77,7 @@ export async function createApp(options: AppOptions = {}) {
       { provide: SESSIONS, useValue: options.sessions ?? null },
       { provide: EMAIL_AUTH, useValue: options.emailAuth ?? null },
       { provide: GOOGLE_AUTH, useValue: options.googleAuth ?? null },
+      { provide: MFA_LOGIN, useValue: options.mfaLogin ?? null },
     ],
   })
   class AppModule {}

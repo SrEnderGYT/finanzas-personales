@@ -2,7 +2,8 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { BadRequestException, HttpException, UnauthorizedException } from '@nestjs/common';
 import { Pool, type PoolClient } from 'pg';
 import { hashPassword, verifyPassword } from './passwords';
-import { createSession, tokenHash } from './sessions';
+import { tokenHash } from './sessions';
+import { primaryLogin } from './mfa-login';
 import { EmailOutbox } from './email-outbox';
 
 interface Credential {
@@ -151,6 +152,11 @@ export class EmailAuth {
         [found.user_id],
       );
       await client.query("SELECT set_config('app.user_id',$1,true)", [found.user_id]);
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,5))', [found.user_id]);
+      await client.query(
+        'UPDATE app.mfa_challenges SET consumed_at=clock_timestamp() WHERE user_id=$1 AND consumed_at IS NULL',
+        [found.user_id],
+      );
       await client.query(
         'UPDATE app.sessions SET revoked_at=coalesce(revoked_at,now()) WHERE user_id=$1',
         [found.user_id],
@@ -178,7 +184,7 @@ export class EmailAuth {
         throw new UnauthorizedException();
       // Issuance and credential lock share one transaction: a reset cannot miss this session.
       await client.query("SELECT set_config('app.user_id',$1,true)", [current.user_id]);
-      return createSession(client, current.user_id);
+      return primaryLogin(client, current.user_id);
     });
   }
 }

@@ -3,6 +3,25 @@ import { AuthClient } from '../packages/ui/src/auth-client';
 
 const token = `fp_${'a'.repeat(43)}`;
 describe('browser auth transport', () => {
+  it('keeps an MFA challenge separate from a session and exchanges it only with a code', async () => {
+    const challenge = `fpm_${'b'.repeat(43)}`;
+    const transport = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ mfaRequired: true, challenge }));
+    const client = new AuthClient(true, transport);
+    await client.login('synthetic@example.test', 'synthetic');
+    expect(client.signedIn).toBe(false);
+    expect(client.mfaPending).toBe(true);
+    transport.mockResolvedValueOnce(Response.json({ token }));
+    await client.completeMfa('123456');
+    expect(client.signedIn).toBe(true);
+    expect(client.mfaPending).toBe(false);
+    expect(transport.mock.calls[1]?.[1]?.headers).toEqual({ 'Content-Type': 'application/json' });
+    expect(JSON.parse(transport.mock.calls[1]?.[1]?.body as string)).toEqual({
+      challenge,
+      code: '123456',
+    });
+  });
   it('public preview never sends credentials and sessions are instance-only', async () => {
     const transport = vi.fn<typeof fetch>();
     await expect(
