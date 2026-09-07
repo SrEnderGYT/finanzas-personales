@@ -1,0 +1,314 @@
+import { Component, InjectionToken, inject, signal } from '@angular/core';
+import { DatePipe } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import { AuthClient, AuthSession } from './auth-client';
+
+export const AUTH_CLIENT = new InjectionToken<AuthClient>('AUTH_CLIENT', {
+  factory: () =>
+    new AuthClient(
+      document.querySelector('meta[name="finanzas-auth"]')?.getAttribute('content') ===
+        'same-origin',
+    ),
+});
+type Mode = 'login' | 'register' | 'forgot-password' | 'verify-email' | 'reset-password';
+
+// Capture once before Angular's hash router replaces the initial URL.
+function captureCallback() {
+  const query = new URLSearchParams(location.search);
+  if (!query.has('state') && !query.has('code') && !query.has('error')) return null;
+  const callback = {
+    state: query.get('state'),
+    code: query.get('code'),
+    error: query.has('error'),
+  };
+  history.replaceState(null, '', `${location.pathname}#/acceso`);
+  return callback;
+}
+let pendingCallback = captureCallback();
+
+@Component({
+  selector: 'fp-auth-screen',
+  imports: [FormsModule, RouterLink, DatePipe],
+  template: `
+    <section class="auth-layout" aria-labelledby="auth-title">
+      <div class="auth-story">
+        <span class="auth-eyebrow">TU ESPACIO PERSONAL</span>
+        <h1 id="auth-title">Un lugar para<br />tenerlo claro.</h1>
+        <p>Accede a tu cuenta y controla las sesiones abiertas en tus dispositivos.</p>
+        <div class="auth-detail">
+          <span aria-hidden="true">◇</span>
+          <div>
+            <strong>Tu acceso, bajo control</strong>
+            <p>Puedes cerrar una sesión o revocarlas todas.</p>
+          </div>
+        </div>
+        <div class="auth-detail">
+          <span aria-hidden="true">✉</span>
+          <div>
+            <strong>Google sin acceso a tus correos</strong>
+            <p>Conectar Gmail requerirá un permiso diferente, en una fase posterior.</p>
+          </div>
+        </div>
+        <a routerLink="/inicio" class="auth-back">← Volver a la vista de muestra</a>
+      </div>
+      <div class="auth-panel">
+        @if (!client.enabled) {
+          <p class="auth-notice" role="note">
+            <strong>Vista previa</strong><br />El acceso real aún no está conectado aquí. Explora
+            los formularios sin introducir datos personales.
+          </p>
+        }
+        @if (signedIn()) {
+          <h2>Tu sesión</h2>
+          <p>
+            El acceso dura mientras mantengas esta página abierta. Al recargar tendrás que volver a
+            entrar.
+          </p>
+          <button type="button" class="auth-primary" [disabled]="busy()" (click)="refresh()">
+            Actualizar sesiones
+          </button>
+          <ul class="auth-sessions">
+            @for (session of sessions(); track session.id) {
+              <li>
+                <strong>{{ session.current ? 'Esta sesión' : 'Otra sesión' }}</strong>
+                <small>Última actividad: {{ session.lastSeenAt | date: 'dd/MM HH:mm' }}</small>
+                <button type="button" [disabled]="busy()" (click)="revoke(session)">
+                  Cerrar {{ session.current ? 'esta sesión' : 'sesión' }}
+                </button>
+              </li>
+            }
+          </ul>
+          <button type="button" class="auth-secondary" [disabled]="busy()" (click)="google('link')">
+            Vincular Google
+          </button>
+          <button type="button" class="auth-secondary" [disabled]="busy()" (click)="logout(false)">
+            Cerrar sesión
+          </button>
+          <button type="button" class="auth-secondary" [disabled]="busy()" (click)="logout(true)">
+            Cerrar todas las sesiones
+          </button>
+        } @else {
+          <h2>{{ titles[mode()] }}</h2>
+          <p>{{ descriptions[mode()] }}</p>
+          <form (ngSubmit)="submit()" #form="ngForm">
+            @if (mode() === 'login' || mode() === 'register' || mode() === 'forgot-password') {
+              <label for="auth-email">Correo electrónico</label>
+              <input
+                id="auth-email"
+                name="email"
+                type="email"
+                autocomplete="email"
+                required
+                maxlength="254"
+                [(ngModel)]="email"
+                [disabled]="busy() || !client.enabled"
+                placeholder="tu@correo.com"
+              />
+            } @else {
+              <label for="auth-code">Código del correo</label>
+              <input
+                id="auth-code"
+                name="code"
+                type="password"
+                autocomplete="one-time-code"
+                required
+                pattern="[A-Za-z0-9_-]{43}"
+                [(ngModel)]="code"
+                [disabled]="busy() || !client.enabled"
+                aria-describedby="code-help"
+              />
+              <small id="code-help"
+                >Pega el código que recibiste. Caduca a los 15 minutos y solo puede usarse una
+                vez.</small
+              >
+            }
+            @if (mode() === 'login' || mode() === 'verify-email' || mode() === 'reset-password') {
+              <label for="auth-password">{{
+                mode() === 'login' ? 'Contraseña' : 'Nueva contraseña'
+              }}</label>
+              <input
+                id="auth-password"
+                name="password"
+                type="password"
+                [autocomplete]="mode() === 'login' ? 'current-password' : 'new-password'"
+                required
+                [(ngModel)]="password"
+                [disabled]="busy() || !client.enabled"
+                aria-describedby="password-help"
+              />
+              <small id="password-help">{{
+                mode() === 'login'
+                  ? 'Usa la contraseña de tu cuenta de Finanzas.'
+                  : 'Entre 15 y 128 caracteres. Puedes usar una frase larga.'
+              }}</small>
+            }
+            <button
+              class="auth-primary"
+              type="submit"
+              [disabled]="busy() || !client.enabled || form.invalid"
+            >
+              {{ busy() ? 'Un momento…' : actions[mode()] }}
+            </button>
+          </form>
+          @if (mode() === 'login') {
+            <button
+              type="button"
+              class="auth-secondary"
+              [disabled]="busy() || !client.enabled"
+              (click)="google('login')"
+            >
+              Continuar con Google
+            </button>
+            <div class="auth-links">
+              <button type="button" [disabled]="busy()" (click)="change('forgot-password')">
+                Olvidé mi contraseña</button
+              ><button type="button" [disabled]="busy()" (click)="change('register')">
+                Crear una cuenta
+              </button>
+            </div>
+          } @else {
+            <div class="auth-links">
+              <button type="button" [disabled]="busy()" (click)="change('login')">
+                Ya tengo cuenta · Entrar
+              </button>
+            </div>
+          }
+          @if (mode() === 'register' || mode() === 'forgot-password') {
+            <button
+              type="button"
+              class="auth-secondary"
+              [disabled]="busy()"
+              (click)="change(mode() === 'register' ? 'verify-email' : 'reset-password')"
+            >
+              Ya tengo el código
+            </button>
+          }
+        }
+        <p class="auth-message" [class.auth-error]="failed()" role="status" aria-live="polite">
+          {{ message() }}
+        </p>
+      </div>
+    </section>
+  `,
+})
+export class AuthScreen {
+  readonly client = inject(AUTH_CLIENT);
+  readonly signedIn = signal(this.client.signedIn);
+  readonly sessions = signal<AuthSession[]>([]);
+  readonly mode = signal<Mode>('login');
+  readonly busy = signal(false);
+  readonly failed = signal(false);
+  readonly message = signal('');
+  email = '';
+  password = '';
+  code = '';
+  readonly titles = {
+    login: 'Bienvenido de nuevo',
+    register: 'Crea tu cuenta',
+    'forgot-password': 'Recupera tu acceso',
+    'verify-email': 'Confirma tu correo',
+    'reset-password': 'Elige una nueva contraseña',
+  };
+  readonly descriptions = {
+    login: 'Entra para gestionar tu acceso.',
+    register: 'Primero verificaremos que el correo te pertenece.',
+    'forgot-password': 'Te enviaremos un código si existe una cuenta verificada.',
+    'verify-email': 'Completa la verificación y crea tu contraseña.',
+    'reset-password': 'Las sesiones anteriores se cerrarán al cambiarla.',
+  };
+  readonly actions = {
+    login: 'Entrar',
+    register: 'Enviar código de verificación',
+    'forgot-password': 'Enviar código de recuperación',
+    'verify-email': 'Verificar y crear contraseña',
+    'reset-password': 'Cambiar contraseña',
+  };
+  constructor() {
+    const callback = pendingCallback;
+    pendingCallback = null;
+    if (callback) {
+      const { state, code, error } = callback;
+      if (state && code && !error) {
+        void this.run(async () => {
+          await this.client.completeGoogle(state, code);
+          this.sessions.set(await this.client.sessions());
+          this.message.set('Acceso con Google completado.');
+        });
+      } else this.message.set('El acceso con Google no se completó. Puedes volver a intentarlo.');
+    }
+  }
+  change(mode: Mode) {
+    this.mode.set(mode);
+    this.password = '';
+    this.code = '';
+    this.message.set('');
+    this.failed.set(false);
+  }
+  private async run(action: () => Promise<void>) {
+    if (this.busy()) return;
+    this.busy.set(true);
+    this.failed.set(false);
+    this.message.set('');
+    try {
+      await action();
+    } catch (error) {
+      this.failed.set(true);
+      this.message.set(
+        error instanceof Error ? error.message : 'No se pudo completar la solicitud.',
+      );
+    } finally {
+      this.signedIn.set(this.client.signedIn);
+      if (!this.client.signedIn) this.sessions.set([]);
+      this.password = '';
+      this.code = '';
+      this.busy.set(false);
+    }
+  }
+  submit() {
+    return this.run(async () => {
+      const mode = this.mode();
+      if (mode === 'login') {
+        await this.client.login(this.email, this.password);
+        this.sessions.set(await this.client.sessions());
+        this.message.set('Sesión iniciada.');
+      } else if (mode === 'register' || mode === 'forgot-password') {
+        await this.client.requestEmail(mode, this.email);
+        this.mode.set(mode === 'register' ? 'verify-email' : 'reset-password');
+        this.message.set(
+          'Si corresponde, recibirás un código en tu correo. Revisa también la carpeta de spam.',
+        );
+      } else {
+        const length = [...this.password].length;
+        if (length < 15 || length > 128 || new TextEncoder().encode(this.password).length > 512)
+          throw new Error('La contraseña debe tener entre 15 y 128 caracteres.');
+        await this.client.completeEmail(mode, this.code, this.password);
+        this.mode.set('login');
+        this.message.set('Contraseña guardada. Ya puedes entrar.');
+      }
+    });
+  }
+  refresh() {
+    return this.run(async () => {
+      this.sessions.set(await this.client.sessions());
+    });
+  }
+  revoke(session: AuthSession) {
+    return this.run(async () => {
+      await this.client.revoke(session);
+      if (this.client.signedIn) this.sessions.set(await this.client.sessions());
+      this.message.set('Sesión cerrada.');
+    });
+  }
+  logout(all: boolean) {
+    return this.run(async () => {
+      await this.client.logout(all);
+      this.message.set(all ? 'Todas las sesiones se han cerrado.' : 'Sesión cerrada.');
+    });
+  }
+  google(mode: 'login' | 'link') {
+    return this.run(async () => {
+      location.assign(await this.client.google(mode));
+    });
+  }
+}

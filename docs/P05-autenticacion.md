@@ -1,6 +1,6 @@
 # P05 — autenticación y sesiones (en desarrollo)
 
-P05 todavía no está terminado. Implementa sesiones revocables, registro/login por correo, verificación/recuperación y flujo Google OIDC en la API. Quedan integración web/móvil, validación del proveedor real y evaluación de MFA. No se conecta Gmail ni se envían correos reales durante las pruebas.
+P05 todavía no está terminado. Implementa sesiones revocables, registro/login por correo, verificación/recuperación y flujo Google OIDC en la API, además de formularios web/responsive. Quedan E2E de navegador contra backend real, retorno nativo, validación del proveedor real y evaluación de MFA. No se conecta Gmail ni se envían correos reales durante las pruebas.
 
 ## Sesiones implementadas
 
@@ -14,7 +14,7 @@ El login crea un token aleatorio de 256 bits. La base guarda su hash SHA-256, nu
 | POST /v1/auth/logout         | Sesión                                 | Revoca la sesión actual en servidor                     |
 | DELETE /v1/auth/sessions     | Sesión                                 | Revoca todas las sesiones propias                       |
 
-Los tokens se transportan en Authorization Bearer, nunca en URL ni cookies automáticas. El cliente real deberá mantenerlos en memoria en web y almacenamiento seguro en móvil; aún no se ha conectado ese cliente. El futuro flujo web con cookies HttpOnly requerirá su protección CSRF y política de origen antes de habilitarse. No se debe guardar el token en localStorage ni en el service worker.
+Los tokens se transportan en Authorization Bearer, nunca en URL ni cookies automáticas. El cliente web implementado los mantiene sólo en memoria; recargar pierde el acceso local y requiere otro login. El almacenamiento de sesión nativo seguro queda pendiente. El futuro flujo web con cookies HttpOnly requerirá su protección CSRF y política de origen antes de habilitarse. No se guarda el token en localStorage ni en el service worker.
 
 La política inicial limita a diez sesiones activas, con vencimiento absoluto de doce horas y por inactividad de treinta minutos. PostgreSQL aplica ambos límites en cada resolución. Logout y revocación afectan inmediatamente a solicitudes posteriores en cualquier instancia; no cancelan operaciones que ya pasaron la autorización y estén ejecutándose. No hay caché de autorización que sobreviva a la revocación.
 
@@ -66,6 +66,14 @@ Dos tests de proveedor verifican claims firmados y scopes/PKCE. Cuatro tests con
 
 `npm run test:postgres` ejecuta los tests P04 y P05 en PostgreSQL 17.11 desechable. P05 prueba emisión, persistencia de hash, cinco canjes concurrentes, rechazo de JWT directo, logout, A contra B, prohibición de leer hashes/asumir rol privilegiado, revocación entre instancias y expiración. CI debe aprobarlos antes de considerar validado este bloque; los enlaces y resultados se registran en el PR.
 
-No hay cambios visuales en este bloque. El [preview](https://srendergyt.github.io/finanzas-personales/) y las [capturas](P02-preview.md) siguen mostrando DEMO. No hay autenticación de producto publicada ni datos reales.
+## Interfaz de acceso
 
-Siguiente trabajo dentro de P05: UI de login/verificación/recuperación/sesiones y callback Google, E2E completos, evaluación MFA y validación real del proveedor/retorno nativo. Credenciales Google y envío real se configurarán fuera de Git cuando exista el entorno. Su ausencia no detiene el desarrollo del código y pruebas sintéticas.
+La ruta `#/acceso` contiene login, registro, verificación, recuperación, sesiones y vinculación Google. Usa el mismo contrato API que las pruebas de PostgreSQL. Los campos de contraseña/código se limpian al terminar cada operación. Los errores nunca muestran el cuerpo de respuesta del servidor. Un 401 elimina el token local; un fallo de red al cerrar sesión conserva la posibilidad de reintentar la revocación remota, sin afirmar que se cerró.
+
+El [preview de acceso](https://srendergyt.github.io/finanzas-personales/#/acceso) se publica con `finanzas-auth=disabled`: inputs y envío desactivados, texto explícito de muestra y cero solicitudes de autenticación. No admite datos personales. Capturas: [desktop](evidence/P05/desktop.png), [móvil claro](evidence/P05/mobile-light.png), [móvil oscuro](evidence/P05/mobile-dark.png).
+
+Para un staging futuro, servir frontend y `/v1` en el mismo origen HTTPS, cambiar la meta `finanzas-auth` a `same-origin` sólo en ese despliegue y configurar el servidor y entrega de correo. No se admite una URL de API arbitraria desde query/storage. El callback Google debe apuntar a la raíz web sin fragmento; la navegación detecta query, retira code/state inmediatamente de la barra y completa el flujo. El documento usa referrer=no-referrer. El hosting debe excluir query strings de logs y no almacenar respuestas API; no basta con esta meta. La UI usa el código de correo pegado manualmente y no construye enlaces externos con tokens.
+
+Las pruebas de navegador verifican preview desactivada, registro visual, responsive, contraste/accesibilidad automatizada, contrato login/sesiones, expiración y ausencia de token en storage. El contrato HTTP del navegador está simulado: no se presenta como E2E completo con PostgreSQL o Google. Las pruebas API con PostgreSQL sí prueban autoridad, aislamiento y concurrencia reales. El commit 349a344 pasó calidad, Android e iOS simulator en [CI](https://github.com/SrEnderGYT/finanzas-personales/actions/runs/34086264600).
+
+Siguiente trabajo dentro de P05: E2E completos, evaluación MFA y validación real del proveedor/retorno nativo. Credenciales Google y envío real se configurarán fuera de Git cuando exista el entorno. Su ausencia no detiene el desarrollo del código y pruebas sintéticas. No hay autenticación de producto publicada ni datos reales.

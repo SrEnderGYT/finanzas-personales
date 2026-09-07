@@ -1,7 +1,7 @@
 name: Preview DEMO
 on:
   push:
-    branches: ['feature/p02-*', 'feature/p03-*']
+    branches: ['feature/p02-*', 'feature/p03-*', 'feature/p05-auth']
   pull_request:
     paths: ['apps/**', 'packages/**', 'tests/**', 'scripts/**']
 permissions:
