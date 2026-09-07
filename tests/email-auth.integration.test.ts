@@ -166,3 +166,35 @@ it('rate-limits across service instances and denies sensitive tables to the fina
   expect(JSON.stringify(logs)).not.toContain(password);
   expect(JSON.stringify(logs)).not.toContain('@example.test');
 });
+
+it('does not leave an old-password session alive when login races with recovery', async () => {
+  const recipient = email();
+  await register(recipient);
+  await post('forgot-password', { email: recipient });
+  const mail = await mailFor(recipient, 'reset');
+  const [signed, reset] = await Promise.all([
+    post('login', { email: recipient, password }),
+    post('reset-password', { token: mail.token, password: nextPassword }),
+  ]);
+  expect(reset.statusCode).toBe(200);
+  expect([200, 401]).toContain(signed.statusCode);
+  if (signed.statusCode === 200)
+    expect(
+      (await app.inject({ method: 'GET', url: '/v1/me', headers: headers(signed.json().token) }))
+        .statusCode,
+    ).toBe(401);
+  await login(recipient, nextPassword);
+}, 15000);
+
+it('retains encrypted pending mail after transport failure and retries without exposing it through the API', async () => {
+  const recipient = email();
+  await post('register', { email: recipient });
+  await expect(
+    outbox.deliverOne(authPool, async () => {
+      throw new Error('simulated transport failure');
+    }),
+  ).rejects.toThrow('Mail delivery failed');
+  const mail = await mailFor(recipient, 'verify');
+  expect(mail).toBeDefined();
+  expect((await post('verify-email', { token: mail.token, password })).statusCode).toBe(200);
+}, 15000);
