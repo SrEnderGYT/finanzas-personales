@@ -1,6 +1,6 @@
 # P05 — autenticación y sesiones (en desarrollo)
 
-P05 todavía no está terminado. Implementa sesiones revocables, registro/login por correo, verificación/recuperación y flujo Google OIDC en la API, además de formularios web/responsive. Quedan E2E de navegador contra backend real, retorno nativo, validación del proveedor real y evaluación de MFA. No se conecta Gmail ni se envían correos reales durante las pruebas.
+P05 todavía no está terminado. Implementa sesiones revocables, registro/login por correo, verificación/recuperación y flujo Google OIDC en la API, además de formularios web/responsive. Incluye pruebas de navegador contra backend real en CI. Quedan retorno nativo, validación del proveedor Google real y evaluación de MFA. No se conecta Gmail ni se envían correos reales durante las pruebas.
 
 ## Sesiones implementadas
 
@@ -76,7 +76,7 @@ Para un staging futuro, servir frontend y `/v1` en el mismo origen HTTPS, cambia
 
 Las pruebas de navegador verifican preview desactivada, registro visual, responsive, contraste/accesibilidad automatizada, contrato login/sesiones, expiración y ausencia de token en storage. El contrato HTTP del navegador está simulado: no se presenta como E2E completo con PostgreSQL o Google. Las pruebas API con PostgreSQL sí prueban autoridad, aislamiento y concurrencia reales. El commit 349a344 pasó calidad, Android e iOS simulator en [CI](https://github.com/SrEnderGYT/finanzas-personales/actions/runs/34086264600).
 
-Siguiente trabajo dentro de P05: E2E completos, evaluación MFA y validación real del proveedor/retorno nativo. Credenciales Google y envío real se configurarán fuera de Git cuando exista el entorno. Su ausencia no detiene el desarrollo del código y pruebas sintéticas. No hay autenticación de producto publicada ni datos reales.
+Siguiente trabajo dentro de P05: evaluación MFA y validación real del proveedor Google/retorno nativo. Credenciales Google y envío real se configurarán fuera de Git cuando exista el entorno. Su ausencia no detiene el desarrollo del código y pruebas sintéticas. No hay autenticación de producto publicada ni datos reales.
 
 ## Pruebas de sistema con navegador y PostgreSQL
 
