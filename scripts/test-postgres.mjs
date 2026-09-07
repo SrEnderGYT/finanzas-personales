@@ -73,6 +73,7 @@ try {
           'tests/sessions.integration.test.ts',
           'tests/email-auth.integration.test.ts',
           'tests/google-auth.integration.test.ts',
+          'tests/mfa-store.integration.test.ts',
         ],
     {
       stdio: 'inherit',
