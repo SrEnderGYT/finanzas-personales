@@ -39,15 +39,17 @@ export class AuthClient {
     if (!response.ok) {
       if (response.status === 401) this.token = undefined;
       throw new Error(
-        response.status === 429
-          ? 'Demasiados intentos. Espera unos minutos antes de volver a intentarlo.'
-          : response.status === 409
-            ? 'Esta cuenta necesita vincularse desde una sesión ya iniciada.'
-            : response.status === 401
-              ? 'Los datos no son válidos o la sesión ha caducado.'
-              : response.status === 503
-                ? 'El servicio de acceso no está disponible todavía.'
-                : 'No se pudo completar. Revisa los datos e inténtalo de nuevo.',
+        response.status === 504
+          ? 'No pudimos conectar. Comprueba tu conexión y vuelve a intentarlo.'
+          : response.status === 429
+            ? 'Demasiados intentos. Espera unos minutos antes de volver a intentarlo.'
+            : response.status === 409
+              ? 'Esta cuenta necesita vincularse desde una sesión ya iniciada.'
+              : response.status === 401
+                ? 'Los datos no son válidos o la sesión ha caducado.'
+                : response.status === 503
+                  ? 'El servicio de acceso no está disponible todavía.'
+                  : 'No se pudo completar. Revisa los datos e inténtalo de nuevo.',
       );
     }
     if (response.status === 204) return undefined;

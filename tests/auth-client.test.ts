@@ -32,6 +32,9 @@ describe('browser auth transport', () => {
     transport.mockRejectedValueOnce(new Error('internal network details'));
     await expect(client.logout(true)).rejects.toThrow('No pudimos conectar');
     expect(client.signedIn).toBe(true);
+    transport.mockResolvedValueOnce(new Response(null, { status: 504 }));
+    await expect(client.logout(true)).rejects.toThrow('No pudimos conectar');
+    expect(client.signedIn).toBe(true);
     transport.mockResolvedValueOnce(
       Response.json({ secret: 'must never display' }, { status: 401 }),
     );
