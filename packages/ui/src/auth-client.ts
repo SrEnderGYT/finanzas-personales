@@ -91,6 +91,45 @@ export class AuthClient {
     this.token = value.token;
     this.challenge = undefined;
   }
+  async beginMfa(password: string): Promise<string> {
+    const proof = await this.request('reauthenticate/password', 'POST', { password });
+    if (
+      !proof ||
+      typeof proof !== 'object' ||
+      !('grant' in proof) ||
+      typeof proof.grant !== 'string' ||
+      !/^fpr_[A-Za-z0-9_-]{43}$/.test(proof.grant)
+    )
+      throw new Error('No se pudo verificar tu identidad.');
+    const setup = await this.request('mfa/enrollment/start', 'POST', { grant: proof.grant });
+    if (
+      !setup ||
+      typeof setup !== 'object' ||
+      !('secret' in setup) ||
+      typeof setup.secret !== 'string' ||
+      !/^[A-Z2-7]{32}$/.test(setup.secret)
+    )
+      throw new Error('No se pudo preparar el autenticador.');
+    return setup.secret;
+  }
+  async confirmMfa(code: string): Promise<string[]> {
+    if (!/^[0-9]{6}$/.test(code)) throw new Error('Introduce seis dígitos.');
+    const response = await this.request('mfa/enrollment/confirm', 'POST', { code });
+    this.token = undefined;
+    this.challenge = undefined;
+    if (
+      !response ||
+      typeof response !== 'object' ||
+      !('recoveryCodes' in response) ||
+      !Array.isArray(response.recoveryCodes) ||
+      response.recoveryCodes.length !== 10 ||
+      response.recoveryCodes.some(
+        (c) => typeof c !== 'string' || !/^[0-9a-f]{8}(?:-[0-9a-f]{8}){3}$/.test(c),
+      )
+    )
+      throw new Error('No recibimos los códigos. Vuelve a entrar con tu autenticador.');
+    return response.recoveryCodes as string[];
+  }
   async recoverMfa(code: string) {
     if (!this.challenge || !/^[0-9a-f]{8}(?:-[0-9a-f]{8}){3}$/i.test(code))
       throw new Error('Introduce un código de recuperación completo, con sus guiones.');

@@ -1,3 +1,4 @@
+import { MfaEnrollment } from './mfa-enrollment';
 import { Component, InjectionToken, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -30,7 +31,7 @@ let pendingCallback = captureCallback();
 
 @Component({
   selector: 'fp-auth-screen',
-  imports: [FormsModule, RouterLink, DatePipe],
+  imports: [FormsModule, RouterLink, DatePipe, MfaEnrollment],
   template: `
     <section class="auth-layout" aria-labelledby="auth-title">
       <div class="auth-story">
@@ -60,8 +61,18 @@ let pendingCallback = captureCallback();
             los formularios sin introducir datos personales.
           </p>
         }
-        @if (signedIn()) {
+        @if (enrolling()) {
+          <fp-mfa-enrollment [client]="client" (finished)="finishEnrollment()" />
+        } @else if (signedIn()) {
           <h2>Tu sesión</h2>
+          <button
+            type="button"
+            class="auth-secondary"
+            [disabled]="busy()"
+            (click)="enrolling.set(true)"
+          >
+            Activar autenticador
+          </button>
           <p>
             El acceso dura mientras mantengas esta página abierta. Al recargar tendrás que volver a
             entrar.
@@ -221,6 +232,7 @@ let pendingCallback = captureCallback();
 })
 export class AuthScreen {
   readonly client = inject(AUTH_CLIENT);
+  readonly enrolling = signal(false);
   readonly signedIn = signal(this.client.signedIn);
   readonly sessions = signal<AuthSession[]>([]);
   readonly mode = signal<Mode>(this.client.mfaPending ? 'mfa' : 'login');
@@ -269,6 +281,12 @@ export class AuthScreen {
         });
       } else this.message.set('El acceso con Google no se completó. Puedes volver a intentarlo.');
     }
+  }
+  finishEnrollment() {
+    this.enrolling.set(false);
+    this.signedIn.set(this.client.signedIn);
+    if (!this.client.signedIn) this.sessions.set([]);
+    this.message.set('');
   }
   switchFactor() {
     if (!this.client.mfaPending || this.busy()) return;

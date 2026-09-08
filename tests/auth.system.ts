@@ -1,3 +1,4 @@
+import { totpAt } from '../backend/api/src/totp';
 import { randomUUID } from 'node:crypto';
 import { test, expect, type Page } from '@playwright/test';
 import { authSystem } from './support/auth-system';
@@ -194,4 +195,49 @@ test('browser recovery enters once and rejects the consumed code', async ({ page
     () => JSON.stringify(localStorage) + JSON.stringify(sessionStorage),
   );
   expect(codes.some((code) => storage.includes(code))).toBe(false);
+});
+
+test('user activates MFA through reauthentication and saves one recovery batch', async ({
+  page,
+}) => {
+  const email = `${randomUUID()}@example.test`;
+  await register(page, email);
+  await login(page, email);
+  await page.getByRole('button', { name: 'Activar autenticador', exact: true }).click();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.screenshot({ path: 'docs/evidence/P05/mfa-enrollment-desktop.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const theme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme: theme });
+    await page.screenshot({
+      path: `docs/evidence/P05/mfa-enrollment-mobile-${theme}.png`,
+      fullPage: true,
+    });
+  }
+  await page.getByLabel('Confirma tu contraseña').fill(password);
+  await page.getByRole('button', { name: 'Continuar configuración' }).click();
+  await expect(page.locator('.enrollment-secret')).toBeVisible();
+  const secret = (await page.locator('.enrollment-secret').textContent())!.trim();
+  await page
+    .getByLabel('Primer código del autenticador')
+    .fill(totpAt(secret, Math.floor(Date.now() / 1000)));
+  await page.getByRole('button', { name: 'Activar y obtener códigos' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Guarda tus códigos de recuperación' }),
+  ).toBeVisible();
+  await expect(page.locator('.recovery-list code')).toHaveCount(10);
+  const codes = await page.locator('.recovery-list code').allTextContents();
+  const storage = await page.evaluate(
+    () => JSON.stringify(localStorage) + JSON.stringify(sessionStorage),
+  );
+  expect(storage.includes(secret) || codes.some((code) => storage.includes(code))).toBe(false);
+  await page.getByRole('button', { name: 'Ya guardé mis códigos' }).click();
+  await expect(page.locator('.recovery-list')).toHaveCount(0);
+  await page.getByLabel('Correo electrónico').fill(email);
+  await page.getByLabel('Contraseña', { exact: true }).fill(password);
+  await page.getByRole('button', { name: 'Entrar', exact: true }).click();
+  await page.getByRole('button', { name: 'Usar un código de recuperación' }).click();
+  await page.getByLabel('Código de recuperación').fill(codes[0]!.trim());
+  await page.getByRole('button', { name: 'Usar código y entrar' }).click();
+  await expect(page.getByRole('heading', { name: 'Tu sesión', exact: true })).toBeVisible();
 });

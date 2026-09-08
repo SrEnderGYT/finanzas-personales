@@ -1738,3 +1738,19 @@ fp-storage-lab .small {
 .workspace:has(fp-auth-screen) .bottom-nav {
   display: none;
 }
+
+.enrollment-secret,
+.recovery-list code {
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.enrollment-secret {
+  display: block;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.recovery-list {
+  padding-left: 20px;
+  line-height: 2;
+}
