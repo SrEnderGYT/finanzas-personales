@@ -160,3 +160,9 @@ El commit `54b6ecc2fb1a942c8f11491db3020602a0192c31` aprobó todos los jobs de [
 Capturas revisadas del mismo commit: [desktop](evidence/P05/mfa-recovery-desktop.png), [móvil claro](evidence/P05/mfa-recovery-mobile-light.png) y [móvil oscuro](evidence/P05/mfa-recovery-mobile-dark.png). Los controles se muestran sin superposición y los campos están vacíos; no se incluyen códigos ni tokens. El [APK de desarrollo](https://github.com/SrEnderGYT/finanzas-personales/actions/runs/34179835246/artifacts/10038545756) corresponde al mismo commit. La compilación de iOS es para simulador, no TestFlight.
 
 La recuperación está probada con cuentas sintéticas preparadas por fixtures. Todavía falta inscripción desde una sesión con reautenticación reciente y entrega segura de los códigos al usuario; P05 continúa abierto y la autenticación del preview público permanece desactivada.
+
+### Permisos de reautenticación para inscripción
+
+La migración 008 almacena permisos opacos de cinco minutos mediante hashes, ligados a usuario, sesión y propósito fijo mfa-enroll mediante FK compuesta y RLS. Sólo el rol de autenticación puede acceder. Emitir uno reemplaza el permiso pendiente de esa sesión; consumirlo requiere la misma sesión vigente y se realiza dentro de la transacción de inscripción. Se comprueba vigencia después de adquirir el bloqueo. Revocar o caducar la sesión impide el canje.
+
+Estas funciones son internas: todavía no hay endpoint de emisión. Su llamador deberá verificar de nuevo contraseña o Google antes de emitir el permiso; una sesión abierta no basta. La prueba PostgreSQL cubre cinco consumos concurrentes, sesión ajena, usuario ajeno, sustitución, caducidad, revocación y permisos del runtime. Tipo estricto, lint y compilación se verifican localmente; la integración queda pendiente de CI y del flujo de reautenticación/API/UI. P05 continúa abierto.

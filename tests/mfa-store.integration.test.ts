@@ -1,3 +1,4 @@
+import { issueEnrollmentGrant, consumeEnrollmentGrant } from '../backend/api/src/reauth-grants';
 import { replaceRecoveryCodes, consumeRecoveryCode } from '../backend/api/src/mfa-recovery';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { beforeAll, afterAll, expect, it } from 'vitest';
@@ -193,4 +194,59 @@ it('activation issues one recovery batch and never reveals it on replay', async 
   expect(stored).toHaveLength(10);
   expect(issued.recoveryCodes.some((value) => JSON.stringify(stored).includes(value))).toBe(false);
   expect(await store.confirmEnrollmentWithRecovery(id, code)).toBeNull();
+});
+
+it('enrollment grants bind to a live session and permit only one concurrent consumption', async () => {
+  const a = await user();
+  const b = await user();
+  const session = randomUUID();
+  const other = randomUUID();
+  for (const [id, sid] of [
+    [a, session],
+    [a, other],
+    [b, randomUUID()],
+  ])
+    await admin.query('INSERT INTO app.sessions(user_id,id,token_hash) VALUES($1,$2,$3)', [
+      id,
+      sid,
+      randomBytes(32).toString('hex'),
+    ]);
+  async function tx<T>(id: string, work: (client: import('pg').PoolClient) => Promise<T>) {
+    const client = await auth.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query("SELECT set_config('app.user_id',$1,true)", [id]);
+      const result = await work(client);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+  const first = await tx(a, (c) => issueEnrollmentGrant(c, a, session));
+  expect(await tx(a, (c) => consumeEnrollmentGrant(c, a, other, first.grant))).toBe(false);
+  await expect(tx(b, (c) => consumeEnrollmentGrant(c, a, session, first.grant))).rejects.toThrow();
+  const results = await Promise.all(
+    Array.from({ length: 5 }, () =>
+      tx(a, (c) => consumeEnrollmentGrant(c, a, session, first.grant)),
+    ),
+  );
+  expect(results.filter(Boolean)).toHaveLength(1);
+  const old = await tx(a, (c) => issueEnrollmentGrant(c, a, session));
+  const fresh = await tx(a, (c) => issueEnrollmentGrant(c, a, session));
+  expect(await tx(a, (c) => consumeEnrollmentGrant(c, a, session, old.grant))).toBe(false);
+  await admin.query(
+    "UPDATE app.reauth_grants SET created_at=now()-interval '10 minutes',expires_at=now()-interval '5 minutes' WHERE user_id=$1",
+    [a],
+  );
+  expect(await tx(a, (c) => consumeEnrollmentGrant(c, a, session, fresh.grant))).toBe(false);
+  const revoked = await tx(a, (c) => issueEnrollmentGrant(c, a, session));
+  await admin.query('UPDATE app.sessions SET revoked_at=now() WHERE user_id=$1', [a]);
+  await expect(
+    tx(a, (c) => consumeEnrollmentGrant(c, a, session, revoked.grant)),
+  ).rejects.toThrow();
+  await expect(runtime.query('SELECT * FROM app.reauth_grants')).rejects.toThrow();
 });
