@@ -152,3 +152,11 @@ La prueba PostgreSQL añadida verifica ausencia de códigos tras un intento inv�
 ### Revisión visual de recuperación
 
 El commit 4032b96 aprobó calidad y las pruebas de navegador/PostgreSQL en [CI](https://github.com/SrEnderGYT/finanzas-personales/actions/runs/34179613172). Las capturas del artifact confirmaron el acceso con recuperación, pero mostraron que la barra fija móvil cubría el botón secundario. Se oculta esa barra mientras se muestra una pantalla de acceso; el enlace de retorno al panel permanece disponible. El E2E exige que la navegación fija esté oculta y regenerará las capturas para revisión. No se publican las capturas anteriores como evidencia de diseño aprobado.
+
+### Evidencia verificada de recuperación
+
+El commit `54b6ecc2fb1a942c8f11491db3020602a0192c31` aprobó todos los jobs de [CI](https://github.com/SrEnderGYT/finanzas-personales/actions/runs/34179835246): calidad, navegador con PostgreSQL, Android APK e iOS simulator sin firma. Incluye activación interna y generación del lote en una transacción, acceso con recuperación y rechazo de reutilización desde navegador.
+
+Capturas revisadas del mismo commit: [desktop](evidence/P05/mfa-recovery-desktop.png), [móvil claro](evidence/P05/mfa-recovery-mobile-light.png) y [móvil oscuro](evidence/P05/mfa-recovery-mobile-dark.png). Los controles se muestran sin superposición y los campos están vacíos; no se incluyen códigos ni tokens. El [APK de desarrollo](https://github.com/SrEnderGYT/finanzas-personales/actions/runs/34179835246/artifacts/10038545756) corresponde al mismo commit. La compilación de iOS es para simulador, no TestFlight.
+
+La recuperación está probada con cuentas sintéticas preparadas por fixtures. Todavía falta inscripción desde una sesión con reautenticación reciente y entrega segura de los códigos al usuario; P05 continúa abierto y la autenticación del preview público permanece desactivada.
