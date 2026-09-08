@@ -223,9 +223,11 @@ let pendingCallback = captureCallback();
             </button>
           }
         }
-        <p class="auth-message" [class.auth-error]="failed()" role="status" aria-live="polite">
-          {{ message() }}
-        </p>
+        @if (!enrolling()) {
+          <p class="auth-message" [class.auth-error]="failed()" role="status" aria-live="polite">
+            {{ message() }}
+          </p>
+        }
       </div>
     </section>
   `,

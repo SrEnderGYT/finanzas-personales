@@ -70,7 +70,7 @@ import { AuthClient } from './auth-client';
         Volver al acceso
       </button>
     }
-    <p role="status" class="auth-message auth-error">{{ error() }}</p>
+    <p role="status" class="auth-message" [class.auth-error]="!!error()">{{ error() }}</p>
   `,
 })
 export class MfaEnrollment {

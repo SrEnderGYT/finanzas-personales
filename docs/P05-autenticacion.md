@@ -196,3 +196,9 @@ Tres pruebas del proveedor pasan, incluida una prueba de tokens firmados con fec
 El modo reauthenticate de `/google/start` exige sesión activa, conserva su identidad cifrada en el flujo OIDC y solicita auth_time. Al completar, el proveedor verifica autenticación en los últimos cinco minutos y el servidor exige el subject ya vinculado al usuario original. Sólo entonces emite un permiso de inscripción para aquella sesión, comprobando su vigencia bajo bloqueo. No crea usuarios, vincula identidades ni emite otra sesión en este modo.
 
 La prueba PostgreSQL añadida usa proveedor simulado y comprueba solicitud del dato de fecha, umbral de antigüedad, identidad vinculada, replay, revocación y ausencia de sesión adicional. La comprobación criptográfica de auth_time se cubre por separado con tokens firmados. La interfaz debe conservar la sesión original durante el retorno de Google; esa conexión y la validación con proveedor real están pendientes. El flujo no solicita Gmail.
+
+### Validación del bloque de inscripción
+
+La ejecución [34189593062](https://github.com/SrEnderGYT/finanzas-personales/actions/runs/34189593062), del commit 368a02b, terminó correctamente. También pasaron documentación, revisión de secretos y publicación del preview. Esta validación sustituye las notas de CI pendiente de las subsecciones anteriores.
+
+La revisión de la captura móvil de inscripción detectó un borde de error sin contenido y un mensaje de sesión anterior debajo del formulario. Se corrigen manteniendo la región de estado accesible y mostrando el aviso general sólo fuera de la inscripción. Las capturas anteriores no se incorporan como evidencia visual aprobada; se regeneran con el siguiente CI. Continúa pendiente conectar el retorno Google en la interfaz conservando la sesión original y validar el proveedor real.
