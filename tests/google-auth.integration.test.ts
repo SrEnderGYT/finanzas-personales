@@ -192,6 +192,49 @@ it('rejects linking after logout and denies financial runtime access to OIDC sec
   expect(stored).not.toContain('nonce');
 });
 
+it('rejects a linking session that expires while waiting for the user lock', async () => {
+  const user = await localUser();
+  const flow = await start('link', user.session.token);
+  const holder = await admin.connect();
+  let pending: ReturnType<typeof complete> | undefined;
+  try {
+    await holder.query('BEGIN');
+    await holder.query('SELECT pg_advisory_xact_lock(hashtextextended($1,5))', [user.id]);
+    const pid = (await holder.query('SELECT pg_backend_pid() AS pid')).rows[0].pid as number;
+    pending = complete(flow);
+    // Start the inject thenable and observe the actual database wait, not a guessed delay.
+    void Promise.resolve(pending);
+    let waiting = false;
+    for (let attempt = 0; attempt < 100 && !waiting; attempt++) {
+      waiting = Boolean(
+        (
+          await admin.query(
+            'SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid))) AS waiting',
+            [pid],
+          )
+        ).rows[0].waiting,
+      );
+      if (!waiting) await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    expect(waiting).toBe(true);
+    // now() in the waiting transaction predates this inactivity cutoff.
+    await holder.query(
+      "UPDATE app.sessions SET last_seen_at=clock_timestamp()-interval '30 minutes' WHERE user_id=$1",
+      [user.id],
+    );
+    await holder.query('COMMIT');
+    expect((await pending).statusCode).toBe(401);
+    expect(
+      (await admin.query('SELECT 1 FROM app.google_identities WHERE user_id=$1', [user.id]))
+        .rowCount,
+    ).toBe(0);
+  } finally {
+    await holder.query('ROLLBACK');
+    holder.release();
+    if (pending) await pending;
+  }
+});
+
 it('Google reauthentication requires the linked subject and live initiating session without issuing another session', async () => {
   const user = await localUser();
   await admin.query('INSERT INTO app.google_identities(subject,user_id) VALUES($1,$2)', [

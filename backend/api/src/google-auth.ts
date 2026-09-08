@@ -1,4 +1,4 @@
-import { issueEnrollmentGrant } from './reauth-grants';
+import { issueEnrollmentGrant, lockLiveSession } from './reauth-grants';
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from 'node:crypto';
 import {
   BadRequestException,
@@ -166,13 +166,7 @@ export class GoogleAuth {
       if (flow.link) {
         userId = flow.link.user_id;
         await client.query("SELECT set_config('app.user_id',$1,true)", [userId]);
-        await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,5))', [userId]);
-        const valid = await client.query(
-          `SELECT id FROM app.sessions WHERE user_id=$1 AND id=$2 AND revoked_at IS NULL
-          AND expires_at>now() AND last_seen_at>now()-interval '30 minutes' FOR UPDATE`,
-          [userId, flow.link.session_id],
-        );
-        if (!valid.rowCount) throw new UnauthorizedException();
+        await lockLiveSession(client, userId, flow.link.session_id);
         if (existing && existing.user_id !== userId) throw new ConflictException();
       } else if (existing) userId = existing.user_id;
       else {

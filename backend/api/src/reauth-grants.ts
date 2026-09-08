@@ -21,7 +21,7 @@ export async function lockLiveSession(client: PoolClient, userId: string, sessio
 }
 
 /** Only invoke after a fresh primary proof has been verified in this transaction.
- * A live session alone is NOT proof of reauthentication. No public endpoint yet.
+ * A live session alone is NOT proof of reauthentication.
  */
 export async function issueEnrollmentGrant(client: PoolClient, userId: string, sessionId: string) {
   await lockLiveSession(client, userId, sessionId);
