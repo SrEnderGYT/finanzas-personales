@@ -1,3 +1,4 @@
+import { replaceRecoveryCodes } from './mfa-recovery';
 import { ConflictException } from '@nestjs/common';
 import { Pool, type PoolClient } from 'pg';
 import { MfaSecrets, MFA_USER_ID } from './mfa-secrets';
@@ -55,6 +56,12 @@ export class MfaStore {
     });
   }
   async confirmEnrollment(userId: string, code: unknown) {
+    return (await this.confirmEnrollmentWithRecovery(userId, code)) !== null;
+  }
+  /** Returns the recovery plaintext only in the activation response, never from a later read.
+   * The caller must establish recent primary reauthentication before invoking this method.
+   */
+  async confirmEnrollmentWithRecovery(userId: string, code: unknown) {
     return this.transaction(userId, async (client) => {
       const valid = await this.consume(client, userId, code, false);
       if (valid) {
@@ -67,7 +74,7 @@ export class MfaStore {
           [userId],
         );
       }
-      return valid;
+      return valid ? { recoveryCodes: await replaceRecoveryCodes(client, userId) } : null;
     });
   }
   async consumeActive(userId: string, code: unknown) {

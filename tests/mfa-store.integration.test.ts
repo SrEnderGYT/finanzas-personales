@@ -173,3 +173,24 @@ it('recovery codes are isolated, atomic, replaceable and survive transaction rol
   );
   await expect(runtime.query('SELECT * FROM app.mfa_recovery_codes')).rejects.toThrow();
 });
+
+it('activation issues one recovery batch and never reveals it on replay', async () => {
+  const id = await user();
+  const enrollment = await store.beginEnrollment(id);
+  expect(await store.confirmEnrollmentWithRecovery(id, 'invalid')).toBeNull();
+  expect(
+    (await admin.query('SELECT * FROM app.mfa_recovery_codes WHERE user_id=$1', [id])).rowCount,
+  ).toBe(0);
+  const code = totpAt(enrollment.secret, await now());
+  const responses = await Promise.all(
+    Array.from({ length: 5 }, () => store.confirmEnrollmentWithRecovery(id, code)),
+  );
+  expect(responses.filter(Boolean)).toHaveLength(1);
+  const issued = responses.find((value) => value !== null)!;
+  expect(issued.recoveryCodes).toHaveLength(10);
+  const stored = (await admin.query('SELECT * FROM app.mfa_recovery_codes WHERE user_id=$1', [id]))
+    .rows;
+  expect(stored).toHaveLength(10);
+  expect(issued.recoveryCodes.some((value) => JSON.stringify(stored).includes(value))).toBe(false);
+  expect(await store.confirmEnrollmentWithRecovery(id, code)).toBeNull();
+});
