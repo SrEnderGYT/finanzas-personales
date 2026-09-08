@@ -1,3 +1,4 @@
+import { issueEnrollmentGrant } from './reauth-grants';
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from 'node:crypto';
 import {
   BadRequestException,
@@ -15,6 +16,7 @@ interface Flow {
   nonce: string;
   verifier: string;
   link?: { user_id: string; session_id: string };
+  reauth?: { user_id: string; session_id: string };
 }
 interface Envelope {
   iv: string;
@@ -54,12 +56,14 @@ export class GoogleAuth {
     this.assertOrigin(origin);
     await this.limit(ip);
     const mode = authFields(body, ['mode'])['mode'];
-    if (mode !== 'login' && mode !== 'link') throw new BadRequestException();
+    if (mode !== 'login' && mode !== 'link' && mode !== 'reauthenticate')
+      throw new BadRequestException();
     const flow: Flow = {
       nonce: randomBytes(32).toString('base64url'),
       verifier: randomBytes(32).toString('base64url'),
     };
     if (mode === 'link') flow.link = await this.sessions.resolve(authorization);
+    if (mode === 'reauthenticate') flow.reauth = await this.sessions.resolve(authorization);
     const state = randomBytes(32).toString('base64url');
     const binding = randomBytes(32).toString('base64url');
     const stateHash = tokenHash(state);
@@ -80,6 +84,7 @@ export class GoogleAuth {
       binding,
       authorizationUrl: this.provider.authorization({
         state,
+        ...(flow.reauth ? { reauthenticate: true } : {}),
         nonce: flow.nonce,
         challenge: createHash('sha256').update(flow.verifier).digest('base64url'),
       }),
@@ -132,7 +137,12 @@ export class GoogleAuth {
     } catch {
       throw new UnauthorizedException();
     }
-    const identity = await this.provider.exchange(code, flow.verifier, flow.nonce);
+    const identity = await this.provider.exchange(
+      code,
+      flow.verifier,
+      flow.nonce,
+      flow.reauth ? Math.floor(Date.now() / 1000) - 300 : undefined,
+    );
     return this.transaction(async (client) => {
       await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,2))', [
         identity.subject,
@@ -143,6 +153,15 @@ export class GoogleAuth {
           [identity.subject],
         )
       ).rows[0];
+      if (flow.reauth) {
+        if (!existing || existing.user_id !== flow.reauth.user_id)
+          throw new UnauthorizedException();
+        await client.query("SELECT set_config('app.user_id',$1,true)", [flow.reauth.user_id]);
+        return {
+          reauthenticated: true as const,
+          ...(await issueEnrollmentGrant(client, flow.reauth.user_id, flow.reauth.session_id)),
+        };
+      }
       let userId: string;
       if (flow.link) {
         userId = flow.link.user_id;

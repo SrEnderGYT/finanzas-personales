@@ -190,3 +190,9 @@ El E2E añadido recorre registro/login, reautenticación, inscripción real medi
 El adaptador puede solicitar auth_time mediante claims y verificar ese campo firmado contra un umbral del servidor. Rechaza ausencia, tipos incorrectos, fechas antiguas y fechas futuras fuera de cinco segundos de tolerancia. iat no sustituye a auth_time: un token recién emitido puede proceder de una sesión antigua. Referencia: [Google OIDC](https://developers.google.com/identity/openid-connect/reference).
 
 Tres pruebas del proveedor pasan, incluida una prueba de tokens firmados con fecha de autenticación caducada/ausente. Esta capacidad aún no está conectada a un flujo público de reautenticación; debe ligarse a la sesión y al subject ya vinculado. No se afirma que Google fuerce una contraseña nueva: si no entrega evidencia reciente suficiente, la operación debe rechazarse. Configuración y pruebas con Google real continúan pendientes.
+
+### Reautenticación Google ligada a sesión
+
+El modo reauthenticate de `/google/start` exige sesión activa, conserva su identidad cifrada en el flujo OIDC y solicita auth_time. Al completar, el proveedor verifica autenticación en los últimos cinco minutos y el servidor exige el subject ya vinculado al usuario original. Sólo entonces emite un permiso de inscripción para aquella sesión, comprobando su vigencia bajo bloqueo. No crea usuarios, vincula identidades ni emite otra sesión en este modo.
+
+La prueba PostgreSQL añadida usa proveedor simulado y comprueba solicitud del dato de fecha, umbral de antigüedad, identidad vinculada, replay, revocación y ausencia de sesión adicional. La comprobación criptográfica de auth_time se cubre por separado con tokens firmados. La interfaz debe conservar la sesión original durante el retorno de Google; esa conexión y la validación con proveedor real están pendientes. El flujo no solicita Gmail.

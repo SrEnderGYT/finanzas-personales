@@ -28,7 +28,7 @@ export class GoogleController {
       type: 'object',
       additionalProperties: false,
       required: ['mode'],
-      properties: { mode: { type: 'string', enum: ['login', 'link'] } },
+      properties: { mode: { type: 'string', enum: ['login', 'link', 'reauthenticate'] } },
     },
   })
   async start(

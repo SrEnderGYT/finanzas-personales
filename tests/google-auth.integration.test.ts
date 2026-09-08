@@ -17,8 +17,11 @@ const origin = 'https://app.example.test';
 const flows = new Map<string, { nonce: string; challenge: string }>();
 let identity = { subject: '', email: '' };
 let exchanges = 0;
+let freshness: number | undefined;
+let requestedFreshness = false;
 const provider: GoogleProvider = {
   authorization(parameters) {
+    requestedFreshness = parameters.reauthenticate === true;
     flows.set(parameters.state, parameters);
     return (
       'https://accounts.google.com/o/oauth2/v2/auth?' +
@@ -29,7 +32,8 @@ const provider: GoogleProvider = {
       })
     );
   },
-  async exchange(code, verifier, nonce) {
+  async exchange(code, verifier, nonce, authenticatedAfter) {
+    freshness = authenticatedAfter;
     exchanges++;
     const flow = flows.get(code);
     if (
@@ -186,4 +190,32 @@ it('rejects linking after logout and denies financial runtime access to OIDC sec
   const stored = JSON.stringify((await admin.query('SELECT envelope FROM app.oidc_flows')).rows);
   expect(stored).not.toContain('verifier');
   expect(stored).not.toContain('nonce');
+});
+
+it('Google reauthentication requires the linked subject and live initiating session without issuing another session', async () => {
+  const user = await localUser();
+  await admin.query('INSERT INTO app.google_identities(subject,user_id) VALUES($1,$2)', [
+    identity.subject,
+    user.id,
+  ]);
+  const flow = await start('reauthenticate', user.session.token);
+  expect(requestedFreshness).toBe(true);
+  const result = await complete(flow);
+  expect(result.statusCode).toBe(200);
+  expect(freshness).toBeGreaterThan(Math.floor(Date.now() / 1000) - 310);
+  expect(result.json().reauthenticated).toBe(true);
+  expect(result.json().grant).toMatch(/^fpr_[A-Za-z0-9_-]{43}$/);
+  expect(result.json().token).toBeUndefined();
+  expect(
+    (await admin.query('SELECT * FROM app.sessions WHERE user_id=$1', [user.id])).rowCount,
+  ).toBe(1);
+  expect((await complete(flow)).statusCode).toBe(401);
+  const wrong = await start('reauthenticate', user.session.token);
+  const saved = identity;
+  identity = { subject: randomUUID(), email: identity.email };
+  expect((await complete(wrong)).statusCode).toBe(401);
+  identity = saved;
+  const revoked = await start('reauthenticate', user.session.token);
+  await sessions.logout('Bearer ' + user.session.token, true);
+  expect((await complete(revoked)).statusCode).toBe(401);
 });
