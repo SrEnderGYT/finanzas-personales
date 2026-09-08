@@ -219,3 +219,11 @@ Cuatro pruebas adicionales verifican el vector S256 del [RFC 7636](https://www.r
 ### Vigencia de sesión durante la vinculación Google
 
 La vinculación ahora utiliza la misma comprobación lockLiveSession que la reautenticación: adquiere el bloqueo de usuario y sesión antes de consultar clock_timestamp. Evita que now(), fijado al inicio de la transacción, acepte una sesión que caducó esperando el bloqueo. La regresión PostgreSQL observa el bloqueo mediante pg_blocking_pids, caduca la sesión mientras espera y exige 401 sin crear identidad vinculada. Esta prueba requiere aprobación del siguiente CI; no se presenta como ejecutada localmente sin PostgreSQL.
+
+### Contrato API nativo de Google
+
+`POST /v1/auth/google/native/start` recibe state/challenge/method, exige S256 y crea un flujo cifrado de cinco minutos. No usa la cookie del navegador. `POST /v1/auth/google/native/complete` recibe state/code/verifier: deriva el challenge y lo compara mediante la condición de consumo antes de contactar al proveedor. Un verificador incorrecto no consume el flujo. Canjes concurrentes permiten una sola operación. La vinculación del flujo tiene un prefijo de propósito nativo y un indicador cifrado, separados del flujo Web.
+
+La finalización comparte las reglas existentes de identidad por subject, rechazo de vinculación implícita por email y emisión con MFA cuando corresponda. Este contrato inicial permite login nativo, no vinculación ni reautenticación nativas. No se acepta redirectUri del cuerpo ni se guarda el verificador del dispositivo. Se reutiliza app.oidc_flows y sus políticas de acceso; no hay cambios de esquema.
+
+Se habilita únicamente con NATIVE_GOOGLE_CLIENT_ID, NATIVE_GOOGLE_CLIENT_SECRET, NATIVE_GOOGLE_REDIRECT_URI y NATIVE_GOOGLE_FLOW_KEY (32 bytes base64) en el servidor. La configuración es independiente de Web; el secreto nunca va en el binario. El destino HTTPS debe corresponder al enlace asociado de la app. Sin configuración las rutas devuelven 503. Las pruebas PostgreSQL añadidas cubren PKCE incorrecto, replay concurrente, uso de sesión emitida, rechazo de plain/redirect inyectado y separación Web/nativo; quedan pendientes de CI. Continúan pendientes el transporte HTTP del cliente, el botón y la validación en dispositivos/proveedor real.

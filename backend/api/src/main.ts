@@ -54,12 +54,26 @@ async function main() {
           new URL(required('GOOGLE_REDIRECT_URI')).origin,
         )
       : undefined;
+    const nativeGoogleAuth = process.env['NATIVE_GOOGLE_CLIENT_ID']
+      ? new GoogleAuth(
+          authPool,
+          sessions,
+          new LiveGoogleProvider(
+            required('NATIVE_GOOGLE_CLIENT_ID'),
+            required('NATIVE_GOOGLE_CLIENT_SECRET'),
+            required('NATIVE_GOOGLE_REDIRECT_URI'),
+          ),
+          Buffer.from(required('NATIVE_GOOGLE_FLOW_KEY'), 'base64'),
+          new URL(required('NATIVE_GOOGLE_REDIRECT_URI')).origin,
+        )
+      : undefined;
     const app = await createApp({
       database,
       identity: sessions,
       sessions,
       emailAuth,
       googleAuth,
+      nativeGoogleAuth,
       mfaLogin: process.env['MFA_ENCRYPTION_KEY']
         ? new MfaLogin(
             authPool,

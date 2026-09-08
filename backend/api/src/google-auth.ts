@@ -13,6 +13,7 @@ import { primaryLogin } from './mfa-login';
 import { type GoogleProvider } from './google-provider';
 import { authFields } from './email-auth';
 interface Flow {
+  native?: true;
   nonce: string;
   verifier: string;
   link?: { user_id: string; session_id: string };
@@ -116,11 +117,61 @@ export class GoogleAuth {
       code.length > 4096
     )
       throw new UnauthorizedException();
+    return this.finish(state, code, tokenHash(binding));
+  }
+  async startNative(body: unknown, ip: string) {
+    await this.limit(ip);
+    const fields = authFields(body, ['state', 'challenge', 'method']);
+    const state = fields['state']!;
+    const challenge = fields['challenge']!;
+    if (
+      !/^[A-Za-z0-9_-]{43}$/.test(state) ||
+      !/^[A-Za-z0-9_-]{43}$/.test(challenge) ||
+      fields['method'] !== 'S256'
+    )
+      throw new BadRequestException();
+    const flow: Flow = { native: true, nonce: randomBytes(32).toString('base64url'), verifier: '' };
+    const iv = randomBytes(12);
+    const cipher = createCipheriv('aes-256-gcm', this.key, iv);
+    cipher.setAAD(Buffer.from(tokenHash(state)));
+    const data = Buffer.concat([cipher.update(JSON.stringify(flow), 'utf8'), cipher.final()]);
+    const envelope: Envelope = {
+      iv: iv.toString('hex'),
+      data: data.toString('hex'),
+      tag: cipher.getAuthTag().toString('hex'),
+    };
+    const inserted = await this.pool.query(
+      `INSERT INTO app.oidc_flows(state_hash,binding_hash,envelope,expires_at)
+       VALUES($1,$2,$3,clock_timestamp()+interval '5 minutes') ON CONFLICT(state_hash) DO NOTHING`,
+      [tokenHash(state), tokenHash('native:' + challenge), envelope],
+    );
+    if (inserted.rowCount !== 1) throw new BadRequestException();
+    return {
+      authorizationUrl: this.provider.authorization({ state, nonce: flow.nonce, challenge }),
+    };
+  }
+  async completeNative(body: unknown, ip: string) {
+    await this.limit(ip);
+    const fields = authFields(body, ['state', 'code', 'verifier']);
+    const state = fields['state']!;
+    const code = fields['code']!;
+    const verifier = fields['verifier']!;
+    if (
+      !/^[A-Za-z0-9_-]{43}$/.test(state) ||
+      !/^[A-Za-z0-9._~-]{43,128}$/.test(verifier) ||
+      !code ||
+      code.length > 4096
+    )
+      throw new UnauthorizedException();
+    const challenge = createHash('sha256').update(verifier).digest('base64url');
+    return this.finish(state, code, tokenHash('native:' + challenge), verifier);
+  }
+  private async finish(state: string, code: string, bindingHash: string, nativeVerifier?: string) {
     // Consume atomically before token exchange. A failed exchange requires a fresh login.
     const result = await this.pool.query<{ envelope: Envelope }>(
       `UPDATE app.oidc_flows SET consumed_at=now()
       WHERE state_hash=$1 AND binding_hash=$2 AND consumed_at IS NULL AND expires_at>now() RETURNING envelope`,
-      [tokenHash(state), tokenHash(binding)],
+      [tokenHash(state), bindingHash],
     );
     const envelope = result.rows[0]?.envelope;
     if (!envelope) throw new UnauthorizedException();
@@ -137,9 +188,11 @@ export class GoogleAuth {
     } catch {
       throw new UnauthorizedException();
     }
+    if ((flow.native === true) !== (nativeVerifier !== undefined))
+      throw new UnauthorizedException();
     const identity = await this.provider.exchange(
       code,
-      flow.verifier,
+      nativeVerifier ?? flow.verifier,
       flow.nonce,
       flow.reauth ? Math.floor(Date.now() / 1000) - 300 : undefined,
     );

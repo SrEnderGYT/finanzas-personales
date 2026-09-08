@@ -20,7 +20,7 @@ import { SessionController, SESSIONS } from './session-controller';
 import { type SessionAuthority } from './sessions';
 import { EmailController, EMAIL_AUTH } from './email-controller';
 import { type EmailAuth } from './email-auth';
-import { GoogleController, GOOGLE_AUTH } from './google-controller';
+import { GoogleController, GOOGLE_AUTH, NATIVE_GOOGLE_AUTH } from './google-controller';
 import { type GoogleAuth } from './google-auth';
 import { MfaController, MFA_LOGIN } from './mfa-controller';
 import { type MfaLogin } from './mfa-login';
@@ -58,6 +58,7 @@ export interface AppOptions {
   sessions?: SessionAuthority;
   emailAuth?: EmailAuth;
   googleAuth?: GoogleAuth;
+  nativeGoogleAuth?: GoogleAuth;
   mfaLogin?: MfaLogin;
   log?: (event: { requestId: string; method: string; status: number }) => void;
 }
@@ -77,6 +78,7 @@ export async function createApp(options: AppOptions = {}) {
       { provide: SESSIONS, useValue: options.sessions ?? null },
       { provide: EMAIL_AUTH, useValue: options.emailAuth ?? null },
       { provide: GOOGLE_AUTH, useValue: options.googleAuth ?? null },
+      { provide: NATIVE_GOOGLE_AUTH, useValue: options.nativeGoogleAuth ?? null },
       { provide: MFA_LOGIN, useValue: options.mfaLogin ?? null },
     ],
   })

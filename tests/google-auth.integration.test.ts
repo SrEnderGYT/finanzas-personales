@@ -53,6 +53,7 @@ beforeAll(async () => {
     identity: sessions,
     sessions,
     googleAuth: new GoogleAuth(pool, sessions, provider, randomBytes(32), origin),
+    nativeGoogleAuth: new GoogleAuth(pool, sessions, provider, randomBytes(32), origin),
   });
 });
 beforeEach(async () => {
@@ -261,4 +262,66 @@ it('Google reauthentication requires the linked subject and live initiating sess
   const revoked = await start('reauthenticate', user.session.token);
   await sessions.logout('Bearer ' + user.session.token, true);
   expect((await complete(revoked)).statusCode).toBe(401);
+});
+
+it('native Google requires device PKCE, no cookie, and consumes a flow only once', async () => {
+  const state = randomBytes(32).toString('base64url');
+  const verifier = randomBytes(32).toString('base64url');
+  const challenge = createHash('sha256').update(verifier).digest('base64url');
+  const payload = { state, challenge, method: 'S256' };
+  const begun = await app.inject({ method: 'POST', url: '/v1/auth/google/native/start', payload });
+  expect(begun.statusCode).toBe(200);
+  expect(begun.headers['set-cookie']).toBeUndefined();
+  expect(begun.body).not.toContain(verifier);
+  expect(
+    (await app.inject({ method: 'POST', url: '/v1/auth/google/native/start', payload })).statusCode,
+  ).toBe(400);
+  const call = (proof: string) =>
+    app.inject({
+      method: 'POST',
+      url: '/v1/auth/google/native/complete',
+      payload: { state, code: state, verifier: proof },
+    });
+  const before = exchanges;
+  expect((await call(randomBytes(32).toString('base64url'))).statusCode).toBe(401);
+  expect(exchanges).toBe(before);
+  const results = await Promise.all([call(verifier), call(verifier)]);
+  expect(results.map((response) => response.statusCode).sort()).toEqual([200, 401]);
+  expect(exchanges).toBe(before + 1);
+  const token = results.find((response) => response.statusCode === 200)!.json().token;
+  expect(token).toMatch(/^fp_[A-Za-z0-9_-]{43}$/);
+  expect(
+    (
+      await app.inject({
+        method: 'GET',
+        url: '/v1/me',
+        headers: { authorization: 'Bearer ' + token },
+      })
+    ).statusCode,
+  ).toBe(200);
+});
+
+it('native start rejects downgrade and injected redirect, and native proof cannot consume a Web flow', async () => {
+  const state = randomBytes(32).toString('base64url');
+  const verifier = randomBytes(32).toString('base64url');
+  const challenge = createHash('sha256').update(verifier).digest('base64url');
+  for (const payload of [
+    { state, challenge, method: 'plain' },
+    { state, challenge, method: 'S256', redirectUri: 'https://other.example.test/' },
+  ])
+    expect(
+      (await app.inject({ method: 'POST', url: '/v1/auth/google/native/start', payload }))
+        .statusCode,
+    ).toBe(400);
+  const web = await start();
+  expect(
+    (
+      await app.inject({
+        method: 'POST',
+        url: '/v1/auth/google/native/complete',
+        payload: { state: web.state, code: web.state, verifier },
+      })
+    ).statusCode,
+  ).toBe(401);
+  expect((await complete(web)).statusCode).toBe(200);
 });
