@@ -5,14 +5,25 @@ export interface GoogleClaims {
   email: string;
 }
 export interface GoogleProvider {
-  authorization(parameters: { state: string; nonce: string; challenge: string }): string;
-  exchange(code: string, verifier: string, nonce: string): Promise<GoogleClaims>;
+  authorization(parameters: {
+    state: string;
+    nonce: string;
+    challenge: string;
+    reauthenticate?: boolean;
+  }): string;
+  exchange(
+    code: string,
+    verifier: string,
+    nonce: string,
+    authenticatedAfter?: number,
+  ): Promise<GoogleClaims>;
 }
 export async function verifyGoogleToken(
   token: string,
   nonce: string,
   clientId: string,
   keys: JWTVerifyGetKey,
+  authenticatedAfter?: number,
 ): Promise<GoogleClaims> {
   try {
     const { payload } = await jwtVerify(token, keys, {
@@ -33,6 +44,18 @@ export async function verifyGoogleToken(
       (Array.isArray(payload.aud) && payload.aud.length > 1 && payload['azp'] !== clientId)
     )
       throw new Error();
+    if (authenticatedAfter !== undefined) {
+      const time = payload['auth_time'];
+      if (
+        !Number.isSafeInteger(authenticatedAfter) ||
+        authenticatedAfter < 0 ||
+        typeof time !== 'number' ||
+        !Number.isSafeInteger(time) ||
+        time < authenticatedAfter - 5 ||
+        time > Math.floor(Date.now() / 1000) + 5
+      )
+        throw new Error();
+    }
     return { subject: payload.sub, email: payload['email'].toLowerCase() };
   } catch {
     throw new UnauthorizedException();
@@ -52,7 +75,12 @@ export class LiveGoogleProvider implements GoogleProvider {
     if (url.protocol !== 'https:' || url.hash || url.username || url.password)
       throw new Error('HTTPS callback required');
   }
-  authorization(parameters: { state: string; nonce: string; challenge: string }) {
+  authorization(parameters: {
+    state: string;
+    nonce: string;
+    challenge: string;
+    reauthenticate?: boolean;
+  }) {
     const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     url.search = new URLSearchParams({
       client_id: this.clientId,
@@ -64,10 +92,13 @@ export class LiveGoogleProvider implements GoogleProvider {
       code_challenge: parameters.challenge,
       code_challenge_method: 'S256',
       prompt: 'select_account',
+      ...(parameters.reauthenticate
+        ? { claims: JSON.stringify({ id_token: { auth_time: { essential: true } } }) }
+        : {}),
     }).toString();
     return url.toString();
   }
-  async exchange(code: string, verifier: string, nonce: string) {
+  async exchange(code: string, verifier: string, nonce: string, authenticatedAfter?: number) {
     try {
       const response = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
@@ -93,7 +124,13 @@ export class LiveGoogleProvider implements GoogleProvider {
       )
         throw new Error();
       // Access/refresh tokens are deliberately neither persisted nor returned.
-      return await verifyGoogleToken(result.id_token, nonce, this.clientId, this.keys);
+      return await verifyGoogleToken(
+        result.id_token,
+        nonce,
+        this.clientId,
+        this.keys,
+        authenticatedAfter,
+      );
     } catch {
       throw new UnauthorizedException();
     }

@@ -184,3 +184,9 @@ Confirmar activa el factor, genera códigos de recuperación y revoca sesiones a
 Desde la sesión se puede iniciar Activar autenticador, volver a verificar la contraseña, introducir la clave manual en una app TOTP y confirmar su primer código. Al activarlo se muestran diez códigos de recuperación sólo en memoria de la pantalla, con acción explícita Ya guardé mis códigos. Las sesiones anteriores se revocan y el usuario vuelve a entrar con MFA. Los campos se limpian al finalizar cada envío; el secreto y lote no se guardan en storage. La configuración manual está disponible; QR y reautenticación Google siguen pendientes.
 
 El E2E añadido recorre registro/login, reautenticación, inscripción real mediante API, entrega de diez códigos y un nuevo acceso mediante uno de ellos, sin preparar el factor desde fixtures. Genera capturas de la pantalla inicial vacía, sin secretos, para revisión en CI. Tipo estricto y lint aprobados localmente; build y E2E se registrarán tras completar su ejecución. No se habilita autenticación en el preview público.
+
+### Prueba de autenticación reciente con Google
+
+El adaptador puede solicitar auth_time mediante claims y verificar ese campo firmado contra un umbral del servidor. Rechaza ausencia, tipos incorrectos, fechas antiguas y fechas futuras fuera de cinco segundos de tolerancia. iat no sustituye a auth_time: un token recién emitido puede proceder de una sesión antigua. Referencia: [Google OIDC](https://developers.google.com/identity/openid-connect/reference).
+
+Tres pruebas del proveedor pasan, incluida una prueba de tokens firmados con fecha de autenticación caducada/ausente. Esta capacidad aún no está conectada a un flujo público de reautenticación; debe ligarse a la sesión y al subject ya vinculado. No se afirma que Google fuerce una contraseña nueva: si no entrega evidencia reciente suficiente, la operación debe rechazarse. Configuración y pruebas con Google real continúan pendientes.

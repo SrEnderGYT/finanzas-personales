@@ -20,7 +20,14 @@ let exchanges = 0;
 const provider: GoogleProvider = {
   authorization(parameters) {
     flows.set(parameters.state, parameters);
-    return 'https://accounts.google.com/o/oauth2/v2/auth?' + new URLSearchParams(parameters);
+    return (
+      'https://accounts.google.com/o/oauth2/v2/auth?' +
+      new URLSearchParams({
+        state: parameters.state,
+        nonce: parameters.nonce,
+        challenge: parameters.challenge,
+      })
+    );
   },
   async exchange(code, verifier, nonce) {
     exchanges++;

@@ -55,3 +55,50 @@ it('requests only identity scopes with S256 PKCE, never Gmail or offline access'
   expect(url.searchParams.has('access_type')).toBe(false);
   expect(url.searchParams.has('client_secret')).toBe(false);
 });
+
+it('reauthentication rejects a newly issued token whose signed authentication time is stale or absent', async () => {
+  const threshold = Math.floor(Date.now() / 1000) - 300;
+  for (const auth_time of [
+    undefined,
+    threshold - 10,
+    Math.floor(Date.now() / 1000) + 60,
+    '123',
+    1.5,
+  ]) {
+    await expect(
+      verifyGoogleToken(
+        await sign({ auth_time }),
+        'synthetic-nonce',
+        'synthetic-client',
+        keys,
+        threshold,
+      ),
+    ).rejects.toThrow();
+  }
+  await expect(
+    verifyGoogleToken(
+      await sign({ auth_time: threshold }),
+      'synthetic-nonce',
+      'synthetic-client',
+      keys,
+      threshold,
+    ),
+  ).resolves.toMatchObject({ subject: 'synthetic-subject' });
+  const provider = new LiveGoogleProvider(
+    'synthetic-client',
+    'synthetic-configuration-only',
+    'https://app.example.test/callback',
+  );
+  const url = new URL(
+    provider.authorization({
+      state: 'state',
+      nonce: 'nonce',
+      challenge: 'challenge',
+      reauthenticate: true,
+    }),
+  );
+  expect(JSON.parse(url.searchParams.get('claims')!)).toEqual({
+    id_token: { auth_time: { essential: true } },
+  });
+  expect(url.searchParams.get('scope')).toBe('openid email');
+});
