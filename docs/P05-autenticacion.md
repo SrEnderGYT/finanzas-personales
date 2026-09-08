@@ -1,6 +1,6 @@
 # P05 — autenticación y sesiones (en desarrollo)
 
-P05 todavía no está terminado. Implementa sesiones revocables, registro/login por correo, verificación/recuperación y flujo Google OIDC en la API, además de formularios web/responsive. Incluye pruebas de navegador contra backend real en CI. Quedan retorno nativo, validación del proveedor Google real y evaluación de MFA. No se conecta Gmail ni se envían correos reales durante las pruebas.
+P05 todavía no está terminado. Implementa sesiones revocables, registro/login por correo, verificación/recuperación y flujo Google OIDC en la API, además de formularios web/responsive. Incluye pruebas de navegador contra backend real en CI. Quedan retorno nativo y validación del proveedor Google real; MFA incluye inscripción, acceso y recuperación. No se conecta Gmail ni se envían correos reales durante las pruebas.
 
 ## Sesiones implementadas
 
@@ -44,11 +44,9 @@ Los correos pendientes se encolan en la misma transacción, cifrados con AES-256
 
 La API ahora requiere DATABASE_URL restringida, AUTH_DATABASE_URL de autenticación y AUTH_MAIL_KEY; ya no requiere AUTH_PUBLIC_JWKS/AUTH_ISSUER/AUTH_AUDIENCE porque el canje externo está deshabilitado. Nunca usar el login migrador para estos roles.
 
-## Evidencia y trabajo restante
-
 ## Google OIDC
 
-`POST /v1/auth/google/start` recibe `{mode:"login"}` o `{mode:"link"}`. Link requiere Authorization con sesión activa. Devuelve sólo authorizationUrl y establece una cookie host-only HttpOnly/Secure/SameSite=Lax durante diez minutos. `POST /v1/auth/google/complete` recibe state/code y exige esa cookie y Origin exacto. Los endpoints sólo permiten el origen HTTPS configurado; no se aceptan redirect URIs del request.
+`POST /v1/auth/google/start` recibe mode login, link o reauthenticate. Link requiere Authorization con sesión activa. Devuelve sólo authorizationUrl y establece una cookie host-only HttpOnly/Secure/SameSite=Lax durante diez minutos. `POST /v1/auth/google/complete` recibe state/code y exige esa cookie y Origin exacto. Los endpoints sólo permiten el origen HTTPS configurado; no se aceptan redirect URIs del request.
 
 El backend genera state, nonce y PKCE S256. El verificador y el contexto de vinculación se cifran con AES-GCM y AAD del hash de state. La DB consume el flujo una sola vez antes del intercambio; tras fallo hay que reiniciar, no reutilizar el código. El adaptador usa únicamente los endpoints fijos de Google con timeout y sin redirecciones. Valida firma RS256/JWKS, issuer, audience, azp cuando aplica, nonce, exp/iat, subject y email_verified booleano. Sólo solicita `openid email`, sin Gmail, profile, offline access ni almacenamiento de access/refresh tokens. Basado en [Google OIDC](https://developers.google.com/identity/openid-connect/reference) y [OAuth Security BCP](https://www.rfc-editor.org/rfc/rfc9700.html).
 
@@ -57,8 +55,6 @@ La identidad es subject, nunca email. No hay unión automática con una cuenta l
 La migración 004 usa RLS forzada para identidades y flujos, sólo accesibles al rol de autenticación. El límite de treinta operaciones Google por IP/ventana de quince minutos vive en PostgreSQL. Un inicio nuevo reemplaza la cookie anterior en el navegador: el flujo anterior deja de funcionar allí.
 
 Para habilitar el adaptador se necesitan GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI (HTTPS, sin fragmento) y GOOGLE_FLOW_KEY (32 bytes aleatorios en base64). El origen se obtiene de esa URI. Sin configuración, Google devuelve servicio no disponible; correo continúa disponible. Aún no se configuraron credenciales reales ni se probaron permisos reales del proveedor. La UI debe recibir code/state, retirarlos inmediatamente de la URL y completar el flujo desde el mismo origen; no guardar tokens en URL/storage. Falta validar también el retorno mediante navegador del sistema/deep link en Android/iOS.
-
-Dos tests de proveedor verifican claims firmados y scopes/PKCE. Cuatro tests con PostgreSQL y proveedor simulado verifican cookie/origen, identidad estable, state intercambiado, expiración, replay concurrente, colisión email, vinculación A/B, sesión revocada y permisos sobre secretos. El proveedor simulado exige el verificador PKCE correcto; no contacta Google. CI debe aprobar la ejecución antes de considerarla evidencia. No sustituye un E2E con Google real.
 
 ## Estado de validación
 
@@ -76,7 +72,7 @@ Para un staging futuro, servir frontend y `/v1` en el mismo origen HTTPS, cambia
 
 Las pruebas de navegador verifican preview desactivada, registro visual, responsive, contraste/accesibilidad automatizada, contrato login/sesiones, expiración y ausencia de token en storage. El contrato HTTP del navegador está simulado: no se presenta como E2E completo con PostgreSQL o Google. Las pruebas API con PostgreSQL sí prueban autoridad, aislamiento y concurrencia reales. El commit 349a344 pasó calidad, Android e iOS simulator en [CI](https://github.com/SrEnderGYT/finanzas-personales/actions/runs/34086264600).
 
-Siguiente trabajo dentro de P05: inscripción y recuperación MFA, y validación real del proveedor Google/retorno nativo. Credenciales Google y envío real se configurarán fuera de Git cuando exista el entorno. Su ausencia no detiene el desarrollo del código y pruebas sintéticas. No hay autenticación de producto publicada ni datos reales.
+Siguiente trabajo dentro de P05: validación real del proveedor Google y retorno nativo. Credenciales Google y envío real se configurarán fuera de Git cuando exista el entorno. Su ausencia no detiene el desarrollo del código y pruebas sintéticas. No hay autenticación de producto publicada ni datos reales.
 
 ## Pruebas de sistema con navegador y PostgreSQL
 
@@ -86,13 +82,13 @@ El navegador registra y verifica dos usuarios sintéticos; el transporte de corr
 
 Este bloque sólo puede declararse validado tras aprobar el job en CI. No cubre todavía Google real, transporte real de correo ni retorno nativo. El flujo MFA adicional se describe y valida abajo. Los resultados y el commit se registran en el PR.
 
-## MFA — acceso integrado, inscripción y recuperación pendientes
+## MFA — acceso, inscripción y recuperación
 
 `totp.ts` implementa la generación y comprobación de códigos de autenticador según [RFC 6238](https://datatracker.ietf.org/doc/html/rfc6238): HMAC-SHA1, secreto aleatorio de 160 bits, seis dígitos y periodos de treinta segundos. La comprobación acepta el periodo actual y uno adyacente por lado, compara con timingSafeEqual y devuelve el periodo aceptado. Rechaza periodos ya consumidos según el estado proporcionado. Cuatro pruebas verifican los seis vectores SHA1 publicados, fechas posteriores a 2038, límites de reloj, formatos, reutilización secuencial y parámetros de configuración.
 
-La función TOTP aislada no impide por sí sola la reutilización concurrente: el servicio deberá bloquear la fila y guardar el periodo aceptado atómicamente antes de emitir una sesión. El reloj y el último periodo usado procederán del servidor, nunca del navegador.
+La función TOTP aislada no impide por sí sola la reutilización concurrente: MfaStore bloquea la fila y guarda el periodo aceptado atómicamente antes de emitir una sesión. El reloj y el último periodo usado proceden del servidor, nunca del navegador.
 
-La implementación cifra secretos por usuario, limita intentos de forma persistente, confirma posesión antes de activar el factor y exige MFA tras contraseña o Google. Recuperar la contraseña no lo desactiva. También deberá implementar códigos de recuperación de un solo uso y exigir reautenticación para cambios del factor. Los criterios siguen la [guía MFA de OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Multifactor_Authentication_Cheat_Sheet.html). La protección frente a phishing mediante passkeys requiere evaluación adicional; no se atribuye esa propiedad a TOTP.
+La implementación cifra secretos por usuario, limita intentos de forma persistente, confirma posesión antes de activar el factor y exige MFA tras contraseña o Google. Recuperar la contraseña no lo desactiva. También implementa códigos de recuperación de un solo uso y exige reautenticación para inscribir el factor. Cambiar/eliminar un factor activo sigue pendiente. Los criterios siguen la [guía MFA de OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Multifactor_Authentication_Cheat_Sheet.html). La protección frente a phishing mediante passkeys requiere evaluación adicional; no se atribuye esa propiedad a TOTP.
 
 Criterio de cierre MFA: pruebas concurrentes en PostgreSQL, aislamiento A/B, rechazo de desafíos caducados, recuperación sin bypass y flujo completo desde navegador. La base criptográfica probada no cumple por sí sola ese criterio ni cierra P05.
 
@@ -100,9 +96,7 @@ Criterio de cierre MFA: pruebas concurrentes en PostgreSQL, aislamiento A/B, rec
 
 La migración 005 añade factores con RLS forzada por user_id, accesibles únicamente al rol de autenticación y con contexto del usuario establecido dentro de la transacción. El runtime financiero sólo puede consultar user_id y active propios para bloquear emisión de sesiones sin MFA; no puede leer el secreto cifrado ni modificar factores. `MfaSecrets` cifra con AES-256-GCM y vincula el ciphertext al usuario mediante AAD; copiarlo a otro usuario o cambiar su contenido impide descifrarlo. La clave se recibe explícitamente, sin valor predeterminado ni persistencia en Git.
 
-`MfaStore` es un servicio interno aún sin endpoints. Crea inscripciones pendientes de diez minutos; confirmar exige un código válido. No permite reemplazar un factor activo. Serializa los intentos, lee el reloj de PostgreSQL después del bloqueo y consume el periodo bajo bloqueo de fila. Cinco errores bloquean el factor durante quince minutos; los fallos se confirman en DB aunque la validación falle y cambiar una inscripción pendiente conserva el bloqueo. La protección se comparte entre instancias.
-
-Dos pruebas unitarias cubren cifrado y manipulación. Cuatro pruebas PostgreSQL cubren cinco intentos concurrentes con un único éxito, bloqueos persistentes, expiración, sustitución de ciphertext y RLS A/B. Su evidencia requiere aprobación de CI. El acceso integrado deriva el usuario del desafío verificado e incorpora consumo y emisión de sesión a la misma transacción. La futura inscripción debe exigir reautenticación para inscribir/cambiar el factor. El segundo factor se exige en login cuando el factor está activo. Todavía no hay recuperación MFA ni inscripción accesible al usuario; no se deben crear factores de producción hasta completar esos flujos.
+`MfaStore` implementa el almacenamiento utilizado por los endpoints MFA. Crea inscripciones pendientes de diez minutos; confirmar exige un código válido. No permite reemplazar un factor activo. Serializa los intentos, lee el reloj de PostgreSQL después del bloqueo y consume el periodo bajo bloqueo de fila. Cinco errores bloquean el factor durante quince minutos; los fallos se confirman en DB aunque la validación falle y cambiar una inscripción pendiente conserva el bloqueo. La protección se comparte entre instancias.
 
 
 ### Desafíos de acceso
@@ -113,41 +107,27 @@ Recuperar contraseña invalida desafíos pendientes bajo el mismo bloqueo del us
 
 La UI web/responsive recibe el desafío en memoria, muestra el campo del autenticador y no solicita sesiones hasta obtener un token real. Al cancelar o recargar se pierde el desafío local. La preview pública sigue desactivada para autenticación real. Un E2E con PostgreSQL prepara un factor sintético desde el fixture interno y comprueba el login completo desde navegador; no expone un endpoint de preparación. Capturas de ese flujo se guardan como artifact `auth-system-visual` en CI.
 
-Validación aprobada en CI del bloque: cinco pruebas API/PostgreSQL para contraseña, Google simulado, concurrencia, recuperación, límites, expiración, aislamiento y rollback por límite de sesiones; un E2E de MFA real y una prueba del contrato del cliente. No equivalen a inscripción/recuperación MFA terminadas ni a Google real. P05 permanece abierto.
-
 ### Evidencia del acceso MFA
 
-El commit `c31e558f70369ee6a664e1034f71e5f62164b63c` aprobó los cuatro jobs de [CI](https://github.com/SrEnderGYT/finanzas-personales/actions/runs/34177926478): calidad y builds, navegador con PostgreSQL, APK Android de desarrollo e iOS simulator sin firma. El preview público sirve ese commit con datos sintéticos; la autenticación pública continúa desactivada.
+El commit `c31e558f70369ee6a664e1034f71e5f62164b63c` aprobó los cuatro jobs de [CI](https://github.com/SrEnderGYT/finanzas-personales/actions/runs/34177926478): calidad y builds, navegador con PostgreSQL, APK Android de desarrollo e iOS simulator sin firma. Ese resultado corresponde a aquel commit; la autenticación pública continúa desactivada.
 
 Capturas del navegador conectado al backend de pruebas: [desktop](evidence/P05/mfa-desktop.png), [móvil claro](evidence/P05/mfa-mobile-light.png) y [móvil oscuro](evidence/P05/mfa-mobile-dark.png). Se revisaron visualmente y muestran el campo de seis dígitos y la caducidad de cinco minutos; la prueba también exige teclado numérico. No contienen códigos ni tokens. Fuente: artifact `auth-system-visual` de la ejecución enlazada.
 
-Aceptación de este bloque: contraseña o Google simulado requieren el segundo factor cuando está activo; cinco canjes concurrentes crean una sola sesión; recuperar contraseña conserva MFA; un desafío no permite acceso a datos; los errores no consumen el código si falla la creación de sesión. Esto no cierra P05: faltan inscripción con reautenticación y recuperación MFA, configuración real de proveedores y validación nativa en dispositivos.
-
-### Base de códigos de recuperación (integración pendiente)
+### Almacenamiento de códigos de recuperación
 
 La migración 007 incorpora códigos de recuperación con RLS forzada y acceso exclusivo al rol de autenticación dentro del contexto del usuario. Cada lote contiene diez códigos aleatorios de 128 bits. Se devuelve el texto una sola vez al llamador interno; PostgreSQL conserva únicamente hashes SHA-256 vinculados al usuario y fecha de consumo. Rotar el lote elimina los códigos anteriores.
-
-El consumo es una actualización condicional atómica dentro de la transacción del llamador: un rollback conserva el código. No desactiva el autenticador ni emite sesiones por sí mismo. Estas funciones aún no tienen endpoint: antes de exponerlas se integrarán con inscripción y reautenticación reciente, desafío limitado y emisión de sesión en la misma transacción. No se deben activar factores de producción todavía.
-
-Validación local: tipo estricto, lint, build backend y prueba de formato/hash aprobados. Se añade una prueba PostgreSQL de cinco consumos concurrentes, aislamiento A/B, rollback, rotación y denegación al runtime financiero; su resultado queda pendiente de CI. No se considera recuperación de usuario terminada hasta completar y probar el flujo API/UI.
 
 ### Canje de recuperación por API
 
 `POST /v1/auth/mfa/recover` recibe challenge/code y exige el mismo desafío primario de cinco minutos que TOTP. Deriva la identidad desde el desafío; no acepta user_id. Comparte límite por IP y los cinco intentos por desafío con `/complete`. El consumo del código y del desafío se confirma junto con la sesión o se revierte entero si la sesión no puede crearse. El factor permanece activo.
 
-La prueba API añadida comprueba rechazo sin desafío, aislamiento A/B, cinco canjes concurrentes con una sola sesión, reutilización, límite de intentos y rollback por límite de sesiones. Tipo estricto, lint y build backend aprobados localmente; esta prueba API requiere CI. La base anterior de almacenamiento aprobó calidad y navegador/PostgreSQL en la ejecución 34179312089. La inscripción y entrega de códigos con reautenticación y la interfaz de recuperación siguen pendientes; P05 no está cerrado.
-
 ### Interfaz de recuperación MFA
 
 La pantalla del segundo factor permite alternar entre autenticador y código de recuperación manteniendo el desafío en memoria y borrando el campo al cambiar de opción. El código se introduce oculto, con validación de formato y sin almacenarlo en el navegador. Cancelar el acceso elimina el desafío.
 
-Se añade un E2E con backend/PostgreSQL reales que prepara códigos únicamente desde el fixture de pruebas, entra con uno, cierra sesión y verifica el rechazo del código consumido. Genera capturas desktop y móvil claro/oscuro antes de introducir secretos, incluidas en el artifact visual. Tipo estricto, lint y build web aprobados localmente; el E2E y las nuevas capturas quedan pendientes de ejecución y revisión en CI. La preview pública mantiene el acceso desactivado. La inscripción y entrega de códigos con reautenticación aún deben implementarse antes de activar MFA en producción.
-
 ### Activación y recuperación atómicas
 
-`confirmEnrollmentWithRecovery` confirma posesión del autenticador, revoca sesiones/desafíos anteriores y genera los diez códigos de recuperación dentro de la misma transacción. Devuelve los códigos sólo en la respuesta de activación. Un reintento sobre el factor ya activo devuelve rechazo y no regenera ni revela el lote. El método booleano interno utilizado por fixtures delega en esta operación; la futura API utilizará la respuesta completa y exigirá reautenticación reciente.
-
-La prueba PostgreSQL añadida verifica ausencia de códigos tras un intento inválido, cinco confirmaciones concurrentes con una sola respuesta válida, diez hashes persistidos sin texto plano y rechazo de replay. Tipo estricto, lint y compilación backend aprobados localmente; prueba PostgreSQL pendiente de CI. La API de recuperación del commit 730226a aprobó los cuatro jobs en [CI](https://github.com/SrEnderGYT/finanzas-personales/actions/runs/34179457559). Inscripción accesible al usuario y reautenticación siguen pendientes.
+`confirmEnrollmentWithRecovery` confirma posesión del autenticador, revoca sesiones/desafíos anteriores y genera los diez códigos de recuperación dentro de la misma transacción. Devuelve los códigos sólo en la respuesta de activación. Un reintento sobre el factor ya activo devuelve rechazo y no regenera ni revela el lote. El método booleano interno utilizado por fixtures delega en esta operación; la API utiliza la respuesta completa y exige reautenticación reciente.
 
 ### Revisión visual de recuperación
 
@@ -159,49 +139,39 @@ El commit `54b6ecc2fb1a942c8f11491db3020602a0192c31` aprobó todos los jobs de [
 
 Capturas revisadas del mismo commit: [desktop](evidence/P05/mfa-recovery-desktop.png), [móvil claro](evidence/P05/mfa-recovery-mobile-light.png) y [móvil oscuro](evidence/P05/mfa-recovery-mobile-dark.png). Los controles se muestran sin superposición y los campos están vacíos; no se incluyen códigos ni tokens. El [APK de desarrollo](https://github.com/SrEnderGYT/finanzas-personales/actions/runs/34179835246/artifacts/10038545756) corresponde al mismo commit. La compilación de iOS es para simulador, no TestFlight.
 
-La recuperación está probada con cuentas sintéticas preparadas por fixtures. Todavía falta inscripción desde una sesión con reautenticación reciente y entrega segura de los códigos al usuario; P05 continúa abierto y la autenticación del preview público permanece desactivada.
-
 ### Permisos de reautenticación para inscripción
 
 La migración 008 almacena permisos opacos de cinco minutos mediante hashes, ligados a usuario, sesión y propósito fijo mfa-enroll mediante FK compuesta y RLS. Sólo el rol de autenticación puede acceder. Emitir uno reemplaza el permiso pendiente de esa sesión; consumirlo requiere la misma sesión vigente y se realiza dentro de la transacción de inscripción. Se comprueba vigencia después de adquirir el bloqueo. Revocar o caducar la sesión impide el canje.
-
-Estas funciones son internas: todavía no hay endpoint de emisión. Su llamador deberá verificar de nuevo contraseña o Google antes de emitir el permiso; una sesión abierta no basta. La prueba PostgreSQL cubre cinco consumos concurrentes, sesión ajena, usuario ajeno, sustitución, caducidad, revocación y permisos del runtime. Tipo estricto, lint y compilación se verifican localmente; la integración queda pendiente de CI y del flujo de reautenticación/API/UI. P05 continúa abierto.
 
 ### Reautenticación por contraseña
 
 `POST /v1/auth/reauthenticate/password` exige una sesión opaca vigente y recibe sólo password. El usuario y la sesión se obtienen de la autoridad de sesiones, nunca del cuerpo. Se comprueba scrypt de nuevo, con límites persistentes de cinco intentos por usuario y treinta por IP en quince minutos. Bajo bloqueo se vuelve a comprobar que la credencial no cambió y que la sesión sigue vigente antes de emitir el permiso mfa-enroll. No emite otra sesión ni permite usar el permiso para acceder a datos.
 
-La prueba API cubre ausencia/revocación de sesión, contraseña errónea, campos de identidad inyectados, emisión correcta, ausencia de texto plano en DB/logs y rechazo del permiso como token de acceso. Tipo estricto, lint y build backend aprobados localmente; prueba PostgreSQL pendiente de CI. Falta reautenticación Google, conectar el permiso con la inscripción y completar su interfaz. Las cuentas exclusivamente Google no pueden usar este endpoint para crear una contraseña.
-
 ### Inscripción por API ligada a sesión
 
 `POST /v1/auth/mfa/enrollment/start` exige sesión vigente y grant de reautenticación. El permiso se consume en la misma transacción que crea o reemplaza la inscripción pendiente. La migración 009 liga esa inscripción a la sesión mediante FK compuesta; sólo esa sesión puede llamar `/enrollment/confirm` con el código TOTP. El servidor vuelve a comprobar vigencia bajo bloqueo. Se conservan límites de intentos del factor y caducidad de diez minutos de la inscripción.
 
-Confirmar activa el factor, genera códigos de recuperación y revoca sesiones anteriores en una transacción; devuelve el lote sólo una vez. La prueba API recorre login, reautenticación, inscripción, rechazo desde otra sesión/replay y confirmación con revocación. Tipo estricto, lint y build backend aprobados localmente; PostgreSQL pendiente de CI. La interfaz de inscripción y la reautenticación Google siguen pendientes, por lo que todavía no se habilita MFA de producción.
-
 ### Interfaz de activación con contraseña
 
-Desde la sesión se puede iniciar Activar autenticador, volver a verificar la contraseña, introducir la clave manual en una app TOTP y confirmar su primer código. Al activarlo se muestran diez códigos de recuperación sólo en memoria de la pantalla, con acción explícita Ya guardé mis códigos. Las sesiones anteriores se revocan y el usuario vuelve a entrar con MFA. Los campos se limpian al finalizar cada envío; el secreto y lote no se guardan en storage. La configuración manual está disponible; QR y reautenticación Google siguen pendientes.
-
-El E2E añadido recorre registro/login, reautenticación, inscripción real mediante API, entrega de diez códigos y un nuevo acceso mediante uno de ellos, sin preparar el factor desde fixtures. Genera capturas de la pantalla inicial vacía, sin secretos, para revisión en CI. Tipo estricto y lint aprobados localmente; build y E2E se registrarán tras completar su ejecución. No se habilita autenticación en el preview público.
+Desde la sesión se puede iniciar Activar autenticador, volver a verificar la contraseña, introducir la clave manual en una app TOTP y confirmar su primer código. Al activarlo se muestran diez códigos de recuperación sólo en memoria de la pantalla, con acción explícita Ya guardé mis códigos. Las sesiones anteriores se revocan y el usuario vuelve a entrar con MFA. Los campos se limpian al finalizar cada envío; el secreto y lote no se guardan en storage. La configuración manual está disponible y la alternativa Google se describe abajo; QR sigue pendiente.
 
 ### Prueba de autenticación reciente con Google
 
 El adaptador puede solicitar auth_time mediante claims y verificar ese campo firmado contra un umbral del servidor. Rechaza ausencia, tipos incorrectos, fechas antiguas y fechas futuras fuera de cinco segundos de tolerancia. iat no sustituye a auth_time: un token recién emitido puede proceder de una sesión antigua. Referencia: [Google OIDC](https://developers.google.com/identity/openid-connect/reference).
 
-Tres pruebas del proveedor pasan, incluida una prueba de tokens firmados con fecha de autenticación caducada/ausente. Esta capacidad aún no está conectada a un flujo público de reautenticación; debe ligarse a la sesión y al subject ya vinculado. No se afirma que Google fuerce una contraseña nueva: si no entrega evidencia reciente suficiente, la operación debe rechazarse. Configuración y pruebas con Google real continúan pendientes.
+Tres pruebas del proveedor pasan, incluida una prueba de tokens firmados con fecha de autenticación caducada/ausente. El modo reauthenticate liga esta prueba a la sesión y al subject ya vinculado. No se afirma que Google fuerce una contraseña nueva: si no entrega evidencia reciente suficiente, la operación debe rechazarse. Configuración y pruebas con Google real continúan pendientes.
 
 ### Reautenticación Google ligada a sesión
 
 El modo reauthenticate de `/google/start` exige sesión activa, conserva su identidad cifrada en el flujo OIDC y solicita auth_time. Al completar, el proveedor verifica autenticación en los últimos cinco minutos y el servidor exige el subject ya vinculado al usuario original. Sólo entonces emite un permiso de inscripción para aquella sesión, comprobando su vigencia bajo bloqueo. No crea usuarios, vincula identidades ni emite otra sesión en este modo.
 
-La prueba PostgreSQL añadida usa proveedor simulado y comprueba solicitud del dato de fecha, umbral de antigüedad, identidad vinculada, replay, revocación y ausencia de sesión adicional. La comprobación criptográfica de auth_time se cubre por separado con tokens firmados. La interfaz debe conservar la sesión original durante el retorno de Google; esa conexión y la validación con proveedor real están pendientes. El flujo no solicita Gmail.
+La prueba PostgreSQL añadida usa proveedor simulado y comprueba solicitud del dato de fecha, umbral de antigüedad, identidad vinculada, replay, revocación y ausencia de sesión adicional. La comprobación criptográfica de auth_time se cubre por separado con tokens firmados. La interfaz conserva la sesión original mediante el retorno en ventana descrito abajo; la validación con proveedor real está pendiente. El flujo no solicita Gmail.
 
 ### Validación del bloque de inscripción
 
 La ejecución [34189593062](https://github.com/SrEnderGYT/finanzas-personales/actions/runs/34189593062), del commit 368a02b, terminó correctamente. También pasaron documentación, revisión de secretos y publicación del preview. Esta validación sustituye las notas de CI pendiente de las subsecciones anteriores.
 
-La revisión de la captura móvil de inscripción detectó un borde de error sin contenido y un mensaje de sesión anterior debajo del formulario. Se corrigen manteniendo la región de estado accesible y mostrando el aviso general sólo fuera de la inscripción. Las capturas anteriores no se incorporan como evidencia visual aprobada; se regeneran con el siguiente CI. Continúa pendiente conectar el retorno Google en la interfaz conservando la sesión original y validar el proveedor real.
+La revisión de la captura móvil de inscripción detectó un borde de error sin contenido y un mensaje de sesión anterior debajo del formulario. Se corrigen manteniendo la región de estado accesible y mostrando el aviso general sólo fuera de la inscripción. Las capturas anteriores no se incorporan como evidencia visual aprobada; se regeneran con el siguiente CI. El retorno Google ya está conectado en Web; falta validar el proveedor real.
 
 ### Retorno Google para activar MFA en Web
 
@@ -210,3 +180,24 @@ El formulario permite verificar con la cuenta Google vinculada en una ventana se
 Se limpian listeners y temporizadores al terminar, cancelar, cerrar la ventana o alcanzar cinco minutos. Si el navegador bloquea la ventana, el formulario muestra una explicación y permite reintentar. Destruir el componente cancela la espera. La comunicación usa origen explícito, siguiendo [MDN postMessage](https://developer.mozilla.org/en-US/docs/Web/API/Window/postMessage).
 
 Validación local: diez pruebas unitarias entre cliente y ventana, typecheck, lint y build Web aprobados. La prueba Playwright de contrato abre una ventana real, simula Google y el API, regresa al origen y verifica una única finalización con la sesión original. No equivale a una prueba contra Google real ni a una prueba de autenticación nativa. Los contratos PostgreSQL y criptográficos se prueban por separado. La política de ventanas del proveedor o del despliegue puede cortar la relación entre ventanas; debe comprobarse en staging con Google configurado. El acceso nativo mediante navegador del sistema y retorno a Capacitor continúa pendiente. No se solicita Gmail.
+
+
+## Estado consolidado y evidencia actual
+
+El commit 2086a15 conecta reautenticación Google en Web y mantiene P05 abierto para configuración real y retorno nativo. La inscripción por contraseña y la recuperación están implementadas y probadas con API/PostgreSQL reales, no son tareas de implementación pendientes.
+
+| Alcance | Evidencia | Límite |
+| --- | --- | --- |
+| Cliente y ventana Google | Diez pruebas unitarias locales aprobadas | No contactan Google |
+| Retorno de ventana | Playwright abre ventana real y conserva sesión original | API y proveedor simulados |
+| Registro, login, recuperación y MFA | Job Browser + PostgreSQL auth de 34236651525 aprobado | Correo externo sustituido por receptor sintético |
+| Tipos, lint y builds | Job Lint, tests y builds de 34236651525 aprobado | No equivale a despliegue real |
+| Android e iOS | Ambos jobs aprobados en 34236651525 | iOS es simulador sin firma, no TestFlight |
+
+La [ejecución 34236651525](https://github.com/SrEnderGYT/finanzas-personales/actions/runs/34236651525) corresponde al PR con head 2086a15 y prueba su merge sintético c9bf367ee4f9272bf570ea8945066f4216778191. Las pruebas PostgreSQL cubren permisos de inscripción, rechazo desde otra sesión, replay, revocación y emisión/consumo atómicos. El E2E de inscripción por contraseña recorre entrega de diez códigos y nuevo acceso mediante uno, sin preparar el factor desde fixtures.
+
+Entregables del mismo merge probado: [APK Android de desarrollo](https://github.com/SrEnderGYT/finanzas-personales/actions/runs/34236651525/artifacts/10060259679) e [iOS simulator sin firma](https://github.com/SrEnderGYT/finanzas-personales/actions/runs/34236651525/artifacts/10060256159). Son builds DEMO; sus artifacts incluyen metadata de versión, commit, fecha y entorno.
+
+Capturas de inscripción revisadas visualmente del artifact auth-system-visual de esa ejecución: [desktop](evidence/P05/mfa-enrollment-desktop.png), [móvil claro](evidence/P05/mfa-enrollment-mobile-light.png) y [móvil oscuro](evidence/P05/mfa-enrollment-mobile-dark.png). Los campos están vacíos, sin claves/tokens y sin superposición de controles. Sustituyen la evidencia inicial con borde de error vacío y aviso de sesión anterior.
+
+Pendientes de producto: Google y correo reales en staging HTTPS, políticas de ventanas, retorno Capacitor mediante navegador del sistema, persistencia nativa segura de sesión y pruebas en dispositivos. También siguen pendientes retención/limpieza de colas y recibos, rotación de claves y validación de proxies/IP antes de producción. Los endpoints actuales no permiten reemplazar/eliminar factores activos ni regenerar códigos de recuperación. El preview público continúa desactivado para autenticación y usa únicamente datos sintéticos.
