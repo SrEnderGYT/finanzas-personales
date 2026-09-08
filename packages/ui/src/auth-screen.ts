@@ -114,16 +114,18 @@ let pendingCallback = captureCallback();
                 name="code"
                 type="password"
                 autocomplete="one-time-code"
+                [attr.inputmode]="mode() === 'mfa' ? 'numeric' : 'text'"
                 required
                 [pattern]="mode() === 'mfa' ? '[0-9]{6}' : '[A-Za-z0-9_-]{43}'"
                 [(ngModel)]="code"
                 [disabled]="busy() || !client.enabled"
                 aria-describedby="code-help"
               />
-              <small id="code-help"
-                >Pega el código que recibiste. Caduca a los 15 minutos y solo puede usarse una
-                vez.</small
-              >
+              <small id="code-help">{{
+                mode() === 'mfa'
+                  ? 'Introduce los seis dígitos de tu app de autenticación. Este paso caduca en cinco minutos.'
+                  : 'Pega el código que recibiste. Caduca a los 15 minutos y solo puede usarse una vez.'
+              }}</small>
             }
             @if (mode() === 'login' || mode() === 'verify-email' || mode() === 'reset-password') {
               <label for="auth-password">{{

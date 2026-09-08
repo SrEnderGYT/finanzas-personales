@@ -25,6 +25,10 @@ test('browser requires an authenticator code before a real session is created', 
   await page.getByLabel('Contraseña', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Entrar', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Verifica que eres tú' })).toBeVisible();
+  await expect(page.locator('#code-help')).toHaveText(
+    'Introduce los seis dígitos de tu app de autenticación. Este paso caduca en cinco minutos.',
+  );
+  await expect(page.getByLabel('Código del autenticador')).toHaveAttribute('inputmode', 'numeric');
   await expect(page.getByRole('heading', { name: 'Tu sesión', exact: true })).toHaveCount(0);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: 'docs/evidence/P05/mfa-desktop.png', fullPage: true });
