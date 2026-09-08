@@ -40,6 +40,12 @@ export class MfaLogin {
     private readonly pool: Pool,
     private readonly store: MfaStore,
   ) {}
+  beginEnrollment(userId: string, sessionId: string, grant: unknown) {
+    return this.store.beginAuthorized(userId, sessionId, grant);
+  }
+  confirmEnrollment(userId: string, sessionId: string, code: unknown) {
+    return this.store.confirmAuthorized(userId, sessionId, code);
+  }
   async complete(body: unknown, ip: string, recovery = false) {
     if (!body || typeof body !== 'object' || Array.isArray(body)) throw new UnauthorizedException();
     const fields = body as Record<string, unknown>;

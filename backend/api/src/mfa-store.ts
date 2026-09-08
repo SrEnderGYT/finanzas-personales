@@ -1,5 +1,6 @@
+import { consumeEnrollmentGrant, lockLiveSession } from './reauth-grants';
 import { replaceRecoveryCodes } from './mfa-recovery';
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { Pool, type PoolClient } from 'pg';
 import { MfaSecrets, MFA_USER_ID } from './mfa-secrets';
 import { matchTotp, newTotpSecret, totpProvisioningUri } from './totp';
@@ -42,18 +43,38 @@ export class MfaStore {
     }
   }
   async beginEnrollment(userId: string) {
+    return this.transaction(userId, (client) => this.begin(client, userId, null));
+  }
+  async beginAuthorized(userId: string, sessionId: string, grant: unknown) {
     return this.transaction(userId, async (client) => {
-      const secret = newTotpSecret();
-      const result = await client.query(
-        `INSERT INTO app.mfa_factors(user_id,envelope) VALUES($1,$2)
-        ON CONFLICT(user_id) DO UPDATE SET envelope=excluded.envelope,created_at=now()
-        WHERE NOT app.mfa_factors.active RETURNING user_id`,
-        [userId, this.secrets.seal(userId, secret)],
-      );
-      if (result.rowCount !== 1) throw new ConflictException();
-      // Deliberately preserve failure counters/lockouts when replacing a pending enrollment.
-      return { secret, uri: totpProvisioningUri(secret, userId) };
+      if (!(await consumeEnrollmentGrant(client, userId, sessionId, grant)))
+        throw new UnauthorizedException();
+      return this.begin(client, userId, sessionId);
     });
+  }
+  private async begin(client: PoolClient, userId: string, sessionId: string | null) {
+    const secret = newTotpSecret();
+    const result = await client.query(
+      `INSERT INTO app.mfa_factors(user_id,envelope,enrollment_session_id) VALUES($1,$2,$3)
+       ON CONFLICT(user_id) DO UPDATE SET envelope=excluded.envelope,created_at=clock_timestamp(),enrollment_session_id=excluded.enrollment_session_id
+       WHERE NOT app.mfa_factors.active RETURNING user_id`,
+      [userId, this.secrets.seal(userId, secret), sessionId],
+    );
+    if (result.rowCount !== 1) throw new ConflictException();
+    return { secret, uri: totpProvisioningUri(secret, userId) };
+  }
+  async confirmAuthorized(userId: string, sessionId: string, code: unknown) {
+    const result = await this.transaction(userId, async (client) => {
+      await lockLiveSession(client, userId, sessionId);
+      const enrollment = await client.query(
+        'SELECT user_id FROM app.mfa_factors WHERE user_id=$1 AND enrollment_session_id=$2 AND NOT active FOR UPDATE',
+        [userId, sessionId],
+      );
+      if (enrollment.rowCount !== 1) throw new UnauthorizedException();
+      return this.confirm(client, userId, code);
+    });
+    if (!result) throw new UnauthorizedException();
+    return result;
   }
   async confirmEnrollment(userId: string, code: unknown) {
     return (await this.confirmEnrollmentWithRecovery(userId, code)) !== null;
@@ -62,20 +83,21 @@ export class MfaStore {
    * The caller must establish recent primary reauthentication before invoking this method.
    */
   async confirmEnrollmentWithRecovery(userId: string, code: unknown) {
-    return this.transaction(userId, async (client) => {
-      const valid = await this.consume(client, userId, code, false);
-      if (valid) {
-        await client.query(
-          'UPDATE app.sessions SET revoked_at=coalesce(revoked_at,clock_timestamp()) WHERE user_id=$1',
-          [userId],
-        );
-        await client.query(
-          'UPDATE app.mfa_challenges SET consumed_at=clock_timestamp() WHERE user_id=$1 AND consumed_at IS NULL',
-          [userId],
-        );
-      }
-      return valid ? { recoveryCodes: await replaceRecoveryCodes(client, userId) } : null;
-    });
+    return this.transaction(userId, (client) => this.confirm(client, userId, code));
+  }
+  private async confirm(client: PoolClient, userId: string, code: unknown) {
+    const valid = await this.consume(client, userId, code, false);
+    if (valid) {
+      await client.query(
+        'UPDATE app.sessions SET revoked_at=coalesce(revoked_at,clock_timestamp()) WHERE user_id=$1',
+        [userId],
+      );
+      await client.query(
+        'UPDATE app.mfa_challenges SET consumed_at=clock_timestamp() WHERE user_id=$1 AND consumed_at IS NULL',
+        [userId],
+      );
+    }
+    return valid ? { recoveryCodes: await replaceRecoveryCodes(client, userId) } : null;
   }
   async consumeActive(userId: string, code: unknown) {
     return this.transaction(userId, (client) => this.consume(client, userId, code, true));

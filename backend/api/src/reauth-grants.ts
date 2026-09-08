@@ -4,7 +4,7 @@ import type { PoolClient } from 'pg';
 import { tokenHash } from './sessions';
 
 /** Caller owns the transaction and verified user context. Lock ordering is user then session. */
-async function lockLiveSession(client: PoolClient, userId: string, sessionId: string) {
+export async function lockLiveSession(client: PoolClient, userId: string, sessionId: string) {
   await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,5))', [
     userId.toLowerCase(),
   ]);

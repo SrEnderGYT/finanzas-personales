@@ -268,3 +268,48 @@ it('recovery requires a primary challenge, consumes once and keeps MFA enabled',
   await admin.query('UPDATE app.sessions SET revoked_at=now() WHERE user_id=$1', [a.id]);
   expect((await recover(retry, codes[2]!)).statusCode).toBe(200);
 });
+
+it('enrolls only after reauthentication in the same session and revokes old sessions', async () => {
+  const id = randomUUID();
+  const email = `${id}@example.test`;
+  await admin.query('INSERT INTO app.users(id) VALUES($1)', [id]);
+  await admin.query(
+    'INSERT INTO app.credentials(user_id,email,password_hash,verified) VALUES($1,$2,$3,true)',
+    [id, email, encoded],
+  );
+  const a = (await post('login', { email, password })).json() as { token: string };
+  const b = (await post('login', { email, password })).json() as { token: string };
+  const call = (token: string, path: string, payload: object) =>
+    app.inject({
+      method: 'POST',
+      url: '/v1/auth/' + path,
+      headers: { authorization: `Bearer ${token}` },
+      payload,
+      remoteAddress: '192.0.2.66',
+    });
+  expect((await call(a.token, 'mfa/enrollment/start', { grant: 'invalid' })).statusCode).toBe(401);
+  const permission = await call(a.token, 'reauthenticate/password', { password });
+  expect(permission.statusCode).toBe(200);
+  const grant = permission.json().grant as string;
+  expect((await call(b.token, 'mfa/enrollment/start', { grant })).statusCode).toBe(401);
+  const begun = await call(a.token, 'mfa/enrollment/start', { grant });
+  expect(begun.statusCode).toBe(200);
+  expect((await call(a.token, 'mfa/enrollment/start', { grant })).statusCode).toBe(401);
+  const secret = begun.json().secret as string;
+  const code = totpAt(secret, Math.floor(Date.now() / 1000));
+  expect((await call(b.token, 'mfa/enrollment/confirm', { code })).statusCode).toBe(401);
+  const confirmed = await call(a.token, 'mfa/enrollment/confirm', { code });
+  expect(confirmed.statusCode).toBe(200);
+  expect(confirmed.json().recoveryCodes).toHaveLength(10);
+  for (const previous of [a, b])
+    expect(
+      (
+        await app.inject({
+          method: 'GET',
+          url: '/v1/me',
+          headers: { authorization: `Bearer ${previous.token}` },
+        })
+      ).statusCode,
+    ).toBe(401);
+  expect((await call(a.token, 'mfa/enrollment/confirm', { code })).statusCode).toBe(401);
+});
