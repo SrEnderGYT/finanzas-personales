@@ -198,3 +198,34 @@ it('retains encrypted pending mail after transport failure and retries without e
   expect(mail).toBeDefined();
   expect((await post('verify-email', { token: mail.token, password })).statusCode).toBe(200);
 }, 15000);
+
+it('reauthentication requires the session owner password and rejects revoked sessions', async () => {
+  const recipient = email();
+  await register(recipient);
+  const session = await login(recipient);
+  const reauth = (token: string, payload: object) =>
+    app.inject({
+      method: 'POST',
+      url: '/v1/auth/reauthenticate/password',
+      headers: headers(token),
+      payload,
+    });
+  expect((await post('reauthenticate/password', { password })).statusCode).toBe(401);
+  expect((await reauth(session.token, { password: 'wrong password phrase' })).statusCode).toBe(401);
+  expect((await reauth(session.token, { password, user_id: randomUUID() })).statusCode).toBe(400);
+  const accepted = await reauth(session.token, { password });
+  expect(accepted.statusCode).toBe(200);
+  const proof = accepted.json() as { grant: string; expiresAt: string };
+  expect(proof.grant).toMatch(/^fpr_[A-Za-z0-9_-]{43}$/);
+  expect(
+    (await app.inject({ method: 'GET', url: '/v1/me', headers: headers(proof.grant) })).statusCode,
+  ).toBe(401);
+  const row = (
+    await admin.query('SELECT * FROM app.reauth_grants WHERE session_id=$1', [session.sessionId])
+  ).rows[0];
+  expect(row.purpose).toBe('mfa-enroll');
+  expect(JSON.stringify(row).includes(proof.grant)).toBe(false);
+  await app.inject({ method: 'POST', url: '/v1/auth/logout', headers: headers(session.token) });
+  expect((await reauth(session.token, { password })).statusCode).toBe(401);
+  expect(JSON.stringify(logs).includes(proof.grant)).toBe(false);
+});

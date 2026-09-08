@@ -1,5 +1,8 @@
+import { SESSIONS } from './session-controller';
+import { SessionAuthority } from './sessions';
 import {
   Body,
+  Headers,
   Controller,
   HttpCode,
   Inject,
@@ -27,7 +30,10 @@ const schema = (fields: string[]) => ({
 @ApiTags('Email authentication')
 @Controller('v1/auth')
 export class EmailController {
-  constructor(@Inject(EMAIL_AUTH) private readonly auth: EmailAuth | null) {}
+  constructor(
+    @Inject(EMAIL_AUTH) private readonly auth: EmailAuth | null,
+    @Inject(SESSIONS) private readonly sessions: SessionAuthority | null,
+  ) {}
   private service() {
     if (!this.auth) throw new ServiceUnavailableException();
     return this.auth;
@@ -55,6 +61,18 @@ export class EmailController {
   @ApiBody(schema(['token', 'password']))
   reset(@Body() body: unknown, @Req() request: FastifyRequest) {
     return this.service().complete(body, request.ip, 'reset');
+  }
+  @Post('reauthenticate/password')
+  @HttpCode(200)
+  @ApiBody(schema(['password']))
+  async reauthenticate(
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+    @Headers('authorization') authorization: string | undefined,
+  ) {
+    if (!this.sessions) throw new ServiceUnavailableException();
+    const session = await this.sessions.resolve(authorization);
+    return this.service().reauthenticate(body, request.ip, session);
   }
   @Post('login')
   @HttpCode(200)

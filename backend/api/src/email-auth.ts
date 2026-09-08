@@ -1,3 +1,4 @@
+import { issueEnrollmentGrant } from './reauth-grants';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { BadRequestException, HttpException, UnauthorizedException } from '@nestjs/common';
 import { Pool, type PoolClient } from 'pg';
@@ -163,6 +164,34 @@ export class EmailAuth {
       );
     });
     return { status: 'completed' };
+  }
+  async reauthenticate(
+    body: unknown,
+    ip: string,
+    session: { user_id: string; session_id: string },
+  ) {
+    const fields = authFields(body, ['password']);
+    await this.limit('reauth-ip:' + ip, 30);
+    await this.limit('reauth-user:' + session.user_id, 5);
+    const observed = (
+      await this.pool.query<Credential>('SELECT * FROM app.credentials WHERE user_id=$1', [
+        session.user_id,
+      ])
+    ).rows[0];
+    const valid = await verifyPassword(fields['password'], observed?.password_hash ?? undefined);
+    if (!valid || !observed?.verified) throw new UnauthorizedException();
+    return this.transaction(async (client) => {
+      const current = (
+        await client.query<Credential>(
+          'SELECT * FROM app.credentials WHERE user_id=$1 FOR UPDATE',
+          [session.user_id],
+        )
+      ).rows[0];
+      if (!current?.verified || current.password_hash !== observed.password_hash)
+        throw new UnauthorizedException();
+      await client.query("SELECT set_config('app.user_id',$1,true)", [session.user_id]);
+      return issueEnrollmentGrant(client, session.user_id, session.session_id);
+    });
   }
   async login(body: unknown, ip: string) {
     const fields = authFields(body, ['email', 'password']);
