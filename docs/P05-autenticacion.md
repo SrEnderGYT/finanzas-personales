@@ -76,7 +76,7 @@ Para un staging futuro, servir frontend y `/v1` en el mismo origen HTTPS, cambia
 
 Las pruebas de navegador verifican preview desactivada, registro visual, responsive, contraste/accesibilidad automatizada, contrato login/sesiones, expiración y ausencia de token en storage. El contrato HTTP del navegador está simulado: no se presenta como E2E completo con PostgreSQL o Google. Las pruebas API con PostgreSQL sí prueban autoridad, aislamiento y concurrencia reales. El commit 349a344 pasó calidad, Android e iOS simulator en [CI](https://github.com/SrEnderGYT/finanzas-personales/actions/runs/34086264600).
 
-Siguiente trabajo dentro de P05: evaluación MFA y validación real del proveedor Google/retorno nativo. Credenciales Google y envío real se configurarán fuera de Git cuando exista el entorno. Su ausencia no detiene el desarrollo del código y pruebas sintéticas. No hay autenticación de producto publicada ni datos reales.
+Siguiente trabajo dentro de P05: inscripción y recuperación MFA, y validación real del proveedor Google/retorno nativo. Credenciales Google y envío real se configurarán fuera de Git cuando exista el entorno. Su ausencia no detiene el desarrollo del código y pruebas sintéticas. No hay autenticación de producto publicada ni datos reales.
 
 ## Pruebas de sistema con navegador y PostgreSQL
 
@@ -84,7 +84,7 @@ Siguiente trabajo dentro de P05: evaluación MFA y validación real del proveedo
 
 El navegador registra y verifica dos usuarios sintéticos; el transporte de correo se sustituye por un receptor en memoria mediante el método real de entrega de la outbox cifrada. Login, recuperación, hashing, sesiones, autorizaciones, RLS y respuestas HTTP son reales, sin interceptación Playwright. Recuperar A debe revocar sus dos sesiones y conservar B. El token de A no puede revocar la sesión de B. Otra prueba comprueba el fallo de logout offline, reintento online y pérdida local de sesión al recargar. La PWA permanece activada y su manifest corresponde al index de staging aislado. No se guardan trazas con tokens.
 
-Este bloque sólo puede declararse validado tras aprobar el job en CI. No cubre todavía Google real, transporte real de correo, retorno nativo ni MFA. Los resultados y el commit se registran en el PR.
+Este bloque sólo puede declararse validado tras aprobar el job en CI. No cubre todavía Google real, transporte real de correo ni retorno nativo. El flujo MFA adicional se describe y valida abajo. Los resultados y el commit se registran en el PR.
 
 ## MFA — acceso integrado, inscripción y recuperación pendientes
 
@@ -102,7 +102,7 @@ La migración 005 añade factores con RLS forzada por user_id, accesibles única
 
 `MfaStore` es un servicio interno aún sin endpoints. Crea inscripciones pendientes de diez minutos; confirmar exige un código válido. No permite reemplazar un factor activo. Serializa los intentos, lee el reloj de PostgreSQL después del bloqueo y consume el periodo bajo bloqueo de fila. Cinco errores bloquean el factor durante quince minutos; los fallos se confirman en DB aunque la validación falle y cambiar una inscripción pendiente conserva el bloqueo. La protección se comparte entre instancias.
 
-Dos pruebas unitarias cubren cifrado y manipulación. Cuatro pruebas PostgreSQL cubren cinco intentos concurrentes con un único éxito, bloqueos persistentes, expiración, sustitución de ciphertext y RLS A/B. Su evidencia requiere aprobación de CI. La integración futura debe derivar el usuario de identidad verificada, exigir reautenticación para inscribir/cambiar el factor e incorporar consumo y emisión de sesión a la misma transacción. El segundo factor se exige en login cuando el factor está activo. Todavía no hay recuperación MFA ni inscripción accesible al usuario; no se deben crear factores de producción hasta completar esos flujos.
+Dos pruebas unitarias cubren cifrado y manipulación. Cuatro pruebas PostgreSQL cubren cinco intentos concurrentes con un único éxito, bloqueos persistentes, expiración, sustitución de ciphertext y RLS A/B. Su evidencia requiere aprobación de CI. El acceso integrado deriva el usuario del desafío verificado e incorpora consumo y emisión de sesión a la misma transacción. La futura inscripción debe exigir reautenticación para inscribir/cambiar el factor. El segundo factor se exige en login cuando el factor está activo. Todavía no hay recuperación MFA ni inscripción accesible al usuario; no se deben crear factores de producción hasta completar esos flujos.
 
 
 ### Desafíos de acceso
@@ -113,4 +113,12 @@ Recuperar contraseña invalida desafíos pendientes bajo el mismo bloqueo del us
 
 La UI web/responsive recibe el desafío en memoria, muestra el campo del autenticador y no solicita sesiones hasta obtener un token real. Al cancelar o recargar se pierde el desafío local. La preview pública sigue desactivada para autenticación real. Un E2E con PostgreSQL prepara un factor sintético desde el fixture interno y comprueba el login completo desde navegador; no expone un endpoint de preparación. Capturas de ese flujo se guardan como artifact `auth-system-visual` en CI.
 
-Validación pendiente de CI del bloque: cinco pruebas API/PostgreSQL para contraseña, Google simulado, concurrencia, recuperación, límites, expiración, aislamiento y rollback por límite de sesiones; un E2E de MFA real y una prueba del contrato del cliente. No equivalen a inscripción/recuperación MFA terminadas ni a Google real. P05 permanece abierto.
+Validación aprobada en CI del bloque: cinco pruebas API/PostgreSQL para contraseña, Google simulado, concurrencia, recuperación, límites, expiración, aislamiento y rollback por límite de sesiones; un E2E de MFA real y una prueba del contrato del cliente. No equivalen a inscripción/recuperación MFA terminadas ni a Google real. P05 permanece abierto.
+
+### Evidencia del acceso MFA
+
+El commit `c31e558f70369ee6a664e1034f71e5f62164b63c` aprobó los cuatro jobs de [CI](https://github.com/SrEnderGYT/finanzas-personales/actions/runs/34177926478): calidad y builds, navegador con PostgreSQL, APK Android de desarrollo e iOS simulator sin firma. El preview público sirve ese commit con datos sintéticos; la autenticación pública continúa desactivada.
+
+Capturas del navegador conectado al backend de pruebas: [desktop](evidence/P05/mfa-desktop.png), [móvil claro](evidence/P05/mfa-mobile-light.png) y [móvil oscuro](evidence/P05/mfa-mobile-dark.png). Se revisaron visualmente y muestran el campo de seis dígitos y la caducidad de cinco minutos; la prueba también exige teclado numérico. No contienen códigos ni tokens. Fuente: artifact `auth-system-visual` de la ejecución enlazada.
+
+Aceptación de este bloque: contraseña o Google simulado requieren el segundo factor cuando está activo; cinco canjes concurrentes crean una sola sesión; recuperar contraseña conserva MFA; un desafío no permite acceso a datos; los errores no consumen el código si falla la creación de sesión. Esto no cierra P05: faltan inscripción con reautenticación y recuperación MFA, configuración real de proveedores y validación nativa en dispositivos.
