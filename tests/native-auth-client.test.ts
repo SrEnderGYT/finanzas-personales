@@ -3,6 +3,21 @@ import type { AppPlugin } from '@capacitor/app';
 import { AuthClient } from '../packages/ui/src/auth-client';
 import { pkceChallenge } from '../packages/shared/src/native-pkce';
 
+it('constructs a native client against an explicitly configured HTTPS server', async () => {
+  const transport = vi
+    .fn<typeof fetch>()
+    .mockResolvedValue(Response.json({ token: `fp_${'a'.repeat(43)}` }));
+  const client = AuthClient.forNativeServer('https://api.example.test', transport);
+  await client.login('synthetic@example.test', 'Synthetic test phrase');
+  expect(client.signedIn).toBe(true);
+  expect(transport.mock.calls[0]?.[0]).toBe('https://api.example.test/v1/auth/login');
+  expect(transport.mock.calls[0]?.[1]).toMatchObject({
+    credentials: 'omit',
+    redirect: 'error',
+    cache: 'no-store',
+  });
+});
+
 it('uses native API paths, keeps PKCE private until completion and honors the MFA gate', async () => {
   let receive!: (event: { url: string }) => void;
   let challenge = '';

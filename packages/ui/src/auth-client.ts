@@ -1,4 +1,5 @@
 import { nativeGoogleFlow } from '../../shared/src/native-google-flow';
+import { nativeAuthHttp } from '../../shared/src/native-auth-http';
 
 export interface AuthSession {
   id: string;
@@ -10,6 +11,9 @@ export interface AuthSession {
 
 /** Tokens live only in this instance, never in browser storage or URLs. */
 export class AuthClient {
+  static forNativeServer(apiOrigin: string, transport: typeof fetch = fetch) {
+    return new AuthClient(true, nativeAuthHttp(apiOrigin, transport));
+  }
   private token: string | undefined;
   private challenge: string | undefined;
   get mfaPending() {
