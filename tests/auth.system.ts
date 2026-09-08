@@ -149,3 +149,47 @@ test('real PWA returns a connection error offline and can retry server-side logo
     await page.evaluate(() => JSON.stringify(localStorage) + JSON.stringify(sessionStorage)),
   ).not.toContain('fp_');
 });
+
+test('browser recovery enters once and rejects the consumed code', async ({ page }) => {
+  const email = `${randomUUID()}@example.test`;
+  await register(page, email);
+  await system.seedFactor(email);
+  const codes = await system.seedRecovery(email);
+  async function primary() {
+    await page.getByLabel('Correo electrónico').fill(email);
+    await page.getByLabel('Contraseña', { exact: true }).fill(password);
+    await page.getByRole('button', { name: 'Entrar', exact: true }).click();
+    await page.getByRole('button', { name: 'Usar un código de recuperación' }).click();
+    await expect(page.getByLabel('Código de recuperación')).toBeVisible();
+  }
+  await primary();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.screenshot({ path: 'docs/evidence/P05/mfa-recovery-desktop.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const theme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme: theme });
+    await page.screenshot({
+      path: `docs/evidence/P05/mfa-recovery-mobile-${theme}.png`,
+      fullPage: true,
+    });
+  }
+  await page.getByLabel('Código de recuperación').fill(codes[0]!);
+  await page.getByRole('button', { name: 'Usar el autenticador', exact: true }).click();
+  await expect(page.getByLabel('Código del autenticador')).toHaveValue('');
+  await page.getByRole('button', { name: 'Usar un código de recuperación' }).click();
+  await page.getByLabel('Código de recuperación').fill(codes[0]!);
+  await page.getByRole('button', { name: 'Usar código y entrar' }).click();
+  await expect(page.getByRole('heading', { name: 'Tu sesión', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Cerrar sesión', exact: true }).click();
+  await primary();
+  await page.getByLabel('Código de recuperación').fill(codes[0]!);
+  const rejected = page.waitForResponse((r) => r.url().endsWith('/v1/auth/mfa/recover'));
+  await page.getByRole('button', { name: 'Usar código y entrar' }).click();
+  expect((await rejected).status()).toBe(401);
+  await expect(page.getByLabel('Código de recuperación')).toHaveValue('');
+  await expect(page.getByRole('heading', { name: 'Tu sesión', exact: true })).toHaveCount(0);
+  const storage = await page.evaluate(
+    () => JSON.stringify(localStorage) + JSON.stringify(sessionStorage),
+  );
+  expect(codes.some((code) => storage.includes(code))).toBe(false);
+});

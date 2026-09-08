@@ -7,6 +7,8 @@ import { Pool } from 'pg';
 import type { AuthMail } from '../../backend/api/src/email-outbox';
 import { totpAt } from '../../backend/api/src/totp';
 
+import { replaceRecoveryCodes } from '../../backend/api/src/mfa-recovery';
+
 // Load the same compiled Nest application shipped by build:backend.
 const load = createRequire(resolve('package.json'));
 const { createApp } = load('./dist/api/app.js') as typeof import('../../backend/api/src/app');
@@ -134,6 +136,24 @@ export async function authSystem() {
     url: `http://127.0.0.1:${address.port}`,
     logs,
     admin,
+    async seedRecovery(email: string) {
+      const id = (await admin.query('SELECT user_id FROM app.credentials WHERE email=$1', [email]))
+        .rows[0].user_id as string;
+      const client = await authPool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query("SELECT set_config('app.user_id',$1,true)", [id]);
+        await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,5))', [id]);
+        const codes = await replaceRecoveryCodes(client, id);
+        await client.query('COMMIT');
+        return codes;
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      } finally {
+        client.release();
+      }
+    },
     async seedFactor(email: string) {
       const id = (
         await admin.query<{ user_id: string }>(

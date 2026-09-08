@@ -91,6 +91,13 @@ export class AuthClient {
     this.token = value.token;
     this.challenge = undefined;
   }
+  async recoverMfa(code: string) {
+    if (!this.challenge || !/^[0-9a-f]{8}(?:-[0-9a-f]{8}){3}$/i.test(code))
+      throw new Error('Introduce un código de recuperación completo, con sus guiones.');
+    this.acceptSession(
+      await this.request('mfa/recover', 'POST', { challenge: this.challenge, code }),
+    );
+  }
   async completeMfa(code: string) {
     if (!this.challenge || !/^\d{6}$/.test(code))
       throw new Error('Introduce los seis dígitos del autenticador.');

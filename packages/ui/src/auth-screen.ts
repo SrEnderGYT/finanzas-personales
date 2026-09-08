@@ -11,7 +11,8 @@ export const AUTH_CLIENT = new InjectionToken<AuthClient>('AUTH_CLIENT', {
         'same-origin',
     ),
 });
-type Mode = 'mfa' | 'login' | 'register' | 'forgot-password' | 'verify-email' | 'reset-password';
+type Mode =
+  'recovery' | 'mfa' | 'login' | 'register' | 'forgot-password' | 'verify-email' | 'reset-password';
 
 // Capture once before Angular's hash router replaces the initial URL.
 function captureCallback() {
@@ -107,7 +108,11 @@ let pendingCallback = captureCallback();
               />
             } @else {
               <label for="auth-code">{{
-                mode() === 'mfa' ? 'Código del autenticador' : 'Código del correo'
+                mode() === 'recovery'
+                  ? 'Código de recuperación'
+                  : mode() === 'mfa'
+                    ? 'Código del autenticador'
+                    : 'Código del correo'
               }}</label>
               <input
                 id="auth-code"
@@ -116,15 +121,23 @@ let pendingCallback = captureCallback();
                 autocomplete="one-time-code"
                 [attr.inputmode]="mode() === 'mfa' ? 'numeric' : 'text'"
                 required
-                [pattern]="mode() === 'mfa' ? '[0-9]{6}' : '[A-Za-z0-9_-]{43}'"
+                [pattern]="
+                  mode() === 'recovery'
+                    ? '[0-9a-fA-F]{8}(-[0-9a-fA-F]{8}){3}'
+                    : mode() === 'mfa'
+                      ? '[0-9]{6}'
+                      : '[A-Za-z0-9_-]{43}'
+                "
                 [(ngModel)]="code"
                 [disabled]="busy() || !client.enabled"
                 aria-describedby="code-help"
               />
               <small id="code-help">{{
-                mode() === 'mfa'
-                  ? 'Introduce los seis dígitos de tu app de autenticación. Este paso caduca en cinco minutos.'
-                  : 'Pega el código que recibiste. Caduca a los 15 minutos y solo puede usarse una vez.'
+                mode() === 'recovery'
+                  ? 'Usa uno de los códigos que guardaste al activar el autenticador. Cada código sirve una sola vez.'
+                  : mode() === 'mfa'
+                    ? 'Introduce los seis dígitos de tu app de autenticación. Este paso caduca en cinco minutos.'
+                    : 'Pega el código que recibiste. Caduca a los 15 minutos y solo puede usarse una vez.'
               }}</small>
             }
             @if (mode() === 'login' || mode() === 'verify-email' || mode() === 'reset-password') {
@@ -155,6 +168,16 @@ let pendingCallback = captureCallback();
               {{ busy() ? 'Un momento…' : actions[mode()] }}
             </button>
           </form>
+          @if (mode() === 'mfa' || mode() === 'recovery') {
+            <button
+              type="button"
+              class="auth-secondary"
+              [disabled]="busy()"
+              (click)="switchFactor()"
+            >
+              {{ mode() === 'mfa' ? 'Usar un código de recuperación' : 'Usar el autenticador' }}
+            </button>
+          }
           @if (mode() === 'login') {
             <button
               type="button"
@@ -208,6 +231,7 @@ export class AuthScreen {
   password = '';
   code = '';
   readonly titles = {
+    recovery: 'Recupera tu segundo paso',
     mfa: 'Verifica que eres tú',
     login: 'Bienvenido de nuevo',
     register: 'Crea tu cuenta',
@@ -216,6 +240,7 @@ export class AuthScreen {
     'reset-password': 'Elige una nueva contraseña',
   };
   readonly descriptions = {
+    recovery: 'Podrás entrar sin desactivar la protección de tu cuenta.',
     mfa: 'Completa el segundo paso para acceder a tu cuenta.',
     login: 'Entra para gestionar tu acceso.',
     register: 'Primero verificaremos que el correo te pertenece.',
@@ -224,6 +249,7 @@ export class AuthScreen {
     'reset-password': 'Las sesiones anteriores se cerrarán al cambiarla.',
   };
   readonly actions = {
+    recovery: 'Usar código y entrar',
     mfa: 'Verificar y entrar',
     login: 'Entrar',
     register: 'Enviar código de verificación',
@@ -243,6 +269,13 @@ export class AuthScreen {
         });
       } else this.message.set('El acceso con Google no se completó. Puedes volver a intentarlo.');
     }
+  }
+  switchFactor() {
+    if (!this.client.mfaPending || this.busy()) return;
+    this.mode.set(this.mode() === 'mfa' ? 'recovery' : 'mfa');
+    this.code = '';
+    this.message.set('');
+    this.failed.set(false);
   }
   change(mode: Mode) {
     this.client.cancelMfa();
@@ -277,6 +310,9 @@ export class AuthScreen {
       const mode = this.mode();
       if (mode === 'login') {
         await this.client.login(this.email, this.password);
+        await this.afterPrimary();
+      } else if (mode === 'recovery') {
+        await this.client.recoverMfa(this.code);
         await this.afterPrimary();
       } else if (mode === 'mfa') {
         await this.client.completeMfa(this.code);

@@ -71,3 +71,21 @@ describe('browser auth transport', () => {
     await expect(client.google('login')).rejects.toThrow('no es válida');
   });
 });
+
+it('recovery exchanges only the pending challenge and rejects malformed codes locally', async () => {
+  const challenge = `fpm_${'b'.repeat(43)}`;
+  const transport = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(Response.json({ mfaRequired: true, challenge }));
+  const client = new AuthClient(true, transport);
+  await client.login('synthetic@example.test', 'synthetic');
+  await expect(client.recoverMfa('123456')).rejects.toThrow('completo');
+  expect(transport).toHaveBeenCalledTimes(1);
+  transport.mockResolvedValueOnce(Response.json({ token }));
+  const code = '01234567-89abcdef-01234567-89abcdef';
+  await client.recoverMfa(code);
+  expect(transport.mock.calls[1]?.[0]).toBe('/v1/auth/mfa/recover');
+  expect(JSON.parse(transport.mock.calls[1]?.[1]?.body as string)).toEqual({ challenge, code });
+  expect(client.signedIn).toBe(true);
+  expect(client.mfaPending).toBe(false);
+});

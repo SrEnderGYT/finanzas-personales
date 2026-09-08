@@ -136,3 +136,9 @@ Validación local: tipo estricto, lint, build backend y prueba de formato/hash a
 `POST /v1/auth/mfa/recover` recibe challenge/code y exige el mismo desafío primario de cinco minutos que TOTP. Deriva la identidad desde el desafío; no acepta user_id. Comparte límite por IP y los cinco intentos por desafío con `/complete`. El consumo del código y del desafío se confirma junto con la sesión o se revierte entero si la sesión no puede crearse. El factor permanece activo.
 
 La prueba API añadida comprueba rechazo sin desafío, aislamiento A/B, cinco canjes concurrentes con una sola sesión, reutilización, límite de intentos y rollback por límite de sesiones. Tipo estricto, lint y build backend aprobados localmente; esta prueba API requiere CI. La base anterior de almacenamiento aprobó calidad y navegador/PostgreSQL en la ejecución 34179312089. La inscripción y entrega de códigos con reautenticación y la interfaz de recuperación siguen pendientes; P05 no está cerrado.
+
+### Interfaz de recuperación MFA
+
+La pantalla del segundo factor permite alternar entre autenticador y código de recuperación manteniendo el desafío en memoria y borrando el campo al cambiar de opción. El código se introduce oculto, con validación de formato y sin almacenarlo en el navegador. Cancelar el acceso elimina el desafío.
+
+Se añade un E2E con backend/PostgreSQL reales que prepara códigos únicamente desde el fixture de pruebas, entra con uno, cierra sesión y verifica el rechazo del código consumido. Genera capturas desktop y móvil claro/oscuro antes de introducir secretos, incluidas en el artifact visual. Tipo estricto, lint y build web aprobados localmente; el E2E y las nuevas capturas quedan pendientes de ejecución y revisión en CI. La preview pública mantiene el acceso desactivado. La inscripción y entrega de códigos con reautenticación aún deben implementarse antes de activar MFA en producción.
