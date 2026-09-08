@@ -1,0 +1,68 @@
+import { expect, it, vi } from 'vitest';
+import type { AppPlugin } from '@capacitor/app';
+import { AuthClient } from '../packages/ui/src/auth-client';
+import { pkceChallenge } from '../packages/shared/src/native-pkce';
+
+it('uses native API paths, keeps PKCE private until completion and honors the MFA gate', async () => {
+  let receive!: (event: { url: string }) => void;
+  let challenge = '';
+  const remove = vi.fn(async () => undefined);
+  const app = {
+    addListener: vi.fn(async (_event, listener) => {
+      receive = listener;
+      return { remove };
+    }),
+  };
+  const transport = vi.fn<typeof fetch>(async (path, options) => {
+    const body = JSON.parse(options!.body as string);
+    if (path === '/v1/auth/google/native/start') {
+      expect(body.verifier).toBeUndefined();
+      challenge = body.challenge;
+      return Response.json({
+        authorizationUrl: `https://accounts.google.com/o/oauth2/v2/auth?state=${body.state}`,
+      });
+    }
+    if (path === '/v1/auth/google/native/complete') {
+      expect(await pkceChallenge(body.verifier)).toBe(challenge);
+      return Response.json({ mfaRequired: true, challenge: `fpm_${'b'.repeat(43)}` });
+    }
+    expect(path).toBe('/v1/auth/mfa/complete');
+    return Response.json({ token: `fp_${'a'.repeat(43)}` });
+  });
+  const client = new AuthClient(true, transport);
+  await client.nativeGoogle({
+    app: app as unknown as AppPlugin,
+    redirectUri: 'https://auth.example.test/mobile/callback',
+    signal: new AbortController().signal,
+    browser: {
+      open: async ({ url }) => {
+        receive({
+          url: `https://auth.example.test/mobile/callback?state=${new URL(url).searchParams.get('state')}&code=synthetic`,
+        });
+      },
+    },
+  });
+  expect(client.signedIn).toBe(false);
+  expect(client.mfaPending).toBe(true);
+  expect(remove).toHaveBeenCalledOnce();
+  await client.completeMfa('123456');
+  expect(client.signedIn).toBe(true);
+  expect(client.mfaPending).toBe(false);
+});
+
+it('never starts native login in the public demo', async () => {
+  const open = vi.fn();
+  const addListener = vi.fn();
+  const transport = vi.fn<typeof fetch>();
+  await expect(
+    new AuthClient(false, transport).nativeGoogle({
+      app: { addListener } as unknown as AppPlugin,
+      browser: { open },
+      redirectUri: 'https://auth.example.test/mobile/callback',
+      signal: new AbortController().signal,
+    }),
+  ).rejects.toThrow('no está habilitado');
+  expect(open).not.toHaveBeenCalled();
+  expect(addListener).not.toHaveBeenCalled();
+  expect(transport).not.toHaveBeenCalled();
+});

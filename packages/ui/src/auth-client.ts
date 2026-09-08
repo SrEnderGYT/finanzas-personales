@@ -1,3 +1,5 @@
+import { nativeGoogleFlow } from '../../shared/src/native-google-flow';
+
 export interface AuthSession {
   id: string;
   createdAt: string;
@@ -23,7 +25,12 @@ export class AuthClient {
   get signedIn() {
     return this.token !== undefined;
   }
-  private async request(path: string, method: string, body?: object): Promise<unknown> {
+  private async request(
+    path: string,
+    method: string,
+    body?: object,
+    signal?: AbortSignal,
+  ): Promise<unknown> {
     if (!this.enabled)
       throw new Error('El acceso aún no está habilitado en esta vista de muestra.');
     let response: Response;
@@ -38,7 +45,9 @@ export class AuthClient {
           ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
         },
         ...(body ? { body: JSON.stringify(body) } : {}),
-        signal: AbortSignal.timeout(15000),
+        signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(15000)])
+          : AbortSignal.timeout(15000),
       });
     } catch {
       throw new Error('No pudimos conectar. Comprueba tu conexión y vuelve a intentarlo.');
@@ -222,5 +231,29 @@ export class AuthClient {
   }
   async completeGoogle(state: string, code: string) {
     this.acceptSession(await this.request('google/complete', 'POST', { state, code }));
+  }
+  async nativeGoogle(options: Omit<Parameters<typeof nativeGoogleFlow>[0], 'transport'>) {
+    if (!this.enabled)
+      throw new Error('El acceso aún no está habilitado en esta vista de muestra.');
+    this.acceptSession(
+      await nativeGoogleFlow({
+        ...options,
+        transport: {
+          start: async (input, signal) => {
+            const result = await this.request('google/native/start', 'POST', input, signal);
+            if (
+              !result ||
+              typeof result !== 'object' ||
+              !('authorizationUrl' in result) ||
+              typeof result.authorizationUrl !== 'string'
+            )
+              throw new Error('No se pudo iniciar Google.');
+            return result.authorizationUrl;
+          },
+          complete: (input, signal) =>
+            this.request('google/native/complete', 'POST', input, signal),
+        },
+      }),
+    );
   }
 }

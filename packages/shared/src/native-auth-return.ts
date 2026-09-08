@@ -65,11 +65,11 @@ export class NativeAuthReturn {
       return null;
     // A correlated response consumes the attempt even if denied/malformed.
     this.cancel();
-    if (
-      [...url.searchParams.keys()].some((key) => key !== 'state' && key !== 'code') ||
-      url.searchParams.getAll('code').length !== 1
-    )
-      return null;
+    let unexpected = false;
+    url.searchParams.forEach((_value, key) => {
+      if (key !== 'state' && key !== 'code') unexpected = true;
+    });
+    if (unexpected || url.searchParams.getAll('code').length !== 1) return null;
     const code = url.searchParams.get('code')!;
     if (
       !code.length ||
