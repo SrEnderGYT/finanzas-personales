@@ -1733,3 +1733,8 @@ fp-storage-lab .small {
     border-radius: 20px;
   }
 }
+
+/* Access forms provide their own return link; fixed tabs must not cover their controls. */
+.workspace:has(fp-auth-screen) .bottom-nav {
+  display: none;
+}

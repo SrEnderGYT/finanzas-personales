@@ -33,6 +33,7 @@ test('browser requires an authenticator code before a real session is created', 
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: 'docs/evidence/P05/mfa-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole('navigation', { name: 'Navegación móvil' })).toBeHidden();
   for (const theme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme: theme });
     await page.screenshot({ path: `docs/evidence/P05/mfa-mobile-${theme}.png`, fullPage: true });
@@ -166,6 +167,7 @@ test('browser recovery enters once and rejects the consumed code', async ({ page
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: 'docs/evidence/P05/mfa-recovery-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole('navigation', { name: 'Navegación móvil' })).toBeHidden();
   for (const theme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme: theme });
     await page.screenshot({
