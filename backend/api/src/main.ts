@@ -74,6 +74,7 @@ async function main() {
       emailAuth,
       googleAuth,
       nativeGoogleAuth,
+      nativeAuthCors: process.env['NATIVE_AUTH_CORS'] === 'enabled',
       mfaLogin: process.env['MFA_ENCRYPTION_KEY']
         ? new MfaLogin(
             authPool,
