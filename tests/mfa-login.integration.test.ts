@@ -1,3 +1,4 @@
+import { replaceRecoveryCodes } from '../backend/api/src/mfa-recovery';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { beforeAll, afterAll, expect, it } from 'vitest';
 import { Pool } from 'pg';
@@ -216,4 +217,54 @@ it('rejects the legacy issuance path and rolls back factor consumption when sess
   expect((await post('mfa/complete', { challenge: pending, code: user.code })).statusCode).toBe(
     200,
   );
+});
+
+it('recovery requires a primary challenge, consumes once and keeps MFA enabled', async () => {
+  const a = await account();
+  const b = await account();
+  const client = await authPool.connect();
+  let codes: string[];
+  try {
+    await client.query('BEGIN');
+    await client.query("SELECT set_config('app.user_id',$1,true)", [a.id]);
+    codes = await replaceRecoveryCodes(client, a.id);
+    await client.query('COMMIT');
+  } finally {
+    client.release();
+  }
+  const recover = (pending: string, code: string) =>
+    app.inject({
+      method: 'POST',
+      url: '/v1/auth/mfa/recover',
+      remoteAddress: '192.0.2.41',
+      payload: { challenge: pending, code },
+    });
+  expect((await recover('invalid', codes[0]!)).statusCode).toBe(401);
+  const other = await challenge(b.email);
+  expect((await recover(other, codes[0]!)).statusCode).toBe(401);
+  const pending = await challenge(a.email);
+  const results = await Promise.all(Array.from({ length: 5 }, () => recover(pending, codes[0]!)));
+  expect(results.filter((r) => r.statusCode === 200)).toHaveLength(1);
+  expect(results.filter((r) => r.statusCode === 401)).toHaveLength(4);
+  const again = await challenge(a.email);
+  expect((await recover(again, codes[0]!)).statusCode).toBe(401);
+  expect((await recover(again, codes[1]!)).statusCode).toBe(200);
+  expect(
+    (await admin.query('SELECT active FROM app.mfa_factors WHERE user_id=$1', [a.id])).rows[0]
+      .active,
+  ).toBe(true);
+  const limited = await challenge(a.email);
+  for (let i = 0; i < 5; i++) expect((await recover(limited, 'invalid')).statusCode).toBe(401);
+  expect((await recover(limited, codes[2]!)).statusCode).toBe(401);
+  const retry = await challenge(a.email);
+  await admin.query('UPDATE app.sessions SET revoked_at=now() WHERE user_id=$1', [a.id]);
+  for (let i = 0; i < 10; i++)
+    await admin.query('INSERT INTO app.sessions(user_id,id,token_hash) VALUES($1,$2,$3)', [
+      a.id,
+      randomUUID(),
+      tokenHash(randomUUID()),
+    ]);
+  expect((await recover(retry, codes[2]!)).statusCode).toBe(429);
+  await admin.query('UPDATE app.sessions SET revoked_at=now() WHERE user_id=$1', [a.id]);
+  expect((await recover(retry, codes[2]!)).statusCode).toBe(200);
 });

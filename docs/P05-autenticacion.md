@@ -130,3 +130,9 @@ La migración 007 incorpora códigos de recuperación con RLS forzada y acceso e
 El consumo es una actualización condicional atómica dentro de la transacción del llamador: un rollback conserva el código. No desactiva el autenticador ni emite sesiones por sí mismo. Estas funciones aún no tienen endpoint: antes de exponerlas se integrarán con inscripción y reautenticación reciente, desafío limitado y emisión de sesión en la misma transacción. No se deben activar factores de producción todavía.
 
 Validación local: tipo estricto, lint, build backend y prueba de formato/hash aprobados. Se añade una prueba PostgreSQL de cinco consumos concurrentes, aislamiento A/B, rollback, rotación y denegación al runtime financiero; su resultado queda pendiente de CI. No se considera recuperación de usuario terminada hasta completar y probar el flujo API/UI.
+
+### Canje de recuperación por API
+
+`POST /v1/auth/mfa/recover` recibe challenge/code y exige el mismo desafío primario de cinco minutos que TOTP. Deriva la identidad desde el desafío; no acepta user_id. Comparte límite por IP y los cinco intentos por desafío con `/complete`. El consumo del código y del desafío se confirma junto con la sesión o se revierte entero si la sesión no puede crearse. El factor permanece activo.
+
+La prueba API añadida comprueba rechazo sin desafío, aislamiento A/B, cinco canjes concurrentes con una sola sesión, reutilización, límite de intentos y rollback por límite de sesiones. Tipo estricto, lint y build backend aprobados localmente; esta prueba API requiere CI. La base anterior de almacenamiento aprobó calidad y navegador/PostgreSQL en la ejecución 34179312089. La inscripción y entrega de códigos con reautenticación y la interfaz de recuperación siguen pendientes; P05 no está cerrado.

@@ -30,4 +30,24 @@ export class MfaController {
     if (!this.login) throw new ServiceUnavailableException();
     return this.login.complete(body, request.ip);
   }
+  @Post('recover')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Canjea un código de recuperación tras verificar la identidad primaria',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['challenge', 'code'],
+      properties: {
+        challenge: { type: 'string' },
+        code: { type: 'string', pattern: '^[0-9a-fA-F]{8}(-[0-9a-fA-F]{8}){3}$' },
+      },
+    },
+  })
+  recover(@Body() body: unknown, @Req() request: FastifyRequest) {
+    if (!this.login) throw new ServiceUnavailableException();
+    return this.login.complete(body, request.ip, true);
+  }
 }

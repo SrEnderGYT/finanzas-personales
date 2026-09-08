@@ -3,6 +3,7 @@ import { HttpException, UnauthorizedException } from '@nestjs/common';
 import { Pool, type PoolClient } from 'pg';
 import { createSession, tokenHash } from './sessions';
 import { MfaStore } from './mfa-store';
+import { consumeRecoveryCode } from './mfa-recovery';
 
 /** Called only after primary identity verification, within its transaction. */
 export async function primaryLogin(client: PoolClient, userId: string) {
@@ -39,7 +40,7 @@ export class MfaLogin {
     private readonly pool: Pool,
     private readonly store: MfaStore,
   ) {}
-  async complete(body: unknown, ip: string) {
+  async complete(body: unknown, ip: string, recovery = false) {
     if (!body || typeof body !== 'object' || Array.isArray(body)) throw new UnauthorizedException();
     const fields = body as Record<string, unknown>;
     if (
@@ -78,7 +79,9 @@ export class MfaLogin {
         );
         if (
           challenge.rowCount === 1 &&
-          (await this.store.consumeInTransaction(client, owner.user_id, fields['code']))
+          (recovery
+            ? await consumeRecoveryCode(client, owner.user_id, fields['code'])
+            : await this.store.consumeInTransaction(client, owner.user_id, fields['code']))
         ) {
           await client.query(
             'UPDATE app.mfa_challenges SET consumed_at=clock_timestamp() WHERE token_hash=$1',
