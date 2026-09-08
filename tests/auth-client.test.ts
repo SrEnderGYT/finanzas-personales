@@ -89,3 +89,50 @@ it('recovery exchanges only the pending challenge and rejects malformed codes lo
   expect(client.signedIn).toBe(true);
   expect(client.mfaPending).toBe(false);
 });
+
+it('Google enrollment consumes a grant with the original session without accepting a new login', async () => {
+  const grant = `fpr_${'g'.repeat(43)}`;
+  const secret = 'A'.repeat(32);
+  const transport = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(Response.json({ token }))
+    .mockResolvedValueOnce(Response.json({ reauthenticated: true, grant }))
+    .mockResolvedValueOnce(Response.json({ secret }));
+  const client = new AuthClient(true, transport);
+  await client.login('synthetic@example.test', 'synthetic');
+  expect(await client.beginMfaGoogle('synthetic-state', 'synthetic-code')).toBe(secret);
+  expect(client.signedIn).toBe(true);
+  expect(client.mfaPending).toBe(false);
+  expect(transport.mock.calls[1]?.[0]).toBe('/v1/auth/google/complete');
+  expect(transport.mock.calls[2]?.[0]).toBe('/v1/auth/mfa/enrollment/start');
+  expect(JSON.parse(transport.mock.calls[2]?.[1]?.body as string)).toEqual({ grant });
+  for (const call of transport.mock.calls.slice(1)) {
+    expect(call[1]?.headers).toMatchObject({ Authorization: `Bearer ${token}` });
+  }
+  transport.mockResolvedValueOnce(Response.json({ token: `fp_${'z'.repeat(43)}` }));
+  await expect(client.beginMfaGoogle('state', 'code')).rejects.toThrow('verificar tu identidad');
+  expect(transport).toHaveBeenCalledTimes(4);
+  transport.mockResolvedValueOnce(Response.json([]));
+  await client.sessions();
+  expect(transport.mock.calls[4]?.[1]?.headers).toMatchObject({ Authorization: `Bearer ${token}` });
+});
+
+it('Google enrollment requires a session and a valid grant, never treating MFA challenges as proof', async () => {
+  const transport = vi.fn<typeof fetch>();
+  const client = new AuthClient(true, transport);
+  await expect(client.google('reauthenticate')).rejects.toThrow('Vuelve a entrar');
+  await expect(client.beginMfaGoogle('state', 'code')).rejects.toThrow('Vuelve a entrar');
+  expect(transport).not.toHaveBeenCalled();
+  transport.mockResolvedValueOnce(Response.json({ token }));
+  await client.login('synthetic@example.test', 'synthetic');
+  for (const proof of [
+    { reauthenticated: true, grant: 'invalid' },
+    { mfaRequired: true, challenge: `fpm_${'b'.repeat(43)}` },
+    { reauthenticated: false, grant: `fpr_${'g'.repeat(43)}` },
+  ]) {
+    transport.mockResolvedValueOnce(Response.json(proof));
+    await expect(client.beginMfaGoogle('state', 'code')).rejects.toThrow('verificar tu identidad');
+  }
+  expect(transport).toHaveBeenCalledTimes(4);
+  expect(client.mfaPending).toBe(false);
+});

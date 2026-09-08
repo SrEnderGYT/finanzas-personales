@@ -1,6 +1,7 @@
-import { Component, input, output, signal } from '@angular/core';
+import { Component, DestroyRef, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AuthClient } from './auth-client';
+import { googleReauthentication } from './google-popup';
 
 @Component({
   selector: 'fp-mfa-enrollment',
@@ -66,6 +67,12 @@ import { AuthClient } from './auth-client';
           }}
         </button>
       </form>
+      @if (!secret()) {
+        <button class="auth-secondary" type="button" [disabled]="busy()" (click)="google()">
+          Verificar con Google vinculado
+        </button>
+        <p>Google se abre en otra ventana. Usa la cuenta que ya vinculaste a Finanzas.</p>
+      }
       <button class="auth-secondary" type="button" [disabled]="busy()" (click)="close()">
         Volver al acceso
       </button>
@@ -74,6 +81,10 @@ import { AuthClient } from './auth-client';
   `,
 })
 export class MfaEnrollment {
+  private readonly lifetime = new AbortController();
+  constructor() {
+    inject(DestroyRef).onDestroy(() => this.lifetime.abort());
+  }
   readonly client = input.required<AuthClient>();
   readonly finished = output<void>();
   readonly secret = signal('');
@@ -82,6 +93,23 @@ export class MfaEnrollment {
   readonly error = signal('');
   password = '';
   code = '';
+  async google() {
+    if (this.busy()) return;
+    this.busy.set(true);
+    this.error.set('');
+    this.password = '';
+    try {
+      const result = await googleReauthentication(
+        () => this.client().google('reauthenticate'),
+        this.lifetime.signal,
+      );
+      this.secret.set(await this.client().beginMfaGoogle(result.state, result.code));
+    } catch (error) {
+      this.error.set(error instanceof Error ? error.message : 'No se pudo verificar tu identidad.');
+    } finally {
+      this.busy.set(false);
+    }
+  }
   async submit() {
     if (this.busy()) return;
     this.busy.set(true);

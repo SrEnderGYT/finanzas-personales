@@ -93,6 +93,21 @@ export class AuthClient {
   }
   async beginMfa(password: string): Promise<string> {
     const proof = await this.request('reauthenticate/password', 'POST', { password });
+    return this.beginMfaWithProof(proof);
+  }
+  async beginMfaGoogle(state: string, code: string): Promise<string> {
+    if (!this.token) throw new Error('Vuelve a entrar antes de activar el autenticador.');
+    const proof = await this.request('google/complete', 'POST', { state, code });
+    if (
+      !proof ||
+      typeof proof !== 'object' ||
+      !('reauthenticated' in proof) ||
+      proof.reauthenticated !== true
+    )
+      throw new Error('No se pudo verificar tu identidad.');
+    return this.beginMfaWithProof(proof);
+  }
+  private async beginMfaWithProof(proof: unknown): Promise<string> {
     if (
       !proof ||
       typeof proof !== 'object' ||
@@ -184,7 +199,9 @@ export class AuthClient {
     await this.request(all ? 'sessions' : 'logout', all ? 'DELETE' : 'POST');
     this.token = undefined;
   }
-  async google(mode: 'login' | 'link'): Promise<string> {
+  async google(mode: 'login' | 'link' | 'reauthenticate'): Promise<string> {
+    if (mode === 'reauthenticate' && !this.token)
+      throw new Error('Vuelve a entrar antes de activar el autenticador.');
     const value = await this.request('google/start', 'POST', { mode });
     if (
       !value ||

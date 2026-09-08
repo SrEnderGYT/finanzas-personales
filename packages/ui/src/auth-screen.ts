@@ -1,4 +1,5 @@
 import { MfaEnrollment } from './mfa-enrollment';
+import { relayGoogleReturn } from './google-popup';
 import { Component, InjectionToken, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -25,6 +26,7 @@ function captureCallback() {
     error: query.has('error'),
   };
   history.replaceState(null, '', `${location.pathname}#/acceso`);
+  if (relayGoogleReturn(callback)) return null;
   return callback;
 }
 let pendingCallback = captureCallback();
