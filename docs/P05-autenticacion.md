@@ -122,3 +122,11 @@ El commit `c31e558f70369ee6a664e1034f71e5f62164b63c` aprobó los cuatro jobs de 
 Capturas del navegador conectado al backend de pruebas: [desktop](evidence/P05/mfa-desktop.png), [móvil claro](evidence/P05/mfa-mobile-light.png) y [móvil oscuro](evidence/P05/mfa-mobile-dark.png). Se revisaron visualmente y muestran el campo de seis dígitos y la caducidad de cinco minutos; la prueba también exige teclado numérico. No contienen códigos ni tokens. Fuente: artifact `auth-system-visual` de la ejecución enlazada.
 
 Aceptación de este bloque: contraseña o Google simulado requieren el segundo factor cuando está activo; cinco canjes concurrentes crean una sola sesión; recuperar contraseña conserva MFA; un desafío no permite acceso a datos; los errores no consumen el código si falla la creación de sesión. Esto no cierra P05: faltan inscripción con reautenticación y recuperación MFA, configuración real de proveedores y validación nativa en dispositivos.
+
+### Base de códigos de recuperación (integración pendiente)
+
+La migración 007 incorpora códigos de recuperación con RLS forzada y acceso exclusivo al rol de autenticación dentro del contexto del usuario. Cada lote contiene diez códigos aleatorios de 128 bits. Se devuelve el texto una sola vez al llamador interno; PostgreSQL conserva únicamente hashes SHA-256 vinculados al usuario y fecha de consumo. Rotar el lote elimina los códigos anteriores.
+
+El consumo es una actualización condicional atómica dentro de la transacción del llamador: un rollback conserva el código. No desactiva el autenticador ni emite sesiones por sí mismo. Estas funciones aún no tienen endpoint: antes de exponerlas se integrarán con inscripción y reautenticación reciente, desafío limitado y emisión de sesión en la misma transacción. No se deben activar factores de producción todavía.
+
+Validación local: tipo estricto, lint, build backend y prueba de formato/hash aprobados. Se añade una prueba PostgreSQL de cinco consumos concurrentes, aislamiento A/B, rollback, rotación y denegación al runtime financiero; su resultado queda pendiente de CI. No se considera recuperación de usuario terminada hasta completar y probar el flujo API/UI.

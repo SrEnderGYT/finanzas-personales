@@ -1,3 +1,4 @@
+import { replaceRecoveryCodes, consumeRecoveryCode } from '../backend/api/src/mfa-recovery';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { beforeAll, afterAll, expect, it } from 'vitest';
 import { Pool } from 'pg';
@@ -118,4 +119,57 @@ it('enforces own-user RLS and keeps factors inaccessible to the financial runtim
   await expect(runtime.query('SELECT * FROM app.mfa_factors')).rejects.toMatchObject({
     code: '42501',
   });
+});
+
+it('recovery codes are isolated, atomic, replaceable and survive transaction rollback', async () => {
+  const a = await user();
+  const b = await user();
+  for (const id of [a, b]) {
+    const enrollment = await store.beginEnrollment(id);
+    expect(await store.confirmEnrollment(id, totpAt(enrollment.secret, await now()))).toBe(true);
+  }
+  async function transaction<T>(
+    id: string,
+    work: (client: import('pg').PoolClient) => Promise<T>,
+    rollback = false,
+  ) {
+    const client = await auth.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query("SELECT set_config('app.user_id',$1,true)", [id]);
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,5))', [id]);
+      const result = await work(client);
+      await client.query(rollback ? 'ROLLBACK' : 'COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+  const codes = await transaction(a, (client) => replaceRecoveryCodes(client, a));
+  expect(codes).toHaveLength(10);
+  const rows = (await admin.query('SELECT * FROM app.mfa_recovery_codes WHERE user_id=$1', [a]))
+    .rows;
+  expect(rows).toHaveLength(10);
+  expect(codes.some((code) => JSON.stringify(rows).includes(code))).toBe(false);
+  expect(await transaction(b, (client) => consumeRecoveryCode(client, a, codes[0]))).toBe(false);
+  expect(await transaction(b, (client) => consumeRecoveryCode(client, b, codes[0]))).toBe(false);
+  const results = await Promise.all(
+    Array.from({ length: 5 }, () =>
+      transaction(a, (client) => consumeRecoveryCode(client, a, codes[0])),
+    ),
+  );
+  expect(results.filter(Boolean)).toHaveLength(1);
+  expect(await transaction(a, (client) => consumeRecoveryCode(client, a, codes[1]), true)).toBe(
+    true,
+  );
+  expect(await transaction(a, (client) => consumeRecoveryCode(client, a, codes[1]))).toBe(true);
+  const replacement = await transaction(a, (client) => replaceRecoveryCodes(client, a));
+  expect(await transaction(a, (client) => consumeRecoveryCode(client, a, codes[2]))).toBe(false);
+  expect(await transaction(a, (client) => consumeRecoveryCode(client, a, replacement[0]))).toBe(
+    true,
+  );
+  await expect(runtime.query('SELECT * FROM app.mfa_recovery_codes')).rejects.toThrow();
 });
