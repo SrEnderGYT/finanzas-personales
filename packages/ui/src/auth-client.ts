@@ -237,27 +237,51 @@ export class AuthClient {
     this.acceptSession(await this.request('google/complete', 'POST', { state, code }));
   }
   async nativeGoogle(options: Omit<Parameters<typeof nativeGoogleFlow>[0], 'transport'>) {
+    this.acceptSession(await this.nativeGoogleResult(options, false));
+  }
+  async beginMfaNativeGoogle(
+    options: Omit<Parameters<typeof nativeGoogleFlow>[0], 'transport'>,
+  ): Promise<string> {
+    const original = this.token;
+    if (!original) throw new Error('Vuelve a entrar antes de activar el autenticador.');
+    const proof = await this.nativeGoogleResult(options, true);
+    if (
+      this.token !== original ||
+      !proof ||
+      typeof proof !== 'object' ||
+      !('reauthenticated' in proof) ||
+      proof.reauthenticated !== true
+    )
+      throw new Error('No se pudo verificar tu identidad.');
+    return this.beginMfaWithProof(proof);
+  }
+  private async nativeGoogleResult(
+    options: Omit<Parameters<typeof nativeGoogleFlow>[0], 'transport'>,
+    reauthenticate: boolean,
+  ) {
     if (!this.enabled)
       throw new Error('El acceso aún no está habilitado en esta vista de muestra.');
-    this.acceptSession(
-      await nativeGoogleFlow({
-        ...options,
-        transport: {
-          start: async (input, signal) => {
-            const result = await this.request('google/native/start', 'POST', input, signal);
-            if (
-              !result ||
-              typeof result !== 'object' ||
-              !('authorizationUrl' in result) ||
-              typeof result.authorizationUrl !== 'string'
-            )
-              throw new Error('No se pudo iniciar Google.');
-            return result.authorizationUrl;
-          },
-          complete: (input, signal) =>
-            this.request('google/native/complete', 'POST', input, signal),
+    return nativeGoogleFlow({
+      ...options,
+      transport: {
+        start: async (input, signal) => {
+          const result = await this.request(
+            reauthenticate ? 'google/native/reauthenticate' : 'google/native/start',
+            'POST',
+            input,
+            signal,
+          );
+          if (
+            !result ||
+            typeof result !== 'object' ||
+            !('authorizationUrl' in result) ||
+            typeof result.authorizationUrl !== 'string'
+          )
+            throw new Error('No se pudo iniciar Google.');
+          return result.authorizationUrl;
         },
-      }),
-    );
+        complete: (input, signal) => this.request('google/native/complete', 'POST', input, signal),
+      },
+    });
   }
 }

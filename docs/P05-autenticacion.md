@@ -253,3 +253,11 @@ El botón de Google utiliza el coordinador PKCE nativo cuando el build Capacitor
 `apps/mobile/src/native-auth.config.ts` permanece en `null`: el preview público y los builds sin staging siguen deshabilitados. No contiene dominios inventados ni credenciales. La vinculación de Google y la reautenticación Google para activar MFA en nativo siguen pendientes; el flujo Web permanece disponible en despliegues autorizados. La entrada nativa sí conserva el desafío MFA del servidor.
 
 Validación local: typecheck, lint, formato, 48 pruebas unitarias, 2 de integración API, 5 pruebas Playwright de autenticación/retorno Google; builds Web, Mobile y backend. Sincronización confirma Browser en Android/iOS. Estas pruebas son sintéticas. PostgreSQL y builds nativos del nuevo commit deben confirmarse en CI. Google real, asociación HTTPS de app links y pruebas en dispositivos físicos no se han ejecutado. No se habilita P06.
+
+### Reautenticación Google nativa para MFA — 9 septiembre 2026
+
+El botón de verificación Google del formulario MFA ya usa el navegador nativo cuando existe configuración Capacitor autorizada. El endpoint `POST /v1/auth/google/native/reauthenticate` exige sesión y vincula el flujo PKCE cifrado a esa sesión. Solicita autenticación reciente y reutiliza la verificación firmada de `auth_time`, identidad vinculada y sesión viva. Devuelve un permiso de inscripción; no crea otra sesión. El cliente conserva el token original y rechaza un cambio de sesión durante el retorno. El preview sigue deshabilitado.
+
+Pruebas locales: 49 unitarias, 2 integración API, 5 Playwright; lint, typecheck, formato y builds Web/Mobile/backend aprobados. Nueva prueba PostgreSQL cubre inicio sin sesión, identidad incorrecta, sesión revocada, replay, solicitud de frescura y ausencia de sesión nueva. Pendiente de su ejecución en CI al publicar este commit. CI del anterior 71d8804: los cuatro trabajos de Calidad pasaron, incluidos PostgreSQL/browser, Android e iOS simulador sin firma (run 34318034655).
+
+Pendientes: vinculación nativa de Google, validación real de Google y app links HTTPS en dispositivos, staging y firma/TestFlight. Esta sección reemplaza la limitación anterior sobre ausencia de reautenticación nativa; no declara probada la ejecución real con Google. P06 sigue sin iniciar.

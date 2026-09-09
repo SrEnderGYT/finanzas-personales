@@ -325,3 +325,54 @@ it('native start rejects downgrade and injected redirect, and native proof canno
   ).toBe(401);
   expect((await complete(web)).statusCode).toBe(200);
 });
+
+it('native reauthentication binds fresh Google proof to the initiating live session', async () => {
+  const user = await localUser();
+  await admin.query('INSERT INTO app.google_identities(subject,user_id) VALUES($1,$2)', [
+    identity.subject,
+    user.id,
+  ]);
+  async function begin(token?: string) {
+    const state = randomBytes(32).toString('base64url');
+    const verifier = randomBytes(32).toString('base64url');
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/google/native/reauthenticate',
+      headers: token ? { authorization: 'Bearer ' + token } : {},
+      payload: {
+        state,
+        challenge: createHash('sha256').update(verifier).digest('base64url'),
+        method: 'S256',
+      },
+    });
+    return { response, state, verifier };
+  }
+  const finish = (flow: { state: string; verifier: string }) =>
+    app.inject({
+      method: 'POST',
+      url: '/v1/auth/google/native/complete',
+      payload: { ...flow, code: flow.state },
+    });
+  expect((await begin()).response.statusCode).toBe(401);
+  const flow = await begin(user.session.token);
+  expect(flow.response.statusCode).toBe(200);
+  expect(requestedFreshness).toBe(true);
+  const result = await finish({ state: flow.state, verifier: flow.verifier });
+  expect(result.statusCode).toBe(200);
+  expect(result.json().reauthenticated).toBe(true);
+  expect(result.json().grant).toMatch(/^fpr_[A-Za-z0-9_-]{43}$/);
+  expect(result.json().token).toBeUndefined();
+  expect(freshness).toBeGreaterThan(Math.floor(Date.now() / 1000) - 310);
+  expect(
+    (await admin.query('SELECT * FROM app.sessions WHERE user_id=$1', [user.id])).rowCount,
+  ).toBe(1);
+  expect((await finish({ state: flow.state, verifier: flow.verifier })).statusCode).toBe(401);
+  const wrong = await begin(user.session.token);
+  const saved = identity;
+  identity = { subject: randomUUID(), email: identity.email };
+  expect((await finish({ state: wrong.state, verifier: wrong.verifier })).statusCode).toBe(401);
+  identity = saved;
+  const revoked = await begin(user.session.token);
+  await sessions.logout('Bearer ' + user.session.token, true);
+  expect((await finish({ state: revoked.state, verifier: revoked.verifier })).statusCode).toBe(401);
+});

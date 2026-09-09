@@ -57,6 +57,28 @@ export class GoogleController {
     if (!this.nativeAuth) throw new ServiceUnavailableException();
     return this.nativeAuth.completeNative(body, request.ip);
   }
+  @Post('native/reauthenticate')
+  @HttpCode(200)
+  @ApiBody({
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['state', 'challenge', 'method'],
+      properties: {
+        state: { type: 'string' },
+        challenge: { type: 'string' },
+        method: { type: 'string', enum: ['S256'] },
+      },
+    },
+  })
+  reauthenticateNative(
+    @Body() body: unknown,
+    @Headers('authorization') authorization: string | undefined,
+    @Req() request: FastifyRequest,
+  ) {
+    if (!this.nativeAuth) throw new ServiceUnavailableException();
+    return this.nativeAuth.startNative(body, request.ip, { authorization });
+  }
   private service() {
     if (!this.auth) throw new ServiceUnavailableException();
     return this.auth;

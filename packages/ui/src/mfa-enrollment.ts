@@ -2,7 +2,7 @@ import { Component, DestroyRef, inject, input, output, signal } from '@angular/c
 import { FormsModule } from '@angular/forms';
 import { AuthClient } from './auth-client';
 import { googleReauthentication } from './google-popup';
-import { NATIVE_GOOGLE_LOGIN } from './native-auth';
+import { NATIVE_GOOGLE_REAUTHENTICATION } from './native-auth';
 
 @Component({
   selector: 'fp-mfa-enrollment',
@@ -68,7 +68,7 @@ import { NATIVE_GOOGLE_LOGIN } from './native-auth';
           }}
         </button>
       </form>
-      @if (!secret() && !nativeLogin) {
+      @if (!secret()) {
         <button class="auth-secondary" type="button" [disabled]="busy()" (click)="google()">
           Verificar con Google vinculado
         </button>
@@ -82,7 +82,7 @@ import { NATIVE_GOOGLE_LOGIN } from './native-auth';
   `,
 })
 export class MfaEnrollment {
-  readonly nativeLogin = inject(NATIVE_GOOGLE_LOGIN);
+  readonly nativeReauthenticate = inject(NATIVE_GOOGLE_REAUTHENTICATION);
   private readonly lifetime = new AbortController();
   constructor() {
     inject(DestroyRef).onDestroy(() => this.lifetime.abort());
@@ -101,6 +101,10 @@ export class MfaEnrollment {
     this.error.set('');
     this.password = '';
     try {
+      if (this.nativeReauthenticate) {
+        this.secret.set(await this.nativeReauthenticate(this.client(), this.lifetime.signal));
+        return;
+      }
       const result = await googleReauthentication(
         () => this.client().google('reauthenticate'),
         this.lifetime.signal,

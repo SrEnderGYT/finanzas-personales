@@ -119,7 +119,11 @@ export class GoogleAuth {
       throw new UnauthorizedException();
     return this.finish(state, code, tokenHash(binding));
   }
-  async startNative(body: unknown, ip: string) {
+  async startNative(
+    body: unknown,
+    ip: string,
+    reauthorization?: { authorization: string | undefined },
+  ) {
     await this.limit(ip);
     const fields = authFields(body, ['state', 'challenge', 'method']);
     const state = fields['state']!;
@@ -131,6 +135,7 @@ export class GoogleAuth {
     )
       throw new BadRequestException();
     const flow: Flow = { native: true, nonce: randomBytes(32).toString('base64url'), verifier: '' };
+    if (reauthorization) flow.reauth = await this.sessions.resolve(reauthorization.authorization);
     const iv = randomBytes(12);
     const cipher = createCipheriv('aes-256-gcm', this.key, iv);
     cipher.setAAD(Buffer.from(tokenHash(state)));
@@ -147,7 +152,12 @@ export class GoogleAuth {
     );
     if (inserted.rowCount !== 1) throw new BadRequestException();
     return {
-      authorizationUrl: this.provider.authorization({ state, nonce: flow.nonce, challenge }),
+      authorizationUrl: this.provider.authorization({
+        state,
+        nonce: flow.nonce,
+        challenge,
+        ...(flow.reauth ? { reauthenticate: true } : {}),
+      }),
     };
   }
   async completeNative(body: unknown, ip: string) {
