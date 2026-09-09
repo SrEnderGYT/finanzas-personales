@@ -261,7 +261,7 @@ it('category API initializes privately, edits and rejects immutable fields', asy
   await sessions.logout(hb.authorization, false);
   const expired = await db.asUser(b, (c) => createSession(c, b));
   await admin.query(
-    "UPDATE app.sessions SET expires_at=now()-interval '1 second' WHERE user_id=$1 AND id=$2",
+    "UPDATE app.sessions SET created_at=now()-interval '2 minutes',last_seen_at=now()-interval '1 minute',expires_at=now()-interval '1 second' WHERE user_id=$1 AND id=$2",
     [b, expired.sessionId],
   );
   expect(
