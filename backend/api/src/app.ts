@@ -24,6 +24,7 @@ import { GoogleController, GOOGLE_AUTH, NATIVE_GOOGLE_AUTH } from './google-cont
 import { registerNativeCors } from './native-cors';
 import { type GoogleAuth } from './google-auth';
 import { MfaController, MFA_LOGIN } from './mfa-controller';
+import { AccountsController, CategoriesController } from './catalog/controller';
 import { type MfaLogin } from './mfa-login';
 @Controller()
 class HealthController {
@@ -73,6 +74,8 @@ export async function createApp(options: AppOptions = {}) {
       EmailController,
       GoogleController,
       MfaController,
+      AccountsController,
+      CategoriesController,
     ],
     providers: [
       { provide: IDENTITY, useValue: options.identity ?? denyIdentity },

@@ -71,6 +71,8 @@ try {
           'run',
           'tests/postgres.integration.test.ts',
           'tests/ledger.integration.test.ts',
+          'tests/catalog.integration.test.ts',
+          'tests/catalog-api.integration.test.ts',
           'tests/sessions.integration.test.ts',
           'tests/email-auth.integration.test.ts',
           'tests/google-auth.integration.test.ts',
