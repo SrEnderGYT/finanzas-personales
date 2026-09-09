@@ -3,6 +3,7 @@ import { afterAll, expect, it } from 'vitest';
 import { Pool } from 'pg';
 import { UserDatabase } from '../backend/api/src/database';
 import { CatalogExecutor } from '../backend/api/src/catalog/executor';
+import { mutateAccount } from '../backend/api/src/catalog/accounts';
 if (!process.env['P04_TEST_DATABASE_URL']) throw new Error('Use npm run test:postgres');
 const pool = new Pool({ connectionString: process.env['P04_TEST_DATABASE_URL'] });
 const admin = new Pool({ connectionString: process.env['P04_TEST_ADMIN_URL'] });
@@ -18,6 +19,58 @@ const initialize = () => ({
   schemaVersion: 1,
   baseVersion: '0',
   command: { type: 'category.initialize' },
+});
+const account = () => ({
+  ...initialize(),
+  command: {
+    type: 'account.create',
+    id: randomUUID(),
+    payload: { name: 'Caja DEMO', type: 'cash', currency: 'PEN', state: 'active', position: 0 },
+  },
+});
+const executeAccount = (id: string, e: unknown) =>
+  new CatalogExecutor(db).execute(id, e, (c, n) => mutateAccount(c, id, n));
+it('creates a private asset mapping atomically and serializes account edits', async () => {
+  const a = await user(),
+    b = await user(),
+    e = account();
+  await executeAccount(a, e);
+  const stored = (
+    await db.asUser(a, (c) =>
+      c.query('SELECT * FROM app.product_accounts WHERE id=$1', [e.command.id]),
+    )
+  ).rows[0]!;
+  expect(stored.ledger_account_id).not.toBe(e.command.id);
+  expect(
+    (
+      await db.asUser(a, (c) =>
+        c.query('SELECT nature FROM app.ledger_accounts WHERE id=$1', [stored.ledger_account_id]),
+      )
+    ).rows[0].nature,
+  ).toBe('asset');
+  expect((await db.asUser(a, (c) => c.query('SELECT 1 FROM app.ledger_entries'))).rowCount).toBe(0);
+  const edit = () => ({
+    ...initialize(),
+    baseVersion: '1',
+    command: { type: 'account.update', id: e.command.id, payload: { state: 'inactive' } },
+  });
+  const edits = await Promise.allSettled([executeAccount(a, edit()), executeAccount(a, edit())]);
+  expect(edits.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+  await expect(executeAccount(b, edit())).rejects.toThrow('NOT_FOUND');
+  await expect(executeAccount(a, { ...account(), command: { ...e.command } })).rejects.toThrow(
+    'ENTITY_CONFLICT',
+  );
+  expect((await db.asUser(a, (c) => c.query('SELECT 1 FROM app.ledger_accounts'))).rowCount).toBe(
+    1,
+  );
+  await expect(
+    db.asUser(a, (c) =>
+      c.query("UPDATE app.product_accounts SET currency='USD' WHERE id=$1", [e.command.id]),
+    ),
+  ).rejects.toMatchObject({ code: '42501' });
+  await expect(
+    db.asUser(a, (c) => c.query('DELETE FROM app.product_accounts WHERE id=$1', [e.command.id])),
+  ).rejects.toMatchObject({ code: '42501' });
 });
 afterAll(async () => {
   await pool.end();
