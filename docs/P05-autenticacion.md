@@ -245,3 +245,11 @@ Seis pruebas de transporte/cliente aprobadas localmente comprueban destino, opci
 NATIVE_AUTH_CORS=enabled activa en el servidor una política restringida a capacitor://localhost y https://localhost. Sólo afecta `/v1/auth/`, excluyendo el OAuth Web basado en cookie. Preflight permite GET/POST/DELETE y Authorization/Content-Type; rechaza métodos o encabezados adicionales. No permite credenciales automáticas/cookies ni origen comodín. Las respuestas varían por Origin y conservan no-store. Otros orígenes y las rutas financieras no reciben permiso CORS.
 
 Las dos pruebas HTTP de integración pasan localmente, incluyendo preflight de ambos runtimes, rechazo de orígenes ajenos/null, rutas Web excluidas, configuración desactivada y conservación del rechazo del servicio no configurado. Tipos, lint y build backend aprobados. CORS no autentica al llamador: siguen siendo obligatorios los controles API y sesiones. Falta conectar la configuración de arranque y el botón móvil y validar los orígenes reales en dispositivo antes de activar staging.
+
+### Conexión de arranque nativo y navegador — 9 septiembre 2026
+
+El botón de Google utiliza el coordinador PKCE nativo cuando el build Capacitor tiene una configuración HTTPS explícita. El navegador del sistema comunica cancelación; al abandonar la pantalla se cancela el flujo y se retiran sus listeners. Una falla al retirar un listener no oculta el resultado original. Browser 8.0.4 está incluido en los proyectos Android e iOS sincronizados.
+
+`apps/mobile/src/native-auth.config.ts` permanece en `null`: el preview público y los builds sin staging siguen deshabilitados. No contiene dominios inventados ni credenciales. La vinculación de Google y la reautenticación Google para activar MFA en nativo siguen pendientes; el flujo Web permanece disponible en despliegues autorizados. La entrada nativa sí conserva el desafío MFA del servidor.
+
+Validación local: typecheck, lint, formato, 48 pruebas unitarias, 2 de integración API, 5 pruebas Playwright de autenticación/retorno Google; builds Web, Mobile y backend. Sincronización confirma Browser en Android/iOS. Estas pruebas son sintéticas. PostgreSQL y builds nativos del nuevo commit deben confirmarse en CI. Google real, asociación HTTPS de app links y pruebas en dispositivos físicos no se han ejecutado. No se habilita P06.

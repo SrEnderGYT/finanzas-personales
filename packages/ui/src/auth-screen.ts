@@ -1,18 +1,14 @@
 import { MfaEnrollment } from './mfa-enrollment';
 import { relayGoogleReturn } from './google-popup';
-import { Component, InjectionToken, inject, signal } from '@angular/core';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { NATIVE_GOOGLE_LOGIN } from './native-auth';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { AuthClient, AuthSession } from './auth-client';
+import { AuthSession } from './auth-client';
 
-export const AUTH_CLIENT = new InjectionToken<AuthClient>('AUTH_CLIENT', {
-  factory: () =>
-    new AuthClient(
-      document.querySelector('meta[name="finanzas-auth"]')?.getAttribute('content') ===
-        'same-origin',
-    ),
-});
+import { AUTH_CLIENT } from './auth-provider';
+export { AUTH_CLIENT } from './auth-provider';
 type Mode =
   'recovery' | 'mfa' | 'login' | 'register' | 'forgot-password' | 'verify-email' | 'reset-password';
 
@@ -235,6 +231,8 @@ let pendingCallback = captureCallback();
   `,
 })
 export class AuthScreen {
+  private readonly nativeLogin = inject(NATIVE_GOOGLE_LOGIN);
+  private readonly lifetime = new AbortController();
   readonly client = inject(AUTH_CLIENT);
   readonly enrolling = signal(false);
   readonly signedIn = signal(this.client.signedIn);
@@ -274,6 +272,7 @@ export class AuthScreen {
     'reset-password': 'Cambiar contraseña',
   };
   constructor() {
+    inject(DestroyRef).onDestroy(() => this.lifetime.abort());
     const callback = pendingCallback;
     pendingCallback = null;
     if (callback) {
@@ -385,6 +384,12 @@ export class AuthScreen {
   }
   google(mode: 'login' | 'link') {
     return this.run(async () => {
+      if (this.nativeLogin) {
+        if (mode !== 'login') throw new Error('Vincula tu cuenta Google desde la versión Web.');
+        await this.nativeLogin(this.client, this.lifetime.signal);
+        await this.afterPrimary();
+        return;
+      }
       location.assign(await this.client.google(mode));
     });
   }
