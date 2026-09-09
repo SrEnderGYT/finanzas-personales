@@ -4,6 +4,7 @@ import { Pool } from 'pg';
 import { UserDatabase } from '../backend/api/src/database';
 import { CatalogExecutor } from '../backend/api/src/catalog/executor';
 import { mutateAccount } from '../backend/api/src/catalog/accounts';
+import { mutateCategory } from '../backend/api/src/catalog/categories';
 if (!process.env['P04_TEST_DATABASE_URL']) throw new Error('Use npm run test:postgres');
 const pool = new Pool({ connectionString: process.env['P04_TEST_DATABASE_URL'] });
 const admin = new Pool({ connectionString: process.env['P04_TEST_ADMIN_URL'] });
@@ -75,6 +76,52 @@ it('creates a private asset mapping atomically and serializes account edits', as
 afterAll(async () => {
   await pool.end();
   await admin.end();
+});
+const executeCategory = (id: string, e: unknown) =>
+  new CatalogExecutor(db).execute(id, e, (c, n) => mutateCategory(c, id, n));
+it('initializes private categories concurrently and preserves archived customizations', async () => {
+  const a = await user(),
+    b = await user();
+  await Promise.all([executeCategory(a, initialize()), executeCategory(a, initialize())]);
+  let rows = (await db.asUser(a, (c) => c.query('SELECT * FROM app.categories ORDER BY position')))
+    .rows;
+  expect(rows).toHaveLength(21);
+  expect(rows.filter((r) => r.kind === 'income')).toHaveLength(2);
+  const first = rows[0];
+  await executeCategory(a, {
+    ...initialize(),
+    baseVersion: '1',
+    command: {
+      type: 'category.update',
+      id: first.id,
+      payload: { name: 'Mi comida', state: 'archived', position: 99 },
+    },
+  });
+  await executeCategory(a, initialize());
+  rows = (
+    await db.asUser(a, (c) => c.query('SELECT * FROM app.categories WHERE id=$1', [first.id]))
+  ).rows;
+  expect(rows[0]).toMatchObject({
+    name: 'Mi comida',
+    state: 'archived',
+    position: 99,
+    version: '2',
+  });
+  expect((await db.asUser(b, (c) => c.query('SELECT * FROM app.categories'))).rows).toHaveLength(0);
+  await executeCategory(b, initialize());
+  expect(
+    (
+      await db.asUser(b, (c) =>
+        c.query('SELECT name FROM app.categories WHERE template_key=$1', [first.template_key]),
+      )
+    ).rows[0].name,
+  ).not.toBe('Mi comida');
+  await expect(
+    pool.query("UPDATE app.category_templates SET name='changed'"),
+  ).rejects.toMatchObject({ code: '42501' });
+  await expect(
+    db.asUser(a, (c) => c.query("UPDATE app.categories SET kind='income' WHERE id=$1", [first.id])),
+  ).rejects.toMatchObject({ code: '42501' });
 });
 it('catalog receipts retry once, isolate users and rollback failures', async () => {
   const a = await user(),
