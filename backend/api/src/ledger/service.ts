@@ -49,7 +49,8 @@ export class LedgerService {
           return { status: 'alreadyApplied' as const, result: receipt.result };
         }
         const journals = await this.prepare(c, context.userId, command);
-        for (const journal of journals) await this.store.insert(c, context.userId, journal);
+        for (const journal of journals)
+          await this.store.insert(c, context.userId, journal, command.operationId);
         const result = { transactionIds: journals.map((j) => j.id) };
         await c.query(
           'INSERT INTO app.ledger_receipts(user_id,operation_id,payload_hash,result) VALUES($1,$2,$3,$4)',

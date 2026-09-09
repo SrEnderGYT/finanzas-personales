@@ -1,5 +1,6 @@
+import type { PoolClient } from 'pg';
 import { LedgerService } from '../backend/api/src/ledger/service';
-import type { Envelope, Posting } from '../packages/domain/src';
+import type { Envelope, Posting, Journal } from '../packages/domain/src';
 import { randomUUID } from 'node:crypto';
 import { afterAll, expect, it } from 'vitest';
 import { Pool } from 'pg';
@@ -42,7 +43,7 @@ afterAll(async () => {
 it('seals balanced journals and rejects append, mutation and cross-user access', async () => {
   const a = await fixture(),
     b = await fixture();
-  await db.asUser(a.userId, (c) => store.insert(c, a.userId, a.journal));
+  await db.asUser(a.userId, (c) => persist(c, a.userId, a.journal));
   expect((await store.journal(a, a.journal.id)).amountMinor).toBe('10000');
   await expect(store.journal(b, a.journal.id)).rejects.toThrow('NOT_FOUND');
   await expect(
@@ -73,7 +74,7 @@ it('seals balanced journals and rejects append, mutation and cross-user access',
     id: randomUUID(),
     entries: a.journal.entries.map((e, i) => (i ? { ...e, accountId: b.accounts[1]!.id } : e)),
   };
-  await expect(db.asUser(a.userId, (c) => store.insert(c, a.userId, bad))).rejects.toThrow();
+  await expect(db.asUser(a.userId, (c) => persist(c, a.userId, bad))).rejects.toThrow();
 });
 it('rolls back unbalanced, empty, wrong-nature and mixed-currency SQL writes', async () => {
   const a = await fixture();
@@ -87,7 +88,7 @@ it('rolls back unbalanced, empty, wrong-nature and mixed-currency SQL writes', a
     { ...a.journal, id: randomUUID(), kind: 'payment' as const },
     { ...a.journal, id: randomUUID(), currency: 'USD' as const },
   ])
-    await expect(db.asUser(a.userId, (c) => store.insert(c, a.userId, journal))).rejects.toThrow();
+    await expect(db.asUser(a.userId, (c) => persist(c, a.userId, journal))).rejects.toThrow();
   expect(
     await db.asUser(
       a.userId,
@@ -103,12 +104,12 @@ it('requires an adjustment reason at the database boundary too', async () => {
   await expect(
     db.asUser(a.userId, (c) =>
       c.query(
-        `INSERT INTO app.ledger_transactions(user_id,id,kind,currency,amount_minor,business_date,timezone)
-     VALUES($1,$2,'adjustment','PEN',100,'2026-08-01','America/Lima')`,
-        [a.userId, randomUUID()],
+        `INSERT INTO app.ledger_transactions(user_id,id,kind,currency,amount_minor,business_date,timezone,operation_id)
+     VALUES($1,$2,'adjustment','PEN',100,'2026-08-01','America/Lima',$3)`,
+        [a.userId, randomUUID(), randomUUID()],
       ),
     ),
-  ).rejects.toThrow();
+  ).rejects.toMatchObject({ constraint: 'ledger_adjustment_reason_required' });
 });
 
 function command(
@@ -468,3 +469,66 @@ it('persists 10,000 synthetic commands with exact per-currency balances and rece
     ),
   ).toBe('10000');
 }, 180000);
+
+async function persist(c: PoolClient, userId: string, journal: Journal) {
+  const operationId = randomUUID();
+  await store.insert(c, userId, journal, operationId);
+  await c.query(
+    'INSERT INTO app.ledger_receipts(user_id,operation_id,payload_hash,result) VALUES($1,$2,$3,$4)',
+    [userId, operationId, '0'.repeat(64), { transactionIds: [journal.id] }],
+  );
+  await c.query(
+    "INSERT INTO app.ledger_audit(user_id,operation_id,entity_id,action,outcome) VALUES($1,$2,$3,'post','applied')",
+    [userId, operationId, journal.id],
+  );
+}
+it('cannot commit a journal without its matching receipt and audit', async () => {
+  const a = await fixture();
+  await expect(
+    db.asUser(a.userId, (c) => store.insert(c, a.userId, a.journal, randomUUID())),
+  ).rejects.toThrow();
+  await expect(store.journal(a, a.journal.id)).rejects.toThrow('NOT_FOUND');
+});
+it('enforces refund capacity and exact reversals when bypassing the service', async () => {
+  const a = await fixture();
+  await db.asUser(a.userId, (c) => persist(c, a.userId, a.journal));
+  const excessive = post(
+    randomUUID(),
+    {
+      kind: 'refund',
+      originalId: a.journal.id,
+      amountMinor: '10001',
+      currency: 'PEN',
+      businessDate: '2026-09-01',
+      timezone: 'America/Lima',
+      debitAccountId: a.accounts[0]!.id,
+      creditAccountId: a.accounts[2]!.id,
+    },
+    a.accounts,
+    clock,
+  );
+  await expect(db.asUser(a.userId, (c) => persist(c, a.userId, excessive))).rejects.toThrow();
+  const invalid: Journal = {
+    ...a.journal,
+    id: randomUUID(),
+    kind: 'reversal',
+    originalId: a.journal.id,
+    entries: a.journal.entries.map((e) => ({
+      ...e,
+      debitMinor: e.creditMinor,
+      creditMinor: e.debitMinor,
+      accountId: e.creditMinor !== '0' ? a.accounts[0]!.id : e.accountId,
+    })),
+  };
+  await expect(db.asUser(a.userId, (c) => persist(c, a.userId, invalid))).rejects.toThrow();
+});
+
+it('cannot attach a later journal to a committed receipt', async () => {
+  const a = await fixture(),
+    cmd = command(a);
+  await service.execute(a, cmd);
+  await expect(
+    db.asUser(a.userId, (c) => store.insert(c, a.userId, a.journal, cmd.operationId)),
+  ).rejects.toThrow();
+  await expect(store.journal(a, a.journal.id)).rejects.toThrow('NOT_FOUND');
+});

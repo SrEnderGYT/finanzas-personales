@@ -59,13 +59,16 @@ afterAll(async () => {
 
 describe('PostgreSQL 17 — user isolation with the actual restricted runtime role', () => {
   it('applies migrations once, forces RLS and rejects a privileged runtime', async () => {
-    expect((await admin.query('SELECT * FROM public.schema_migrations')).rowCount).toBe(13);
+    expect((await admin.query('SELECT * FROM public.schema_migrations')).rowCount).toBe(14);
     const tables = await admin.query(
-      "SELECT relrowsecurity, relforcerowsecurity FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='app' AND c.relkind='r'",
+      "SELECT relrowsecurity, relforcerowsecurity FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='app' AND c.relkind='r' AND c.relname<>'ledger_timezones'",
     );
-    expect(tables.rows).toHaveLength(14);
+    expect(tables.rows).toHaveLength(19);
     for (const table of tables.rows)
       expect(table).toEqual({ relrowsecurity: true, relforcerowsecurity: true });
+    await expect(
+      pool.query("INSERT INTO app.ledger_timezones(name) VALUES('Fake/Zone')"),
+    ).rejects.toMatchObject({ code: '42501' });
     await expect(new UserDatabase(admin).assertRuntimeRole()).rejects.toThrow('Unsafe');
     await expect(pool.query('TRUNCATE app.users CASCADE')).rejects.toMatchObject({ code: '42501' });
     await expect(

@@ -70,9 +70,9 @@ export class LedgerStore {
       entries,
     };
   }
-  async insert(c: PoolClient, userId: string, j: Journal) {
+  async insert(c: PoolClient, userId: string, j: Journal, operationId: string) {
     await c.query(
-      `INSERT INTO app.ledger_transactions(user_id,id,kind,currency,amount_minor,business_date,timezone,occurred_at,original_id,reason) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      `INSERT INTO app.ledger_transactions(user_id,id,kind,currency,amount_minor,business_date,timezone,occurred_at,original_id,reason,operation_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
       [
         userId,
         j.id,
@@ -84,6 +84,7 @@ export class LedgerStore {
         j.occurredAt ?? null,
         j.originalId ?? null,
         j.reason ?? null,
+        operationId,
       ],
     );
     for (const e of j.entries)
