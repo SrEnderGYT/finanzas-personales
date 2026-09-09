@@ -63,7 +63,7 @@ describe('Nest/Fastify integration', () => {
       await disabled.close();
     }
   });
-  it('serves health without exposing configuration or financial endpoints', async () => {
+  it('serves health without exposing configuration and protects catalog endpoints', async () => {
     const app = await createApp();
     try {
       const health = await app.inject({ method: 'GET', url: '/health' });
@@ -73,7 +73,9 @@ describe('Nest/Fastify integration', () => {
         environment: 'development',
         financialData: false,
       });
-      expect((await app.inject({ method: 'GET', url: '/v1/accounts' })).statusCode).toBe(404);
+      expect((await app.inject({ method: 'GET', url: '/v1/accounts' })).statusCode).toBe(401);
+      expect((await app.inject({ method: 'GET', url: '/v1/categories' })).statusCode).toBe(401);
+      expect((await app.inject({ method: 'GET', url: '/v1/transactions' })).statusCode).toBe(404);
       expect((await app.inject({ method: 'GET', url: '/v1' })).json().version).toBe('1');
       expect((await app.inject({ method: 'GET', url: '/v1/me' })).statusCode).toBe(401);
       const spec = (await app.inject({ method: 'GET', url: '/openapi.json' })).json();
