@@ -87,3 +87,38 @@ it('serializes versioned offline commands and canonicalizes key order', () => {
     normalizeEnvelope({ ...command, userId: randomUUID() } as Envelope, clock),
   ).toThrow();
 });
+
+it('conserves expense through deterministic purchases, payments and reversals', () => {
+  let seed = 17n;
+  let expected = 0n;
+  const journals = [];
+  for (let i = 0; i < 1000; i++) {
+    seed = (seed * 48271n) % 2147483647n;
+    const amount = (seed % 10000n) + 1n;
+    const purchase = post(
+      randomUUID(),
+      { ...payload('expense', 3, 2), amountMinor: amount.toString() },
+      accounts,
+      clock,
+    );
+    const payment = post(
+      randomUUID(),
+      { ...payload('payment', 2, 0), amountMinor: amount.toString() },
+      accounts,
+      clock,
+    );
+    journals.push(purchase, payment);
+    expected += amount;
+    if (seed % 3n === 0n) {
+      journals.push(reverse(randomUUID(), purchase, date, clock));
+      expected -= amount;
+    }
+  }
+  expect(balances(journals).get(id(3))!.minorUnits).toBe(expected);
+  expect(
+    journals.every(
+      (j) =>
+        j.entries.reduce((s, e) => s + BigInt(e.debitMinor) - BigInt(e.creditMinor), 0n) === 0n,
+    ),
+  ).toBe(true);
+});

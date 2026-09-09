@@ -16,3 +16,31 @@ Dinero exacto bigint y strings JSON; moneda explícita PEN/USD sin FX; partida d
 6. Cierre: serialización offline, 10.000 operaciones sintéticas, regresión y CI completo.
 
 Sin API financiera, UI nueva, cuentas de producto, categorías, sincronización real, Gmail, datos reales o secretos. El dominio no depende de autenticación ni frameworks. Se reutilizan UserDatabase y migraciones sin cambiar contratos P05. Capturas nuevas no aplican: no hay cambios visuales.
+
+## Contratos implementados
+
+`@finanzas/domain` exporta Money, Currency, Clock, FinancialDate, Posting, Envelope, Journal y reglas puras. Se compila por separado a CommonJS y declaraciones para reutilizarlo desde el backend sin cambiar su entrypoint ni importar fuentes fuera de rootDir. El código fuente permanece libre de frameworks/autenticación; TypeScript mantiene alias para clientes y tests.
+
+Money minor/decimal/fromJSON valida moneda y rango simétrico BIGINT. ratio exige numerador y denominador bigint y política HALF_EVEN/HALF_AWAY_FROM_ZERO/TRUNCATE. JSON contiene strings exactos; la presentación localizada queda fuera del dominio. Los saldos persistidos se calculan con SUM numeric de PostgreSQL y se devuelven como strings firmados de saldo deudor; activos/gastos positivos y pasivos/ingresos normalmente negativos. Nunca sumar monedas distintas. Las cuentas técnicas no son las cuentas de producto P07.
+
+LedgerService.execute recibe contexto de usuario verificado y Envelope versión 1. El sobre contiene operationId/deviceId/entityId, baseVersion como string y command discriminado post/reverse/correct. No acepta user_id. Post referencia cuentas de débito/crédito y el dominio valida sus naturalezas; no recibe listas arbitrarias de asientos. Ajuste requiere razón y su dirección se expresa en las cuentas. Refund exige originalId de un gasto; reverse referencia el original; correct incluye originalId, reversalId y replacement. Corrección crea reverso y reemplazo en un commit.
+
+Resultados: applied/alreadyApplied contienen los mismos transactionIds guardados; conflict/invalid devuelven códigos estables sin SQL/credenciales. Un error de infraestructura se propaga y no deja recibo. VERSION_CONFLICT, IDEMPOTENCY_CONFLICT, ACTIVE_REFUNDS, ALREADY_REVERSED y REFUND_LIMIT requieren revisión; no sobrescriben dinero.
+
+## Persistencia e invariantes
+
+Migraciones 010–012: cuentas técnicas, cabeceras selladas, dos asientos por journal, recibos idempotentes y auditoría. FK privadas incluyen usuario y moneda. RLS forzada; runtime sólo tiene SELECT/INSERT y UPDATE(sealed) limitado por trigger. Las cabeceras selladas no se editan ni eliminan; las entradas tampoco. El saldo y la condición de reversado derivan de asientos/referencias. No se aplican deleted_at ni un updated_at mutable a este historial append-only.
+
+La versión se deriva de 1 más las referencias al original y reversos de sus reembolsos. La identidad del usuario no viene del payload; el adaptador futuro debe obtenerla de IdentityVerifier antes de invocar el servicio. Las escrituras se serializan con advisory lock transaccional ledger:userId. Después del lock se valida versión, saldo reembolsable e idempotencia. Cinco reintentos conservan una operación; contenido diferente bajo el mismo ID da conflicto. Un ID repetido por otro usuario pertenece a otro espacio privado.
+
+Reembolsos reducen gasto en su fecha efectiva y misma moneda. Un gasto con reembolsos activos no puede revertirse; revertir un reembolso libera capacidad. No hay reverso de reverso. Se permiten activos negativos y pasivos con saldo a favor: el ledger registra hechos y no ejecuta pagos ni impone límites bancarios.
+
+El recibo y la auditoría de operaciones aplicadas se guardan junto con sus asientos. Auditoría conserva usuario, operación, entidad, acción, fecha y resultado; no duplica importes ni payload. No se purgan recibos en P06: una retención futura necesita preservar la garantía de idempotencia para dispositivos antiguos.
+
+## Validación y límites
+
+Unitarias de exactitud, calendario, zona, redondeo, reglas y secuencias deterministas. PostgreSQL prueba SQL directo inválido, propietario A/B, rollback, sellado, cinco reintentos, conflicto de contenido, reembolsos/reversos concurrentes y corrección fallida después de insertar el reverso. La prueba de volumen persiste 10.000 comandos sintéticos, repartidos entre PEN y USD, comprueba saldos/recibos y reintenta el último comando. Tiene un límite operativo de 180 segundos; no es un benchmark móvil.
+
+Las pruebas actuales de P03 y P05 permanecen en regresión. Serialización del sobre no equivale a sincronización: P06 no toca el vault DEMO, no implementa outbox ni pull, no añade endpoints, no conecta auth al preview. Validación física nativa y servicios externos siguen siendo pruebas posteriores y no bloquean este bloque de dominio/persistencia.
+
+CI y resultados finales se enlazarán en PR #7. Screenshots nuevas: no aplican, no cambia la interfaz. Preview existente: https://srendergyt.github.io/finanzas-personales/ . P07 requiere revisión posterior; no merge automático.
