@@ -1,6 +1,23 @@
-# P05 — autenticación y sesiones (en desarrollo)
+# P05 — código completo; validaciones externas pendientes
 
-P05 todavía no está terminado. Implementa sesiones revocables, registro/login por correo, verificación/recuperación y flujo Google OIDC en la API, además de formularios web/responsive. Incluye pruebas de navegador contra backend real en CI. Quedan retorno nativo y validación del proveedor Google real; MFA incluye inscripción, acceso y recuperación. No se conecta Gmail ni se envían correos reales durante las pruebas.
+Estado de cierre del código: `81e65d4`. La ejecución completa de [CI 34318651548](https://github.com/SrEnderGYT/finanzas-personales/actions/runs/34318651548) aprobó calidad, PostgreSQL/browser, APK Android e iOS simulador sin firma. No se ha hecho merge.
+
+Implementados: registro y acceso por correo, verificación, recuperación, sesiones revocables, Google Web/nativo (entrada, vinculación y reautenticación), TOTP e inscripción/recuperación MFA. La vinculación nativa conserva la sesión original y rechaza una identidad ajena o una sesión revocada. Reautenticación exige identidad Google vinculada y auth_time reciente; el permiso MFA queda ligado a la sesión original.
+
+La suite local aprobó 50 unitarias, 2 integración API y 10 Playwright, además de lint, typecheck, formato y builds Web/Mobile/backend. CI agrega PostgreSQL real desechable, pruebas de navegador con backend y compilaciones Android/iOS. Son datos y proveedor sintéticos; no demuestran OAuth real ni ejecución en dispositivos físicos.
+
+## Validaciones externas pendientes (no bloquean P06)
+
+- Google y entrega de correo reales en staging HTTPS con secretos del servidor.
+- Asociación del dominio de retorno con Android/iOS y prueba de abrir, cancelar y regresar desde el navegador en dispositivos físicos.
+- Firma Apple, provisioning y distribución TestFlight.
+- Verificación operativa de proxy/IP, rotación de claves y políticas de despliegue antes de producción.
+
+El preview y los builds sin configuración siguen deshabilitados para autenticación. No se solicita Gmail. Las sesiones se mantienen en memoria tanto en Web como en nativo: reiniciar requiere entrar de nuevo. La persistencia de sesión, administración adicional de factores y limpieza operativa son mejoras posteriores, no capacidades declaradas en este cierre.
+
+P05 queda **code-complete con validaciones externas pendientes**, conforme al criterio de cierre aprobado. P06 puede comenzar sobre esta base mediante PR separado, manteniendo aislamiento por usuario, datos sintéticos y revisión. No se inicia automáticamente ni se hace merge.
+
+Las secciones siguientes describen contratos y conservan el historial de implementación. Sus notas cronológicas sobre tareas entonces pendientes no sustituyen este estado de cierre.
 
 ## Sesiones implementadas
 
