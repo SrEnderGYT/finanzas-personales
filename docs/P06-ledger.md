@@ -29,7 +29,7 @@ Resultados: applied/alreadyApplied contienen los mismos transactionIds guardados
 
 ## Persistencia e invariantes
 
-Migraciones 010–012: cuentas técnicas, cabeceras selladas, dos asientos por journal, recibos idempotentes y auditoría. FK privadas incluyen usuario y moneda. RLS forzada; runtime sólo tiene SELECT/INSERT y UPDATE(sealed) limitado por trigger. Las cabeceras selladas no se editan ni eliminan; las entradas tampoco. El saldo y la condición de reversado derivan de asientos/referencias. No se aplican deleted_at ni un updated_at mutable a este historial append-only.
+Migraciones 010–013: cuentas técnicas, cabeceras selladas, dos asientos por journal, recibos idempotentes y auditoría. FK privadas incluyen usuario y moneda. RLS forzada; runtime sólo tiene SELECT/INSERT y UPDATE(sealed) limitado por trigger. Las cabeceras selladas no se editan ni eliminan; las entradas tampoco. El saldo y la condición de reversado derivan de asientos/referencias. No se aplican deleted_at ni un updated_at mutable a este historial append-only.
 
 La versión se deriva de 1 más las referencias al original y reversos de sus reembolsos. La identidad del usuario no viene del payload; el adaptador futuro debe obtenerla de IdentityVerifier antes de invocar el servicio. Las escrituras se serializan con advisory lock transaccional ledger:userId. Después del lock se valida versión, saldo reembolsable e idempotencia. Cinco reintentos conservan una operación; contenido diferente bajo el mismo ID da conflicto. Un ID repetido por otro usuario pertenece a otro espacio privado.
 
@@ -44,3 +44,7 @@ Unitarias de exactitud, calendario, zona, redondeo, reglas y secuencias determin
 Las pruebas actuales de P03 y P05 permanecen en regresión. Serialización del sobre no equivale a sincronización: P06 no toca el vault DEMO, no implementa outbox ni pull, no añade endpoints, no conecta auth al preview. Validación física nativa y servicios externos siguen siendo pruebas posteriores y no bloquean este bloque de dominio/persistencia.
 
 CI y resultados finales se enlazarán en PR #7. Screenshots nuevas: no aplican, no cambia la interfaz. Preview existente: https://srendergyt.github.io/finanzas-personales/ . P07 requiere revisión posterior; no merge automático.
+
+## Rendimiento y diagnósticos
+
+La primera ejecución PostgreSQL confirmó nueve casos de integridad/concurrencia, pero el volumen superó 180 segundos. La migración 013 materializa el catálogo público de nombres de zona para una validación indexada; el dominio utiliza una caché limitada a 128 formateadores sin datos de usuarios. Se mantiene el mismo volumen, límite y validaciones. La prueba histórica de migraciones se actualizó de nueve a trece, sin cambiar autenticación P05. El ejecutor sólo expone nombre de migración, SQLSTATE y posición al diagnosticar fallos.

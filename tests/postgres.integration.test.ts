@@ -59,7 +59,7 @@ afterAll(async () => {
 
 describe('PostgreSQL 17 — user isolation with the actual restricted runtime role', () => {
   it('applies migrations once, forces RLS and rejects a privileged runtime', async () => {
-    expect((await admin.query('SELECT * FROM public.schema_migrations')).rowCount).toBe(9);
+    expect((await admin.query('SELECT * FROM public.schema_migrations')).rowCount).toBe(13);
     const tables = await admin.query(
       "SELECT relrowsecurity, relforcerowsecurity FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='app' AND c.relkind='r'",
     );

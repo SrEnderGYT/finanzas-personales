@@ -19,7 +19,9 @@ export function civil(value: string): string {
     throw new DomainError('INVALID_DATE');
   return value;
 }
-export function zone(value: string): string {
+// Bounded cache of public timezone formatters only; no financial values or user data.
+const formatters = new Map<string, Intl.DateTimeFormat>();
+function formatter(value: string): Intl.DateTimeFormat {
   if (
     typeof value !== 'string' ||
     value.length > 80 ||
@@ -27,10 +29,23 @@ export function zone(value: string): string {
   )
     throw new DomainError('INVALID_ZONE');
   try {
-    return new Intl.DateTimeFormat('en', { timeZone: value }).resolvedOptions().timeZone;
+    const cached = formatters.get(value);
+    if (cached) return cached;
+    const result = new Intl.DateTimeFormat('en', {
+      timeZone: value,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    if (formatters.size >= 128) formatters.delete(formatters.keys().next().value!);
+    formatters.set(value, result);
+    return result;
   } catch {
     throw new DomainError('INVALID_ZONE');
   }
+}
+export function zone(value: string): string {
+  return formatter(value).resolvedOptions().timeZone;
 }
 export function instant(value: string): string {
   if (
@@ -47,12 +62,7 @@ export function instant(value: string): string {
   return parsed.toISOString();
 }
 export function localDate(time: Date, timezone: string): string {
-  const parts = new Intl.DateTimeFormat('en', {
-    timeZone: zone(timezone),
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(time);
+  const parts = formatter(timezone).formatToParts(time);
   const part = (type: string) => parts.find((p) => p.type === type)!.value;
   return civil(`${part('year').padStart(4, '0')}-${part('month')}-${part('day')}`);
 }
