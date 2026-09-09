@@ -81,14 +81,14 @@ BEGIN
  (SELECT sum(credit_minor) FROM app.ledger_entries WHERE user_id=j.user_id AND transaction_id=j.id) THEN
   RAISE EXCEPTION 'unbalanced or unsealed journal' USING ERRCODE='23514';
  END IF;
- IF NOT CASE j.kind
+ IF NOT (CASE j.kind
  WHEN 'expense' THEN d='expense' AND c IN ('asset','liability')
  WHEN 'income' THEN d='asset' AND c='income'
  WHEN 'transfer' THEN d='asset' AND c='asset'
  WHEN 'payment' THEN d='liability' AND c='asset'
  WHEN 'refund' THEN d IN ('asset','liability') AND c='expense'
  WHEN 'adjustment' THEN (d IN ('asset','liability') AND c='equity') OR (d='equity' AND c IN ('asset','liability'))
- WHEN 'reversal' THEN true ELSE false END THEN
+ WHEN 'reversal' THEN true ELSE false END) THEN
   RAISE EXCEPTION 'invalid posting shape' USING ERRCODE='23514';
  END IF;
  IF j.original_id IS NOT NULL THEN
