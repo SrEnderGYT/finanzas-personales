@@ -385,8 +385,7 @@ export class AuthScreen {
   google(mode: 'login' | 'link') {
     return this.run(async () => {
       if (this.nativeLogin) {
-        if (mode !== 'login') throw new Error('Vincula tu cuenta Google desde la versión Web.');
-        await this.nativeLogin(this.client, this.lifetime.signal);
+        await this.nativeLogin(this.client, this.lifetime.signal, mode);
         await this.afterPrimary();
         return;
       }

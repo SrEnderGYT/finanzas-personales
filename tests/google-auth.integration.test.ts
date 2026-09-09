@@ -376,3 +376,52 @@ it('native reauthentication binds fresh Google proof to the initiating live sess
   await sessions.logout('Bearer ' + user.session.token, true);
   expect((await finish({ state: revoked.state, verifier: revoked.verifier })).statusCode).toBe(401);
 });
+
+it('native linking preserves the original session and rejects cross-user or revoked links', async () => {
+  const user = await localUser();
+  const other = await localUser();
+  async function begin(token?: string) {
+    const state = randomBytes(32).toString('base64url');
+    const verifier = randomBytes(32).toString('base64url');
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/google/native/link',
+      headers: token ? { authorization: 'Bearer ' + token } : {},
+      payload: {
+        state,
+        challenge: createHash('sha256').update(verifier).digest('base64url'),
+        method: 'S256',
+      },
+    });
+    return { response, payload: { state, code: state, verifier } };
+  }
+  const finish = (payload: { state: string; code: string; verifier: string }) =>
+    app.inject({ method: 'POST', url: '/v1/auth/google/native/complete', payload });
+  expect((await begin()).response.statusCode).toBe(401);
+  const flow = await begin(user.session.token);
+  expect(flow.response.statusCode).toBe(200);
+  const result = await finish(flow.payload);
+  expect(result.statusCode).toBe(200);
+  expect(result.json()).toEqual({ linked: true });
+  expect(
+    (
+      await admin.query('SELECT user_id FROM app.google_identities WHERE subject=$1', [
+        identity.subject,
+      ])
+    ).rows[0].user_id,
+  ).toBe(user.id);
+  expect(
+    (await admin.query('SELECT * FROM app.sessions WHERE user_id=$1', [user.id])).rowCount,
+  ).toBe(1);
+  expect((await finish(flow.payload)).statusCode).toBe(401);
+  const conflict = await begin(other.session.token);
+  expect((await finish(conflict.payload)).statusCode).toBe(409);
+  identity = { subject: randomUUID(), email: randomUUID() + '@example.test' };
+  const revoked = await begin(other.session.token);
+  await sessions.logout('Bearer ' + other.session.token, true);
+  expect((await finish(revoked.payload)).statusCode).toBe(401);
+  expect(
+    (await admin.query('SELECT * FROM app.google_identities WHERE subject=$1', [identity.subject]))
+      .rowCount,
+  ).toBe(0);
+});

@@ -237,14 +237,27 @@ export class AuthClient {
     this.acceptSession(await this.request('google/complete', 'POST', { state, code }));
   }
   async nativeGoogle(options: Omit<Parameters<typeof nativeGoogleFlow>[0], 'transport'>) {
-    this.acceptSession(await this.nativeGoogleResult(options, false));
+    this.acceptSession(await this.nativeGoogleResult(options, 'start'));
+  }
+  async linkNativeGoogle(options: Omit<Parameters<typeof nativeGoogleFlow>[0], 'transport'>) {
+    const original = this.token;
+    if (!original) throw new Error('Vuelve a entrar antes de vincular Google.');
+    const result = await this.nativeGoogleResult(options, 'link');
+    if (
+      this.token !== original ||
+      !result ||
+      typeof result !== 'object' ||
+      !('linked' in result) ||
+      result.linked !== true
+    )
+      throw new Error('No se pudo vincular Google.');
   }
   async beginMfaNativeGoogle(
     options: Omit<Parameters<typeof nativeGoogleFlow>[0], 'transport'>,
   ): Promise<string> {
     const original = this.token;
     if (!original) throw new Error('Vuelve a entrar antes de activar el autenticador.');
-    const proof = await this.nativeGoogleResult(options, true);
+    const proof = await this.nativeGoogleResult(options, 'reauthenticate');
     if (
       this.token !== original ||
       !proof ||
@@ -257,7 +270,7 @@ export class AuthClient {
   }
   private async nativeGoogleResult(
     options: Omit<Parameters<typeof nativeGoogleFlow>[0], 'transport'>,
-    reauthenticate: boolean,
+    mode: 'start' | 'reauthenticate' | 'link',
   ) {
     if (!this.enabled)
       throw new Error('El acceso aún no está habilitado en esta vista de muestra.');
@@ -265,12 +278,7 @@ export class AuthClient {
       ...options,
       transport: {
         start: async (input, signal) => {
-          const result = await this.request(
-            reauthenticate ? 'google/native/reauthenticate' : 'google/native/start',
-            'POST',
-            input,
-            signal,
-          );
+          const result = await this.request(`google/native/${mode}`, 'POST', input, signal);
           if (
             !result ||
             typeof result !== 'object' ||

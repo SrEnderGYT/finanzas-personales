@@ -1,7 +1,11 @@
 import { InjectionToken } from '@angular/core';
 import type { AuthClient } from './auth-client';
 
-export type NativeGoogleLogin = (client: AuthClient, signal: AbortSignal) => Promise<void>;
+export type NativeGoogleLogin = (
+  client: AuthClient,
+  signal: AbortSignal,
+  mode?: 'login' | 'link',
+) => Promise<void>;
 export const NATIVE_GOOGLE_LOGIN = new InjectionToken<NativeGoogleLogin | null>(
   'NATIVE_GOOGLE_LOGIN',
   { factory: () => null },

@@ -37,8 +37,10 @@ export function nativeAuthProviders(
     redirectUri: config.redirectUri,
     signal,
   });
-  const login: NativeGoogleLogin = (auth, signal) =>
-    run(signal, (active) => auth.nativeGoogle(options(active)));
+  const login: NativeGoogleLogin = (auth, signal, mode = 'login') =>
+    run(signal, (active) =>
+      mode === 'link' ? auth.linkNativeGoogle(options(active)) : auth.nativeGoogle(options(active)),
+    );
   return [
     { provide: AUTH_CLIENT, useValue: client },
     { provide: NATIVE_GOOGLE_LOGIN, useValue: login },

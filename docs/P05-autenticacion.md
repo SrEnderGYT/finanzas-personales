@@ -261,3 +261,13 @@ El botón de verificación Google del formulario MFA ya usa el navegador nativo 
 Pruebas locales: 49 unitarias, 2 integración API, 5 Playwright; lint, typecheck, formato y builds Web/Mobile/backend aprobados. Nueva prueba PostgreSQL cubre inicio sin sesión, identidad incorrecta, sesión revocada, replay, solicitud de frescura y ausencia de sesión nueva. Pendiente de su ejecución en CI al publicar este commit. CI del anterior 71d8804: los cuatro trabajos de Calidad pasaron, incluidos PostgreSQL/browser, Android e iOS simulador sin firma (run 34318034655).
 
 Pendientes: vinculación nativa de Google, validación real de Google y app links HTTPS en dispositivos, staging y firma/TestFlight. Esta sección reemplaza la limitación anterior sobre ausencia de reautenticación nativa; no declara probada la ejecución real con Google. P06 sigue sin iniciar.
+
+### Vinculación Google nativa — 9 septiembre 2026
+
+`POST /v1/auth/google/native/link` exige sesión y conserva su identidad dentro del flujo PKCE cifrado. El retorno comprueba la sesión viva, evita apropiarse de una identidad Google ajena y responde `linked: true` sin emitir otra sesión. El botón Vincular Google usa este flujo en Capacitor; el cliente comprueba que la sesión original no haya cambiado.
+
+Validación local del bloque: 50 unitarias, 2 integración API, lint, typecheck y builds Web/Mobile/backend aprobados. La nueva regresión PostgreSQL cubre sesión obligatoria, asociación al usuario correcto, replay, conflicto entre usuarios y revocación antes del retorno. Su ejecución corresponde al CI del nuevo commit. La reautenticación nativa del anterior 845da7f ya pasó PostgreSQL/browser y el trabajo general de calidad (run 34318346373); Android también pasó.
+
+Quedan validaciones externas de Google real, staging HTTPS, asociación verificada de enlaces y dispositivos físicos. El código del preview permanece deshabilitado por defecto. La vinculación nativa deja de ser una función pendiente de implementación; aún necesita esas pruebas reales. No se ha hecho merge ni iniciado P06.
+
+Suite Playwright completa local: 10 pruebas aprobadas (incluye acceso, callback, popup, accesibilidad, navegación y offline shell). Formato aprobado.

@@ -122,7 +122,7 @@ export class GoogleAuth {
   async startNative(
     body: unknown,
     ip: string,
-    reauthorization?: { authorization: string | undefined },
+    reauthorization?: { authorization: string | undefined; mode: 'link' | 'reauthenticate' },
   ) {
     await this.limit(ip);
     const fields = authFields(body, ['state', 'challenge', 'method']);
@@ -135,7 +135,11 @@ export class GoogleAuth {
     )
       throw new BadRequestException();
     const flow: Flow = { native: true, nonce: randomBytes(32).toString('base64url'), verifier: '' };
-    if (reauthorization) flow.reauth = await this.sessions.resolve(reauthorization.authorization);
+    if (reauthorization) {
+      const session = await this.sessions.resolve(reauthorization.authorization);
+      if (reauthorization.mode === 'link') flow.link = session;
+      else flow.reauth = session;
+    }
     const iv = randomBytes(12);
     const cipher = createCipheriv('aes-256-gcm', this.key, iv);
     cipher.setAAD(Buffer.from(tokenHash(state)));
@@ -259,6 +263,7 @@ export class GoogleAuth {
         ]);
       }
       await client.query("SELECT set_config('app.user_id',$1,true)", [userId]);
+      if (flow.native && flow.link) return { linked: true as const };
       return primaryLogin(client, userId);
     });
   }

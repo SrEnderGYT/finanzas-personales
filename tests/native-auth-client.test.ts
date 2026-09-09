@@ -125,3 +125,43 @@ it('native reauthentication opens enrollment without replacing the original sess
   expect(client.signedIn).toBe(true);
   expect(client.mfaPending).toBe(false);
 });
+
+it('native linking retains the original session without a second login', async () => {
+  const token = `fp_${'a'.repeat(43)}`;
+  let receive!: (event: { url: string }) => void;
+  const transport = vi.fn<typeof fetch>(async (path, options) => {
+    const body = JSON.parse(options!.body as string);
+    if (path === '/v1/auth/login') return Response.json({ token });
+    expect(new Headers(options!.headers).get('authorization')).toBe('Bearer ' + token);
+    if (path === '/v1/auth/google/native/link')
+      return Response.json({
+        authorizationUrl: 'https://accounts.google.com/o/oauth2/v2/auth?state=' + body.state,
+      });
+    expect(path).toBe('/v1/auth/google/native/complete');
+    return Response.json({ linked: true });
+  });
+  const client = new AuthClient(true, transport);
+  await client.login('synthetic@example.test', 'Synthetic test phrase');
+  await client.linkNativeGoogle({
+    app: {
+      addListener: async (_event: string, listener: typeof receive) => {
+        receive = listener;
+        return { remove: async () => undefined };
+      },
+    } as unknown as AppPlugin,
+    browser: {
+      open: async ({ url }) => {
+        receive({
+          url:
+            'https://auth.example.test/mobile/callback?state=' +
+            new URL(url).searchParams.get('state') +
+            '&code=synthetic',
+        });
+      },
+    },
+    redirectUri: 'https://auth.example.test/mobile/callback',
+    signal: new AbortController().signal,
+  });
+  expect(client.signedIn).toBe(true);
+  expect(client.mfaPending).toBe(false);
+});
