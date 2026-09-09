@@ -67,6 +67,7 @@ export function closed(
 }
 const dateKeys = ['businessDate', 'timezone', 'occurredAt'];
 export function normalizePosting(value: Posting, clock: Clock): Posting {
+  if (!value || typeof value !== 'object') throw new DomainError('INVALID_COMMAND');
   closed(value, [
     ...dateKeys,
     'kind',
