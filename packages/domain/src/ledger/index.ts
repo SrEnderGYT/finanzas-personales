@@ -138,6 +138,7 @@ export function canonical(value: unknown): string {
   return (
     '{' +
     Object.keys(value)
+      .filter((key) => (value as Record<string, unknown>)[key] !== undefined)
       .sort()
       .map((key) => JSON.stringify(key) + ':' + canonical((value as Record<string, unknown>)[key]))
       .join(',') +

@@ -98,6 +98,19 @@ it('rolls back unbalanced, empty, wrong-nature and mixed-currency SQL writes', a
   ).toBe(0);
 });
 
+it('requires an adjustment reason at the database boundary too', async () => {
+  const a = await fixture();
+  await expect(
+    db.asUser(a.userId, (c) =>
+      c.query(
+        `INSERT INTO app.ledger_transactions(user_id,id,kind,currency,amount_minor,business_date,timezone)
+     VALUES($1,$2,'adjustment','PEN',100,'2026-08-01','America/Lima')`,
+        [a.userId, randomUUID()],
+      ),
+    ),
+  ).rejects.toThrow();
+});
+
 function command(
   a: Awaited<ReturnType<typeof fixture>>,
   override: Partial<Posting> = {},
@@ -296,3 +309,162 @@ it('atomically corrects money and rejects references owned by another user', asy
   ).toBe('4000');
   expect((await service.execute(a, correction)).status).toBe('alreadyApplied');
 });
+
+it('rolls back an already inserted reversal if replacement insert conflicts', async () => {
+  const a = await fixture(),
+    purchase = command(a);
+  await service.execute(a, purchase);
+  const reversalId = randomUUID();
+  const correction: Envelope = {
+    ...command(a),
+    entityId: purchase.entityId,
+    baseVersion: '1',
+    command: {
+      type: 'correct',
+      payload: {
+        originalId: purchase.entityId,
+        reversalId,
+        businessDate: '2026-09-02',
+        timezone: 'America/Lima',
+        replacement: (command(a).command as { type: 'post'; payload: Posting }).payload,
+      },
+    },
+  };
+  expect((await service.execute(a, correction)).status).toBe('conflict');
+  await expect(store.journal(a, reversalId)).rejects.toThrow('NOT_FOUND');
+  expect(await service.version(a, purchase.entityId)).toBe('1');
+  expect(
+    await db.asUser(
+      a.userId,
+      async (c) =>
+        (await c.query('SELECT operation_id FROM app.ledger_receipts WHERE user_id=$1', [a.userId]))
+          .rowCount,
+    ),
+  ).toBe(1);
+});
+it('serializes a refund racing a reversal and rejects reversal of a reversal', async () => {
+  const a = await fixture(),
+    purchase = command(a);
+  await service.execute(a, purchase);
+  const refund = {
+    ...command(a, {
+      kind: 'refund',
+      originalId: purchase.entityId,
+      amountMinor: '10000',
+      debitAccountId: a.accounts[0]!.id,
+      creditAccountId: a.accounts[2]!.id,
+    }),
+    baseVersion: '1',
+  };
+  const undo: Envelope = {
+    ...command(a),
+    baseVersion: '1',
+    command: {
+      type: 'reverse',
+      payload: {
+        originalId: purchase.entityId,
+        businessDate: '2026-09-02',
+        timezone: 'America/Lima',
+      },
+    },
+  };
+  const result = await Promise.all([service.execute(a, refund), service.execute(a, undo)]);
+  expect(result.filter((r) => r.status === 'applied')).toHaveLength(1);
+  expect(result.filter((r) => r.status === 'conflict')).toHaveLength(1);
+  const b = await fixture(),
+    p = command(b);
+  await service.execute(b, p);
+  const reversed = {
+    ...undo,
+    operationId: randomUUID(),
+    entityId: randomUUID(),
+    command: {
+      type: 'reverse' as const,
+      payload: { ...undo.command.payload, originalId: p.entityId },
+    },
+  };
+  expect((await service.execute(b, reversed)).status).toBe('applied');
+  expect(
+    await service.execute(b, {
+      ...reversed,
+      operationId: randomUUID(),
+      entityId: randomUUID(),
+      command: {
+        type: 'reverse',
+        payload: {
+          originalId: reversed.entityId,
+          businessDate: '2026-09-03',
+          timezone: 'America/Lima',
+        },
+      },
+    }),
+  ).toMatchObject({ status: 'invalid', code: 'REVERSE_REVERSAL' });
+});
+it('isolates receipts and balances for the same operation ID across users', async () => {
+  const a = await fixture(),
+    b = await fixture(),
+    x = command(a),
+    y = { ...command(b), operationId: x.operationId };
+  expect((await service.execute(a, x)).status).toBe('applied');
+  expect((await service.execute(b, y)).status).toBe('applied');
+  const records = await db.asUser(
+    a.userId,
+    async (c) => (await c.query('SELECT user_id FROM app.ledger_receipts')).rows,
+  );
+  expect(records.every((row) => row.user_id === a.userId)).toBe(true);
+  expect(
+    (await store.balances(a)).every((row) =>
+      a.accounts.some((account) => account.id === row.accountId),
+    ),
+  ).toBe(true);
+  expect((await pool.query('SELECT * FROM app.ledger_entries')).rowCount).toBe(0);
+});
+it('persists 10,000 synthetic commands with exact per-currency balances and receipts', async () => {
+  const a = await fixture();
+  const usdExpense: LedgerAccount = { id: randomUUID(), currency: 'USD', nature: 'expense' };
+  const usdAsset: LedgerAccount = { id: randomUUID(), currency: 'USD', nature: 'asset' };
+  await store.createTechnicalAccount(a, usdExpense);
+  await store.createTechnicalAccount(a, usdAsset);
+  let last!: Envelope;
+  for (let i = 0; i < 10000; i++) {
+    last = command(
+      a,
+      i % 2
+        ? {
+            currency: 'USD',
+            amountMinor: '1',
+            debitAccountId: usdExpense.id,
+            creditAccountId: usdAsset.id,
+          }
+        : { amountMinor: '1' },
+    );
+    if ((await service.execute(a, last)).status !== 'applied')
+      throw new Error('Synthetic volume command failed');
+  }
+  expect((await service.execute(a, last)).status).toBe('alreadyApplied');
+  const result = await store.balances(a);
+  expect(result.find((r) => r.accountId === a.accounts[2]!.id)!.amountMinor).toBe('5000');
+  expect(result.find((r) => r.accountId === usdExpense.id)!.amountMinor).toBe('5000');
+  expect(
+    await db.asUser(
+      a.userId,
+      async (c) =>
+        (
+          await c.query('SELECT count(*)::text n FROM app.ledger_transactions WHERE user_id=$1', [
+            a.userId,
+          ])
+        ).rows[0].n,
+    ),
+  ).toBe('10000');
+  expect(
+    await db.asUser(
+      a.userId,
+      async (c) =>
+        (
+          await c.query('SELECT count(*)::text n FROM app.ledger_receipts WHERE user_id=$1', [
+            a.userId,
+          ])
+        ).rows[0].n,
+    ),
+  ).toBe('10000');
+}, 180000);
