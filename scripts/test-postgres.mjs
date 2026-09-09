@@ -9,6 +9,8 @@ import { migrate } from './migrate.mjs';
 const name = `finanzas-p04-${randomUUID()}`;
 const password = randomBytes(32).toString('hex');
 const runtimePassword = randomBytes(32).toString('hex');
+const authPassword = randomBytes(32).toString('hex');
+const browserMode = process.argv.includes('--browser');
 const docker = (...args) =>
   execFileSync('docker', args, {
     encoding: 'utf8',
@@ -57,15 +59,30 @@ try {
   await pool.query(
     `CREATE ROLE finanzas_api LOGIN PASSWORD '${runtimePassword}' IN ROLE finanzas_runtime`,
   );
+  await pool.query(
+    `CREATE ROLE finanzas_auth_api LOGIN PASSWORD '${authPassword}' IN ROLE finanzas_auth_runtime`,
+  );
   const result = spawnSync(
     process.execPath,
-    ['node_modules/vitest/vitest.mjs', 'run', 'tests/postgres.integration.test.ts'],
+    browserMode
+      ? ['node_modules/@playwright/test/cli.js', 'test', '--config=playwright.auth.config.ts']
+      : [
+          'node_modules/vitest/vitest.mjs',
+          'run',
+          'tests/postgres.integration.test.ts',
+          'tests/sessions.integration.test.ts',
+          'tests/email-auth.integration.test.ts',
+          'tests/google-auth.integration.test.ts',
+          'tests/mfa-store.integration.test.ts',
+          'tests/mfa-login.integration.test.ts',
+        ],
     {
       stdio: 'inherit',
       env: {
         ...process.env,
         P04_TEST_ADMIN_URL: adminUrl,
         P04_TEST_DATABASE_URL: `postgresql://finanzas_api:${runtimePassword}@127.0.0.1:${port}/finanzas_test`,
+        P05_TEST_AUTH_URL: `postgresql://finanzas_auth_api:${authPassword}@127.0.0.1:${port}/finanzas_test`,
       },
     },
   );

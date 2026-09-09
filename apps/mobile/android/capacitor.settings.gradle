@@ -14,5 +14,8 @@ project(':capacitor-community-sqlite').projectDir = new File('../../../node_modu
 include ':capacitor-app'
 project(':capacitor-app').projectDir = new File('../../../node_modules/@capacitor/app/android')
 
+include ':capacitor-browser'
+project(':capacitor-browser').projectDir = new File('../../../node_modules/@capacitor/browser/android')
+
 include ':capacitor-keyboard'
 project(':capacitor-keyboard').projectDir = new File('../../../node_modules/@capacitor/keyboard/android')

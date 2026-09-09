@@ -79,3 +79,25 @@ jobs:
           name: ios-simulator-unsigned-${{ github.sha }}
           path: dist/ios/Build/Products/Debug-iphonesimulator/*.app
           retention-days: 7
+  auth-system:
+    name: Browser + PostgreSQL auth
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm install --global npm@11.6.1
+      - run: npm ci
+      - run: npm run build:web
+      - run: npm run build:backend
+      - run: npm exec playwright -- install --with-deps chromium
+      - run: npm run test:auth-system
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: auth-system-visual-${{ github.sha }}
+          path: docs/evidence/P05/mfa-*.png
+          retention-days: 7

@@ -16,13 +16,22 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { denyIdentity, type IdentityVerifier } from './auth';
 import { type UserDatabase } from './database';
 import { DATABASE, IDENTITY, UserController } from './users';
+import { SessionController, SESSIONS } from './session-controller';
+import { type SessionAuthority } from './sessions';
+import { EmailController, EMAIL_AUTH } from './email-controller';
+import { type EmailAuth } from './email-auth';
+import { GoogleController, GOOGLE_AUTH, NATIVE_GOOGLE_AUTH } from './google-controller';
+import { registerNativeCors } from './native-cors';
+import { type GoogleAuth } from './google-auth';
+import { MfaController, MFA_LOGIN } from './mfa-controller';
+import { type MfaLogin } from './mfa-login';
 @Controller()
 class HealthController {
   @Get('health') health() {
     return { status: 'ok', environment: 'development', financialData: false };
   }
   @Get('v1') version() {
-    return { version: '1', stage: 'P04', financialCore: false };
+    return { version: '1', stage: 'P05-in-progress', financialCore: false };
   }
 }
 @Catch()
@@ -45,16 +54,34 @@ class SafeErrors implements ExceptionFilter {
   }
 }
 export interface AppOptions {
+  nativeAuthCors?: boolean;
   identity?: IdentityVerifier;
   database?: UserDatabase;
+  sessions?: SessionAuthority;
+  emailAuth?: EmailAuth;
+  googleAuth?: GoogleAuth;
+  nativeGoogleAuth?: GoogleAuth;
+  mfaLogin?: MfaLogin;
   log?: (event: { requestId: string; method: string; status: number }) => void;
 }
 export async function createApp(options: AppOptions = {}) {
   @Module({
-    controllers: [HealthController, UserController],
+    controllers: [
+      HealthController,
+      UserController,
+      SessionController,
+      EmailController,
+      GoogleController,
+      MfaController,
+    ],
     providers: [
       { provide: IDENTITY, useValue: options.identity ?? denyIdentity },
       { provide: DATABASE, useValue: options.database ?? null },
+      { provide: SESSIONS, useValue: options.sessions ?? null },
+      { provide: EMAIL_AUTH, useValue: options.emailAuth ?? null },
+      { provide: GOOGLE_AUTH, useValue: options.googleAuth ?? null },
+      { provide: NATIVE_GOOGLE_AUTH, useValue: options.nativeGoogleAuth ?? null },
+      { provide: MFA_LOGIN, useValue: options.mfaLogin ?? null },
     ],
   })
   class AppModule {}
@@ -69,6 +96,7 @@ export async function createApp(options: AppOptions = {}) {
     reply.header('X-Content-Type-Options', 'nosniff');
     reply.header('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
   });
+  if (options.nativeAuthCors) registerNativeCors(adapter.getInstance());
   adapter.getInstance().addHook('onResponse', async (request, reply) => {
     options.log?.({ requestId: request.id, method: request.method, status: reply.statusCode });
   });

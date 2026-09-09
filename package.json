@@ -29,8 +29,10 @@
     "test": "vitest run --exclude \"**/*.integration.test.ts\"",
     "test:integration": "vitest run tests/api.integration.test.ts",
     "test:postgres": "node scripts/test-postgres.mjs",
+    "test:auth-system": "node scripts/test-postgres.mjs --browser",
     "db:migrate": "node scripts/migrate.mjs",
     "start:api": "node dist/api/main.js",
+    "mail:deliver": "node dist/api/mail-worker.js",
     "test:e2e": "playwright test",
     "cap:sync": "npm run build:mobile && npm exec -w @finanzas/mobile -- cap sync && node scripts/normalize-native.mjs",
     "security": "npm audit --audit-level=high"
@@ -48,6 +50,7 @@
     "@capacitor-community/sqlite": "8.1.1",
     "@capacitor/android": "8.4.3",
     "@capacitor/app": "8.0.0",
+    "@capacitor/browser": "8.0.4",
     "@capacitor/core": "8.4.3",
     "@capacitor/ios": "8.4.3",
     "@capacitor/keyboard": "8.0.0",

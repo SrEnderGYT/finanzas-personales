@@ -4,6 +4,8 @@ import { provideRouter, withHashLocation, withComponentInputBinding } from '@ang
 import { provideServiceWorker } from '@angular/service-worker';
 import { Shell, DEMO_ROUTES, MOBILE_MODE } from '@finanzas/ui';
 import { provideIonicAngular, IonApp } from '@ionic/angular';
+import { nativeAuthConfig } from './native-auth.config';
+import { nativeAuthProviders } from './native-auth.providers';
 @Component({
   selector: 'app-root',
   imports: [Shell, IonApp],
@@ -13,6 +15,7 @@ class App {}
 bootstrapApplication(App, {
   providers: [
     provideIonicAngular(),
+    ...nativeAuthProviders(nativeAuthConfig),
     { provide: MOBILE_MODE, useValue: true },
     provideRouter(DEMO_ROUTES, withHashLocation(), withComponentInputBinding()),
     provideServiceWorker('ngsw-worker.js', {
