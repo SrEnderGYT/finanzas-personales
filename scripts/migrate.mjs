@@ -39,6 +39,8 @@ export async function migrate(pool) {
         await client.query('COMMIT');
       } catch (error) {
         await client.query('ROLLBACK');
+        // Structural diagnostics only: never include SQL, parameters or connection data.
+        error.migrationName = name;
         throw error;
       }
     }

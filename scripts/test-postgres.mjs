@@ -88,7 +88,15 @@ try {
     },
   );
   process.exitCode = result.status ?? 1;
-} catch {
+} catch (error) {
+  const diagnostic = {
+    migration: /^\d{3}_[a-z_]+\.sql$/.test(error?.migrationName ?? '')
+      ? error.migrationName
+      : undefined,
+    sqlState: /^[A-Z0-9]{5}$/.test(error?.code ?? '') ? error.code : undefined,
+    position: /^\d+$/.test(error?.position ?? '') ? error.position : undefined,
+  };
+  process.stderr.write(JSON.stringify(diagnostic) + '\n');
   process.stderr.write(
     'PostgreSQL integration failed. Requires Docker and the pinned image; connection secrets suppressed.\n',
   );
