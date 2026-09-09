@@ -97,7 +97,9 @@ it('creates a private asset mapping atomically and serializes account edits', as
   const a = await user(),
     b = await user(),
     e = account();
-  await executeAccount(a, e);
+  const retries = await Promise.all(Array.from({ length: 5 }, () => executeAccount(a, e)));
+  expect(retries.filter((r) => r.status === 'applied')).toHaveLength(1);
+  expect(retries.filter((r) => r.status === 'alreadyApplied')).toHaveLength(4);
   const stored = (
     await db.asUser(a, (c) =>
       c.query('SELECT * FROM app.product_accounts WHERE id=$1', [e.command.id]),

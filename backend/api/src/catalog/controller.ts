@@ -31,7 +31,7 @@ import { CatalogExecutor } from './executor';
 import { mutateAccount } from './accounts';
 import { mutateCategory } from './categories';
 import { CatalogRead, type CatalogEntity } from './read';
-import { commandSchema } from './openapi';
+import { commandSchema, entitySchema, listSchema, resultSchema } from './openapi';
 @Catch(DomainError)
 class CatalogErrors implements ExceptionFilter {
   catch(error: DomainError, host: ArgumentsHost) {
@@ -103,6 +103,7 @@ export class AccountsController extends CatalogControllerBase {
     super(identity, database);
   }
   @Get()
+  @ApiResponse({ status: 200, schema: listSchema(true) })
   @ApiOperation({ summary: 'Cuentas propias; saldo exacto del ledger, sin sumar monedas' })
   @ApiQuery({ name: 'state', required: false, enum: ['active', 'inactive', 'all'] })
   @ApiQuery({ name: 'currency', required: false, enum: ['PEN', 'USD'] })
@@ -125,11 +126,13 @@ export class AccountsController extends CatalogControllerBase {
     return this.read(token, 'account', q);
   }
   @Get(':id')
+  @ApiResponse({ status: 200, schema: entitySchema(true) })
   @ApiOperation({ summary: 'Cuenta propia, incluso inactiva; 404 si ajena o inexistente' })
   get(@Headers('authorization') token: string | undefined, @Param('id') id: string) {
     return this.read(token, 'account', {}, id);
   }
   @Post()
+  @ApiResponse({ status: 201, schema: resultSchema })
   @ApiBody({ schema: commandSchema('account.create') })
   @ApiOperation({
     summary: 'Crear cuenta activa con saldo cero; reintentos devuelven el resultado original',
@@ -138,6 +141,7 @@ export class AccountsController extends CatalogControllerBase {
     return this.mutate(token, body, 'account.create');
   }
   @Patch(':id')
+  @ApiResponse({ status: 200, schema: resultSchema })
   @ApiBody({ schema: commandSchema('account.update') })
   @ApiOperation({ summary: 'Editar metadatos con baseVersion; moneda y saldo no editables' })
   update(
@@ -165,6 +169,7 @@ export class CategoriesController extends CatalogControllerBase {
     super(identity, database);
   }
   @Get()
+  @ApiResponse({ status: 200, schema: listSchema(false) })
   @ApiOperation({ summary: 'Categorías privadas; catálogo plano, sin efecto contable' })
   @ApiQuery({ name: 'state', required: false, enum: ['active', 'archived', 'all'] })
   @ApiQuery({ name: 'kind', required: false, enum: ['expense', 'income'] })
@@ -178,23 +183,27 @@ export class CategoriesController extends CatalogControllerBase {
     return this.read(token, 'category', q);
   }
   @Get(':id')
+  @ApiResponse({ status: 200, schema: entitySchema(false) })
   @ApiOperation({ summary: 'Categoría propia, incluso archivada; 404 si ajena o inexistente' })
   get(@Headers('authorization') token: string | undefined, @Param('id') id: string) {
     return this.read(token, 'category', {}, id);
   }
   @Post('initialize')
+  @ApiResponse({ status: 201, schema: resultSchema })
   @ApiBody({ schema: commandSchema('category.initialize') })
   @ApiOperation({ summary: 'Copiar plantillas faltantes sin sobrescribir personalizaciones' })
   initialize(@Headers('authorization') token: string | undefined, @Body() body: unknown) {
     return this.mutate(token, body, 'category.initialize');
   }
   @Post()
+  @ApiResponse({ status: 201, schema: resultSchema })
   @ApiBody({ schema: commandSchema('category.create') })
   @ApiOperation({ summary: 'Crear categoría personalizada propia' })
   create(@Headers('authorization') token: string | undefined, @Body() body: unknown) {
     return this.mutate(token, body, 'category.create');
   }
   @Patch(':id')
+  @ApiResponse({ status: 200, schema: resultSchema })
   @ApiBody({ schema: commandSchema('category.update') })
   @ApiOperation({ summary: 'Renombrar, ordenar, archivar o reactivar con versión esperada' })
   update(

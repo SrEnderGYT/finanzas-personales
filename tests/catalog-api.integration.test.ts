@@ -3,7 +3,7 @@ import { Pool } from 'pg';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { createApp } from '../backend/api/src/app';
 import { UserDatabase } from '../backend/api/src/database';
-import { SessionAuthority } from '../backend/api/src/sessions';
+import { createSession, SessionAuthority } from '../backend/api/src/sessions';
 import { LedgerStore } from '../backend/api/src/ledger/store';
 import { LedgerService } from '../backend/api/src/ledger/service';
 if (!process.env['P04_TEST_DATABASE_URL']) throw new Error('Use npm run test:postgres');
@@ -259,6 +259,20 @@ it('category API initializes privately, edits and rejects immutable fields', asy
   const spec = (await app.inject({ method: 'GET', url: '/openapi.json' })).json();
   expect(spec.paths['/v1/accounts'].post.requestBody).toBeDefined();
   await sessions.logout(hb.authorization, false);
+  const expired = await db.asUser(b, (c) => createSession(c, b));
+  await admin.query(
+    "UPDATE app.sessions SET expires_at=now()-interval '1 second' WHERE user_id=$1 AND id=$2",
+    [b, expired.sessionId],
+  );
+  expect(
+    (
+      await app.inject({
+        method: 'GET',
+        url: '/v1/accounts',
+        headers: { authorization: `Bearer ${expired.token}` },
+      })
+    ).statusCode,
+  ).toBe(401);
   expect((await app.inject({ method: 'GET', url: '/v1/categories', headers: hb })).statusCode).toBe(
     401,
   );
