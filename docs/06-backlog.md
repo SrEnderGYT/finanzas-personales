@@ -7,7 +7,7 @@ Estado: propuesto. P0 necesario para beta, P1 siguiente valor, P2 posterior. Cad
 | --- | --- | --- | --- |
 | H01 / P0 / MVP | Como usuario quiero iniciar sesión con Google o email verificado para proteger mis datos | Email no verificado no sincroniza; token inválido devuelve 401; linking requiere autenticar ambas cuentas; UI permite MFA opcional | P05 |
 | H02 / P0 / MVP | Quiero bloquear y revocar un dispositivo | Biometría/PIN protege clave local; revocado no escribe online; sesión offline muestra límite; logout no expone datos al siguiente usuario | P03,P05 |
-| H03 / P0 / MVP | Quiero registrar cuentas y categorías | Moneda obligatoria; saldo inicial no cuenta como ingreso; cuenta archivada preserva historial; FK a otro usuario rechazada | P07 |
+| H03 / P0 / MVP | Quiero registrar cuentas y categorías | Moneda obligatoria; P07 crea cuentas con saldo cero y archivo preserva historial; FK a otro usuario rechazada. Ajuste de saldo inicial posterior, nunca ingreso | P07 |
 | H04 / P0 / MVP | Quiero registrar gasto/ingreso exacto | S/ 0,10 + S/ 0,20 = S/ 0,30; fecha/moneda/cuenta requeridas; asientos balanceados; error conserva formulario | P06,P08 |
 | H05 / P0 / MVP | Quiero transferir, pagar y reembolsar sin duplicar gasto | Transferencia propia neto0 en ingreso/gasto; pago tarjeta reduce pasivo/caja; reembolso parcial enlaza original; ajuste se distingue de salario | P06,P13 |
 | H06 / P0 / MVP | Quiero guardar sin internet y recuperar mis cambios | Crear offline, cerrar/reabrir y reconectar produce una operación; commit sin respuesta y 5 reintentos no duplican; clave perdida no se ignora | P08–P10 |

@@ -5,10 +5,72 @@ import { UserDatabase } from '../backend/api/src/database';
 import { CatalogExecutor } from '../backend/api/src/catalog/executor';
 import { mutateAccount } from '../backend/api/src/catalog/accounts';
 import { mutateCategory } from '../backend/api/src/catalog/categories';
+import { LedgerStore } from '../backend/api/src/ledger/store';
 if (!process.env['P04_TEST_DATABASE_URL']) throw new Error('Use npm run test:postgres');
 const pool = new Pool({ connectionString: process.env['P04_TEST_DATABASE_URL'] });
 const admin = new Pool({ connectionString: process.env['P04_TEST_ADMIN_URL'] });
 const db = new UserDatabase(pool);
+it('rejects direct SQL mappings across owners, currencies, nature and committed receipts', async () => {
+  const a = await user(),
+    b = await user(),
+    store = new LedgerStore(db);
+  const foreign = randomUUID(),
+    liability = randomUUID(),
+    usd = randomUUID();
+  await store.createTechnicalAccount(
+    { userId: b },
+    { id: foreign, currency: 'PEN', nature: 'asset' },
+  );
+  await store.createTechnicalAccount(
+    { userId: a },
+    { id: liability, currency: 'PEN', nature: 'liability' },
+  );
+  await store.createTechnicalAccount({ userId: a }, { id: usd, currency: 'USD', nature: 'asset' });
+  for (const technical of [foreign, liability, usd])
+    await expect(
+      db.asUser(a, (c) =>
+        c.query(
+          "INSERT INTO app.product_accounts(user_id,id,ledger_account_id,name,type,currency,state,position,operation_id) VALUES($1,$2,$3,'Fixture','cash','PEN','active',0,$4)",
+          [a, randomUUID(), technical, randomUUID()],
+        ),
+      ),
+    ).rejects.toMatchObject({ code: '23514' });
+  const e = account();
+  await executeAccount(a, e);
+  const empty = initialize();
+  await new CatalogExecutor(db).execute(a, empty, async () => []);
+  await expect(
+    db.asUser(a, (c) =>
+      c.query(
+        "UPDATE app.product_accounts SET name='unreceipted',version=version+1,operation_id=$2 WHERE id=$1",
+        [e.command.id, empty.operationId],
+      ),
+    ),
+  ).rejects.toMatchObject({ code: '23514' });
+  expect(
+    (
+      await db.asUser(a, (c) =>
+        c.query('SELECT name,version FROM app.product_accounts WHERE id=$1', [e.command.id]),
+      )
+    ).rows[0],
+  ).toMatchObject({ name: 'Caja DEMO', version: '1' });
+  const victim = account();
+  await executeAccount(b, victim);
+  await expect(
+    db.asUser(a, (c) =>
+      c.query('INSERT INTO app.catalog_audit_entities VALUES($1,$2,$3,$4,NULL)', [
+        a,
+        e.operationId,
+        randomUUID(),
+        victim.command.id,
+      ]),
+    ),
+  ).rejects.toMatchObject({ code: '23503' });
+  expect((await pool.query('SELECT * FROM app.product_accounts')).rowCount).toBe(0);
+  await expect(
+    db.asUser(a, (c) => c.query('UPDATE app.catalog_receipts SET result=result')),
+  ).rejects.toMatchObject({ code: '42501' });
+});
 async function user() {
   const id = randomUUID();
   await admin.query('INSERT INTO app.users(id) VALUES($1)', [id]);
