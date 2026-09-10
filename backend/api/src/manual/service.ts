@@ -9,6 +9,9 @@ export class ManualMovementService {
     readonly clock: Clock = { now: () => new Date() },
   ) {}
   async confirm(context: LedgerContext, input: unknown) {
+    return (await this.confirmWithStatus(context, input)).receipt;
+  }
+  async confirmWithStatus(context: LedgerContext, input: unknown) {
     identifier(context.userId);
     const command = normalizeManual(input, this.clock),
       p = command.payload,
@@ -26,10 +29,13 @@ export class ManualMovementService {
       if (old) {
         if (old.payload_hash !== hash) throw new DomainError('IDEMPOTENCY_CONFLICT');
         return {
-          operationId: command.operationId,
-          movementId: old.movement_id,
-          payloadHash: hash,
-          recordedAt: old.recorded_at.toISOString(),
+          status: 'already_applied' as const,
+          receipt: {
+            operationId: command.operationId,
+            movementId: old.movement_id,
+            payloadHash: hash,
+            recordedAt: old.recorded_at.toISOString(),
+          },
         };
       }
       if (
@@ -118,10 +124,13 @@ export class ManualMovementService {
         [userId, command.operationId, command.movementId, hash],
       );
       return {
-        operationId: command.operationId,
-        movementId: command.movementId,
-        payloadHash: hash,
-        recordedAt: receipt.rows[0]!.recorded_at.toISOString(),
+        status: 'applied' as const,
+        receipt: {
+          operationId: command.operationId,
+          movementId: command.movementId,
+          payloadHash: hash,
+          recordedAt: receipt.rows[0]!.recorded_at.toISOString(),
+        },
       };
     });
   }

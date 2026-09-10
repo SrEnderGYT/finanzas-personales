@@ -11,6 +11,9 @@ const password = randomBytes(32).toString('hex');
 const runtimePassword = randomBytes(32).toString('hex');
 const authPassword = randomBytes(32).toString('hex');
 const browserMode = process.argv.includes('--browser');
+const requestedSuite = process.argv.find((arg) => arg.startsWith('--suite='))?.slice(8);
+if (requestedSuite && !/^tests\/[a-z-]+\.integration\.test\.ts$/.test(requestedSuite))
+  throw new Error('Invalid test suite');
 const docker = (...args) =>
   execFileSync('docker', args, {
     encoding: 'utf8',
@@ -69,16 +72,21 @@ try {
       : [
           'node_modules/vitest/vitest.mjs',
           'run',
-          'tests/postgres.integration.test.ts',
-          'tests/ledger.integration.test.ts',
-          'tests/catalog.integration.test.ts',
-          'tests/catalog-api.integration.test.ts',
-          'tests/manual.integration.test.ts',
-          'tests/sessions.integration.test.ts',
-          'tests/email-auth.integration.test.ts',
-          'tests/google-auth.integration.test.ts',
-          'tests/mfa-store.integration.test.ts',
-          'tests/mfa-login.integration.test.ts',
+          ...(requestedSuite
+            ? [requestedSuite]
+            : [
+                'tests/postgres.integration.test.ts',
+                'tests/ledger.integration.test.ts',
+                'tests/catalog.integration.test.ts',
+                'tests/catalog-api.integration.test.ts',
+                'tests/manual.integration.test.ts',
+                'tests/sync.integration.test.ts',
+                'tests/sessions.integration.test.ts',
+                'tests/email-auth.integration.test.ts',
+                'tests/google-auth.integration.test.ts',
+                'tests/mfa-store.integration.test.ts',
+                'tests/mfa-login.integration.test.ts',
+              ]),
         ],
     {
       stdio: 'inherit',

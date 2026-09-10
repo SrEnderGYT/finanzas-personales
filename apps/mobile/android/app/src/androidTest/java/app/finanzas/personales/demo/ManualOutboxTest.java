@@ -60,6 +60,9 @@ public class ManualOutboxTest {
     }
     Intent intent = new Intent(instrumentation.getTargetContext(), MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
     activity = (MainActivity) instrumentation.startActivitySync(intent);
+    for (int i = 0; i < 40 && !activity.hasWindowFocus(); i++) Thread.sleep(250);
+    android.app.KeyguardManager keyguard = (android.app.KeyguardManager) activity.getSystemService(android.content.Context.KEYGUARD_SERVICE);
+    assertTrue("Native foreground window; keyguardLocked=" + keyguard.isKeyguardLocked(), activity.hasWindowFocus());
     waitFor("!!document.querySelector('fp-shell') || !!document.querySelector('main')");
     js("location.hash='/registro'");
     waitFor("!!document.querySelector('.manual-page')");

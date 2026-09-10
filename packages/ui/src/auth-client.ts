@@ -1,5 +1,7 @@
 import { nativeGoogleFlow } from '../../shared/src/native-google-flow';
 import { nativeAuthHttp } from '../../shared/src/native-auth-http';
+import { SyncHttpError, validatePage, type SyncApi } from '../../shared/src/sync-engine';
+import type { ManualReceipt } from '../../shared/src/manual-outbox';
 import {
   identifier,
   instant,
@@ -24,6 +26,64 @@ function catalogVersion(value: unknown): string {
 
 /** Tokens live only in this instance, never in browser storage or URLs. */
 export class AuthClient {
+  private verifiedOwner: string | undefined;
+  canUseOwner(ownerId: string) {
+    return !!this.token && this.verifiedOwner === ownerId;
+  }
+  expireSession() {
+    this.token = undefined;
+  }
+  syncApi(ownerId: string): SyncApi {
+    const send = async (path: string, method: string, signal: AbortSignal, body?: unknown) => {
+      if (!this.enabled || !this.token || this.verifiedOwner !== ownerId)
+        throw new SyncHttpError(401, 'SESSION_REQUIRED');
+      const token = this.token;
+      const response = await this.transport(path, {
+        method,
+        headers: {
+          Authorization: 'Bearer ' + token,
+          ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        signal: AbortSignal.any([signal, AbortSignal.timeout(15000)]),
+        credentials: 'same-origin',
+        cache: 'no-store',
+        redirect: 'error',
+      });
+      if (token !== this.token || this.verifiedOwner !== ownerId)
+        throw new SyncHttpError(401, 'SESSION_CHANGED');
+      const data: unknown = await response.json().catch(() => null);
+      if (!response.ok) {
+        const error =
+          data &&
+          typeof data === 'object' &&
+          'error' in data &&
+          typeof data.error === 'string' &&
+          /^[A-Z_]{1,80}$/.test(data.error)
+            ? data.error
+            : 'REQUEST_FAILED';
+        throw new SyncHttpError(response.status, error);
+      }
+      return data;
+    };
+    return {
+      send: async (command, signal) => {
+        const data = await send('/v1/sync/commands', 'POST', signal, command);
+        closed(data, ['status', 'receipt']);
+        if (data['status'] !== 'applied' && data['status'] !== 'already_applied')
+          throw new Error('Invalid sync status');
+        return { status: data['status'], receipt: data['receipt'] as ManualReceipt };
+      },
+      pull: async (cursor, signal) =>
+        validatePage(
+          await send(
+            '/v1/sync/changes?limit=200' + (cursor ? '&cursor=' + encodeURIComponent(cursor) : ''),
+            'GET',
+            signal,
+          ),
+        ),
+    };
+  }
   static forNativeServer(apiOrigin: string, transport: typeof fetch = fetch) {
     return new AuthClient(true, nativeAuthHttp(apiOrigin, transport), apiOrigin);
   }
@@ -35,6 +95,7 @@ export class AuthClient {
   private set token(value: string | undefined) {
     if (value !== this.sessionToken) {
       this.sessionToken = value;
+      this.verifiedOwner = undefined;
       for (const lock of this.localLocks) lock();
     }
   }
@@ -123,6 +184,7 @@ export class AuthClient {
     )
       throw new Error('El catálogo cambió durante la descarga; vuelve a intentar.');
     if (this.token !== token) throw new Error('La sesión cambió durante la descarga.');
+    this.verifiedOwner = ownerId;
     return {
       ownerId,
       catalog: { accounts, categories, downloadedAt: instant(new Date().toISOString()) },

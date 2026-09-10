@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { AUTH_CLIENT } from './auth-provider';
+import { ProductWorkspace } from './product-workspace';
 import { UI_PRIMITIVES } from './primitives';
 import { ManualSession, DEMO_PROFILE, demoManualCatalog } from '../../shared/src/manual-session';
 import { type OutboxRecord } from '../../shared/src/manual-outbox';
@@ -25,14 +26,14 @@ import {
   styleUrl: './manual-screen.css',
   template: ` <section class="manual-page">
     <header>
-      <p class="eyebrow">REGISTRO LOCAL · P08</p>
+      <p class="eyebrow">REGISTRAR MOVIMIENTO</p>
       <h1>Tu movimiento, guardado.</h1>
-      <p>Gastos e ingresos con fecha explícita. El envío al servidor todavía no está habilitado.</p>
+      <p>Gastos e ingresos con fecha explícita. Primero se guardan en tu espacio cifrado.</p>
     </header>
     <p class="mode-banner">
       {{
-        session?.vault?.profile?.mode === 'product'
-          ? 'Perfil de producto · sin confirmación del servidor'
+        workspace.product()
+          ? 'Perfil de producto · confirmación mediante sincronización'
           : 'DEMO · Usa únicamente datos ficticios en esta vista'
       }}
     </p>
@@ -189,7 +190,8 @@ import {
             </button>
           }
           <p class="zone-note">
-            No cambia tu saldo confirmado. También queda pendiente si tienes Internet.
+            El saldo solo cambia tras la confirmación del servidor. Sin conexión permanece
+            pendiente.
           </p>
         </form>
         <section class="manual-card">
@@ -226,15 +228,21 @@ import {
 })
 export class ManualScreen implements OnDestroy {
   readonly auth = inject(AUTH_CLIENT);
+  readonly workspace = inject(ProductWorkspace);
   readonly native = Capacitor.isNativePlatform();
   readonly busy = signal(false);
-  readonly unlocked = signal(false);
+  readonly unlocked = this.workspace.unlocked;
   readonly existing = signal(false);
-  readonly catalog = signal<ManualCatalog | undefined>(undefined);
-  readonly rows = signal<OutboxRecord[]>([]);
+  readonly catalog = this.workspace.catalog;
+  readonly rows = this.workspace.rows;
   readonly message = signal('');
   readonly errors = signal<Record<string, string>>({});
-  session: ManualSession | undefined;
+  get session() {
+    return this.workspace.session;
+  }
+  set session(value: ManualSession | undefined) {
+    this.workspace.session = value;
+  }
   profiles: LocalProfile[] = [];
   credential = '';
   kind: 'expense' | 'income' = 'expense';
@@ -243,7 +251,9 @@ export class ManualScreen implements OnDestroy {
   amount = '';
   businessDate = localDate(new Date(), 'America/Lima');
   note = '';
-  private generation = 0;
+  private get generation() {
+    return this.workspace.epoch;
+  }
   private intent: ManualCommand | undefined;
   private initialCatalog: ManualCatalog | undefined;
   private readonly unsubscribe: () => void;
@@ -252,6 +262,7 @@ export class ManualScreen implements OnDestroy {
     if (document.hidden) this.lock();
   };
   constructor() {
+    if (this.session) void this.session.vault.exists().then((value) => this.existing.set(value));
     try {
       this.profiles = ManualSession.profiles();
     } catch {
@@ -286,6 +297,7 @@ export class ManualScreen implements OnDestroy {
     return `${m.currency} ${abs.length > 2 ? abs.slice(0, -2) : '0'}.${abs.slice(-2).padStart(2, '0')}`;
   }
   async openDemo() {
+    this.workspace.enterDemo();
     await this.openProfile(DEMO_PROFILE, demoManualCatalog());
   }
   async onlineProfile() {
@@ -299,6 +311,15 @@ export class ManualScreen implements OnDestroy {
   }
   async openProfile(profile: LocalProfile, catalog?: ManualCatalog) {
     this.lock();
+    if (
+      profile.mode === 'product' &&
+      this.auth.signedIn &&
+      !this.auth.canUseOwner(profile.ownerId)
+    ) {
+      this.message.set('Prepara el perfil conectado de la sesión actual antes de abrirlo.');
+      return;
+    }
+    if (profile.mode === 'product') this.workspace.enterProduct();
     const gen = this.generation;
     await this.action(async () => {
       await this.session?.vault.close();
@@ -335,8 +356,11 @@ export class ManualScreen implements OnDestroy {
       this.catalog.set(catalog);
       this.rows.set(rows);
       this.unlocked.set(true);
+      await this.workspace.refresh();
+      if (gen !== this.generation) return;
       this.profiles = ManualSession.profiles();
-      this.message.set('Espacio desbloqueado. Guardar no envía movimientos al servidor.');
+      this.message.set('Espacio desbloqueado. Los pendientes se conservan en este dispositivo.');
+      void this.workspace.syncNow();
     });
   }
   async refreshCatalog() {
@@ -354,8 +378,7 @@ export class ManualScreen implements OnDestroy {
     });
   }
   lock() {
-    this.generation++;
-    this.session?.vault.lock();
+    this.workspace.lock();
     this.unlocked.set(false);
     this.catalog.set(undefined);
     this.rows.set([]);
@@ -438,6 +461,7 @@ export class ManualScreen implements OnDestroy {
       this.amount = '';
       this.note = '';
       this.message.set('Guardado en este dispositivo. Pendiente de envío.');
+      void this.workspace.syncNow();
     });
   }
   get hasIntent() {
@@ -467,10 +491,12 @@ export class ManualScreen implements OnDestroy {
     }
   }
   ngOnDestroy() {
-    this.lock();
+    if (this.session?.vault.profile.mode !== 'product') this.lock();
+    this.credential = '';
+    this.intent = undefined;
     this.unsubscribe();
     document.removeEventListener('visibilitychange', this.visibility);
     void this.nativeListener?.then((l) => l.remove());
-    void this.session?.vault.close();
+    if (this.session?.vault.profile.mode !== 'product') void this.session?.vault.close();
   }
 }
