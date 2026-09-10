@@ -46,20 +46,32 @@ export const MOBILE_MODE = new InjectionToken<boolean>('MOBILE_MODE', { factory:
         ><span class="breadcrumb">Mi espacio <span>/</span> Vista general</span>
         <div class="topbar-actions">
           <a routerLink="/acceso" class="auth-entry">Acceso</a>
-          <fp-badge>DEMO · Datos sintéticos</fp-badge
-          ><button
-            class="icon-button"
-            type="button"
-            [attr.aria-label]="state.hidden() ? 'Mostrar importes' : 'Ocultar importes'"
-            (click)="state.hidden.set(!state.hidden())"
-          >
-            {{ state.hidden() ? '◉' : '◎' }}</button
-          ><a class="avatar" routerLink="/configuracion" aria-label="Configuración">D</a>
+          @if (!product.product()) {
+            <fp-badge>DEMO · Datos sintéticos</fp-badge>
+            <button
+              class="icon-button"
+              type="button"
+              [attr.aria-label]="state.hidden() ? 'Mostrar importes' : 'Ocultar importes'"
+              (click)="state.hidden.set(!state.hidden())"
+            >
+              {{ state.hidden() ? '◉' : '◎' }}
+            </button>
+          }
+          <a class="avatar" routerLink="/configuracion" aria-label="Configuración">{{
+            product.product() ? 'P' : 'D'
+          }}</a>
         </div>
       </header>
       <main id="content"><router-outlet /></main>
       <footer class="app-footer">
-        <fp-sync-status /><span>Vista de muestra · 6 sep 2026</span>
+        @if (product.product()) {
+          <span>Tu espacio cifrado · cada moneda por separado</span>
+        } @else {
+          <fp-sync-status /><span>Vista de muestra · 6 sep 2026</span>
+          @if (product.auth.enabled) {
+            <button fpButton (click)="product.enterProduct()">Volver a mi espacio</button>
+          }
+        }
       </footer>
     </div>
     <nav class="bottom-nav" aria-label="Navegación móvil">

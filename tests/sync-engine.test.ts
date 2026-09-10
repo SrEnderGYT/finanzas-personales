@@ -81,7 +81,9 @@ it('recovers a lost response through authenticated pull and reopens one confirme
     }),
   };
   const engine = new SyncEngine(f.vault, api);
-  await Promise.all(Array.from({ length: 5 }, () => engine.run()));
+  expect(await Promise.all(Array.from({ length: 5 }, () => engine.run()))).toEqual(
+    Array(5).fill('idle'),
+  );
   expect(send).toHaveBeenCalledTimes(1);
   expect((await engine.outbox.list())[0]?.state).toBe('confirmed');
   await f.vault.close();
@@ -93,6 +95,32 @@ it('recovers a lost response through authenticated pull and reopens one confirme
   expect(await next.outbox.list()).toHaveLength(1);
   expect(send).toHaveBeenCalledTimes(1);
   await reopened.close();
+});
+
+it('stops on a rejected cursor and never silently replaces a malformed encrypted checkpoint', async () => {
+  const f = await fixture();
+  const api: SyncApi = {
+    send: async () => {
+      throw new SyncHttpError(422, 'INVALID_COMMAND');
+    },
+    pull: async () => {
+      throw new SyncHttpError(422, 'INVALID_CURSOR');
+    },
+  };
+  const engine = new SyncEngine(f.vault, api);
+  expect(await engine.run()).toBe('invalid');
+  const saved = (await f.vault.read('sync:v1'))!;
+  expect(
+    await f.vault.replace('sync:v1', saved.raw, {
+      version: 1,
+      movements: {},
+      retries: [],
+      failures: {},
+    }),
+  ).toBe(true);
+  await expect(engine.snapshot()).rejects.toMatchObject({ code: 'SYNC_STORAGE_DAMAGED' });
+  expect((await f.vault.read<{ retries: unknown }>('sync:v1'))?.value.retries).toEqual([]);
+  await f.vault.close();
 });
 it('keeps 422 visible without infinite retries and stops all uploads on session revocation', async () => {
   const f = await fixture();

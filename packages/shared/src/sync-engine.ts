@@ -76,23 +76,13 @@ export class SyncEngine {
     this.aborter?.abort();
   }
   async snapshot(): Promise<SyncSnapshot> {
-    const data = (await this.vault.read<SyncSnapshot>('sync:v1'))?.value ?? empty();
-    if (
-      data.version !== 1 ||
-      !data.movements ||
-      !data.retries ||
-      !data.failures ||
-      typeof data.movements !== 'object' ||
-      Array.isArray(data.movements)
-    )
-      throw new DomainError('SYNC_STORAGE_DAMAGED');
-    if (data.lastSync) instant(data.lastSync);
-    return data;
+    const record = await this.vault.read<SyncSnapshot>('sync:v1');
+    return record ? validateSnapshot(record.value) : empty();
   }
   private async update(change: (state: SyncSnapshot) => SyncSnapshot) {
     for (let i = 0; i < 5; i++) {
       const old = await this.vault.read<SyncSnapshot>('sync:v1');
-      const next = change(old?.value ?? empty());
+      const next = validateSnapshot(change(old ? validateSnapshot(old.value) : empty()));
       if (
         old
           ? await this.vault.replace('sync:v1', old.raw, next)
@@ -346,4 +336,59 @@ export function validatePage(input: unknown): ChangePage {
     hasMore: input['hasMore'],
     cursorGeneration: identifier(input['cursorGeneration'] as string),
   };
+}
+
+function validateSnapshot(input: unknown): SyncSnapshot {
+  closed(input, [
+    'version',
+    'cursor',
+    'generation',
+    'lastSync',
+    'movements',
+    'retries',
+    'failures',
+  ]);
+  if (input['version'] !== 1) throw new DomainError('SYNC_STORAGE_DAMAGED');
+  const cursor = input['cursor'],
+    generation = input['generation'];
+  if (
+    (cursor === undefined) !== (generation === undefined) ||
+    (cursor !== undefined && (typeof cursor !== 'string' || !/^[A-Za-z0-9_-]{1,200}$/.test(cursor)))
+  )
+    throw new DomainError('SYNC_STORAGE_DAMAGED');
+  if (generation !== undefined) identifier(generation as string);
+  if (input['lastSync'] !== undefined) instant(input['lastSync'] as string);
+  for (const key of ['movements', 'retries', 'failures']) {
+    const map = input[key];
+    if (!map || typeof map !== 'object' || Array.isArray(map))
+      throw new DomainError('SYNC_STORAGE_DAMAGED');
+  }
+  for (const [id, change] of Object.entries(input['movements'] as Record<string, unknown>)) {
+    if (generation === undefined) throw new DomainError('SYNC_STORAGE_DAMAGED');
+    const parsed = validatePage({
+      changes: [change],
+      nextCursor: cursor,
+      hasMore: false,
+      cursorGeneration: generation,
+    }).changes[0]!;
+    if (parsed.movement.id !== id) throw new DomainError('SYNC_STORAGE_DAMAGED');
+  }
+  for (const [id, retry] of Object.entries(input['retries'] as Record<string, unknown>)) {
+    identifier(id);
+    closed(retry, ['count', 'nextAt']);
+    if (!Number.isSafeInteger(retry['count']) || (retry['count'] as number) < 1)
+      throw new DomainError('SYNC_STORAGE_DAMAGED');
+    instant(retry['nextAt'] as string);
+  }
+  for (const [id, failure] of Object.entries(input['failures'] as Record<string, unknown>)) {
+    identifier(id);
+    closed(failure, ['status', 'code']);
+    if (
+      ![403, 409, 422].includes(failure['status'] as number) ||
+      typeof failure['code'] !== 'string' ||
+      !/^[A-Z0-9_]{1,80}$/.test(failure['code'])
+    )
+      throw new DomainError('SYNC_STORAGE_DAMAGED');
+  }
+  return input as unknown as SyncSnapshot;
 }

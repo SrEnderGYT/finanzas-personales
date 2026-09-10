@@ -20,6 +20,7 @@ export class ProductWorkspace {
   epoch = 0;
   private engine: SyncEngine | undefined;
   private syncing = false;
+  private rerun = false;
   private timer: ReturnType<typeof setTimeout> | undefined;
   constructor() {
     this.auth.onSessionChange(() => {
@@ -44,6 +45,7 @@ export class ProductWorkspace {
   }
   lock() {
     this.epoch++;
+    this.rerun = false;
     this.engine?.stop();
     this.engine = undefined;
     if (this.timer) clearTimeout(this.timer);
@@ -73,8 +75,11 @@ export class ProductWorkspace {
   }
   async syncNow() {
     const session = this.session;
-    if (!session?.vault.unlocked || session.vault.profile.mode !== 'product' || this.syncing)
+    if (!session?.vault.unlocked || session.vault.profile.mode !== 'product') return;
+    if (this.syncing) {
+      this.rerun = true;
       return;
+    }
     if (!navigator.onLine) {
       this.state.set('offline');
       return;
@@ -95,7 +100,7 @@ export class ProductWorkspace {
     try {
       const state = await this.engine.run();
       if (epoch !== this.epoch) return;
-      this.state.set(state);
+      this.state.set(navigator.onLine ? state : 'offline');
       await this.refresh();
       if (epoch !== this.epoch) return;
       if (state === 'session_required') {
@@ -133,6 +138,10 @@ export class ProductWorkspace {
       }
     } finally {
       this.syncing = false;
+      if (this.rerun) {
+        this.rerun = false;
+        void this.syncNow();
+      }
     }
   }
   enterDemo() {
@@ -140,6 +149,11 @@ export class ProductWorkspace {
     this.product.set(false);
   }
   enterProduct() {
+    if (this.session?.vault.profile.mode === 'demo') {
+      this.lock();
+      void this.session.vault.close();
+      this.session = undefined;
+    }
     this.product.set(true);
   }
 }

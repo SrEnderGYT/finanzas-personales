@@ -20,6 +20,17 @@ test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1" || { cat dist/
 adb shell input keyevent 82
 adb shell settings put system screen_off_timeout 1800000
 adb shell locksettings set-pin 123456
+# This disposable emulator must be unlocked before instrumentation. A secure
+# keyguard lets JavaScript run but prevents WebView's visual-state callback.
+adb shell svc power stayon true
+adb shell input keyevent 224
+adb shell input keyevent 82
+size=$(adb shell wm size | tr -d '\r' | tail -1 | sed 's/.*: //')
+width=${size%x*}
+height=${size#*x}
+adb shell input swipe "$((width / 2))" "$((height * 4 / 5))" "$((width / 2))" "$((height / 5))" 300
+adb shell input text 123456
+adb shell input keyevent 66
 adb install -r apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
 adb install -r apps/mobile/android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 adb shell cmd connectivity airplane-mode enable

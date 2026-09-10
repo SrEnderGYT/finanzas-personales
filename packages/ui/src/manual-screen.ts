@@ -32,7 +32,7 @@ import {
     </header>
     <p class="mode-banner">
       {{
-        session?.vault?.profile?.mode === 'product'
+        workspace.product()
           ? 'Perfil de producto · confirmación mediante sincronización'
           : 'DEMO · Usa únicamente datos ficticios en esta vista'
       }}
@@ -262,6 +262,7 @@ export class ManualScreen implements OnDestroy {
     if (document.hidden) this.lock();
   };
   constructor() {
+    if (this.session) void this.session.vault.exists().then((value) => this.existing.set(value));
     try {
       this.profiles = ManualSession.profiles();
     } catch {
@@ -355,6 +356,8 @@ export class ManualScreen implements OnDestroy {
       this.catalog.set(catalog);
       this.rows.set(rows);
       this.unlocked.set(true);
+      await this.workspace.refresh();
+      if (gen !== this.generation) return;
       this.profiles = ManualSession.profiles();
       this.message.set('Espacio desbloqueado. Los pendientes se conservan en este dispositivo.');
       void this.workspace.syncNow();
