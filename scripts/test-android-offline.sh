@@ -10,7 +10,7 @@ echo no | avdmanager create avd -n p08 -k "system-images;android-35;google_apis;
 sudo chmod 666 /dev/kvm
 "$ANDROID_HOME/emulator/emulator" -avd p08 -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect > dist/android-offline/emulator.log 2>&1 &
 emulator_pid=$!
-trap 'adb logcat -d > dist/android-offline/logcat.txt; kill "$emulator_pid" || true' EXIT
+trap 'kill "$emulator_pid" || true' EXIT
 timeout 90 adb wait-for-device || { cat dist/android-offline/emulator.log; exit 1; }
 for attempt in $(seq 1 120); do
   if [[ "$(adb shell getprop sys.boot_completed | tr -d '\r')" == "1" ]]; then break; fi

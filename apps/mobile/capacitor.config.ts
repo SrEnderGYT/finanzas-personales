@@ -3,6 +3,7 @@ const config: CapacitorConfig = {
   appId: 'app.finanzas.personales.demo',
   appName: 'Finanzas DEMO',
   webDir: '../../dist/mobile/browser',
+  loggingBehavior: 'none',
   android: { allowMixedContent: false },
   plugins: {
     CapacitorSQLite: {

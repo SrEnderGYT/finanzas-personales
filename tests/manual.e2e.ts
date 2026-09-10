@@ -69,6 +69,12 @@ test('manual pending survives browser termination offline and reconnect never co
     await page.setViewportSize({ width: 390, height: 844 });
     await page.screenshot({ path: 'docs/evidence/P08/mobile-light.png', fullPage: true });
     await page.emulateMedia({ colorScheme: 'dark' });
+    await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
+    await expect(page.locator('.manual-card').first()).toHaveCSS(
+      'background-color',
+      'rgb(255, 255, 255)',
+    );
+    await page.evaluate(() => document.documentElement.removeAttribute('data-theme'));
     await page.screenshot({ path: 'docs/evidence/P08/mobile-dark.png', fullPage: true });
     await context.close();
     context = await chromium.launchPersistentContext(profile, {
