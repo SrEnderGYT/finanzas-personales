@@ -46,7 +46,20 @@ export class NativeVaultStore implements VaultStore {
       throw new Error('SQLite cifrada sólo se utiliza en la aplicación nativa.');
     const connection = new SQLiteConnection(CapacitorSQLite);
     if (!(await connection.isSecretStored()).result) {
-      if ((await connection.getDatabaseList()).values?.length)
+      let databases: string[];
+      try {
+        databases = (await connection.getDatabaseList()).values ?? [];
+      } catch (error) {
+        // Android plugin 8.1.1 signals a fresh empty installation with this exact error.
+        // Other failures are not evidence that it is safe to create a new key.
+        if (
+          !(error instanceof Error) ||
+          error.message.trim() !== 'getDatabaseList: No databases available'
+        )
+          throw error;
+        databases = [];
+      }
+      if (databases.length)
         throw new Error('Falta la clave de cifrado de una base existente. No se recreó.');
       const secret = Array.from(crypto.getRandomValues(new Uint8Array(32)), (n) =>
         n.toString(16).padStart(2, '0'),
