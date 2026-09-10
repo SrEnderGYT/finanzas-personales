@@ -1,8 +1,10 @@
 package app.finanzas.personales.demo;
 
 import android.app.Instrumentation;
+import android.app.UiAutomation;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.webkit.WebView;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import org.junit.Test;
@@ -22,6 +24,7 @@ import static org.junit.Assert.*;
 @RunWith(AndroidJUnit4.class)
 public class ManualOutboxTest {
   private final Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
+  private final UiAutomation automation = instrumentation.getUiAutomation();
   private MainActivity activity;
   private String js(String source) throws Exception {
     CountDownLatch latch = new CountDownLatch(1);
@@ -105,8 +108,14 @@ public class ManualOutboxTest {
     }
     assertTrue("Real encrypted database present", checked);
     js("document.querySelector('.pending-row').scrollIntoView({block:'center'})");
-    instrumentation.waitForIdleSync();
-    Bitmap screenshot = instrumentation.getUiAutomation().takeScreenshot();
+    CountDownLatch drawn = new CountDownLatch(1);
+    instrumentation.runOnMainSync(() -> activity.getBridge().getWebView().postVisualStateCallback(1, new WebView.VisualStateCallback() {
+      @Override public void onComplete(long requestId) { drawn.countDown(); }
+    }));
+    assertTrue("WebView visual state", drawn.await(10, TimeUnit.SECONDS));
+    Thread.sleep(500);
+    Bitmap screenshot = automation.takeScreenshot();
+    assertEquals("Pending remains visible during screenshot", "1", js("document.querySelectorAll('.pending-row').length"));
     assertNotNull("Native screenshot before instrumentation closes activity", screenshot);
     File evidence = new File(instrumentation.getTargetContext().getExternalFilesDir(null), seed ? "p08-seed.png" : "p08-reopen.png");
     try (FileOutputStream output = new FileOutputStream(evidence)) {
