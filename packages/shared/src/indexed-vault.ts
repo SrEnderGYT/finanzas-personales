@@ -57,4 +57,20 @@ export class IndexedVaultStore implements VaultStore {
   async close() {
     this.db.close();
   }
+  async compareAndSwap(key: string, expected: string, value: string): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction('vault', 'readwrite'),
+        store = tx.objectStore('vault'),
+        get = store.get(key);
+      let changed = false;
+      get.onsuccess = () => {
+        if ((get.result as { value?: string } | undefined)?.value === expected) {
+          store.put({ key, value });
+          changed = true;
+        }
+      };
+      tx.oncomplete = () => resolve(changed);
+      tx.onabort = () => reject(new Error('Escritura local interrumpida.'));
+    });
+  }
 }

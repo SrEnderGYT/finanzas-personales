@@ -16,6 +16,9 @@ export interface VaultStore {
   entries(): Promise<Array<{ key: string; value: string }>>;
   close(): Promise<void>;
 }
+export interface MutableVaultStore extends VaultStore {
+  compareAndSwap(key: string, expected: string, value: string): Promise<boolean>;
+}
 const encoder = new TextEncoder();
 function encode(bytes: Uint8Array): string {
   return btoa(String.fromCharCode(...bytes));
