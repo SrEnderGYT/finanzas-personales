@@ -48,7 +48,7 @@ jobs:
       - run: npm run cap:sync
       - name: Build debug
         working-directory: apps/mobile/android
-        run: bash ./gradlew assembleDebug assembleDebugAndroidTest --no-daemon
+        run: bash ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon
       - name: Build provenance
         env:
           BUILD_COMMIT: ${{ github.sha }}

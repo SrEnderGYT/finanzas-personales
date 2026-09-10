@@ -130,7 +130,7 @@ it('posts income, rejects incompatible categories and replays after archival', a
       command: {
         type: 'category.update',
         id: a.command.payload.categoryId,
-        payload: { state: 'inactive' },
+        payload: { state: 'archived' },
       },
     },
     (c, n) => mutateCategory(c, a.userId, n),

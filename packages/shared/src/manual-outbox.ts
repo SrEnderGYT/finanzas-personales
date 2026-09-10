@@ -51,7 +51,10 @@ export class ManualOutbox {
     instant(row.updatedAt);
     if (
       (row.state === 'sending') !== !!row.attempt ||
-      (row.state === 'confirmed') !== !!row.receipt
+      (row.state === 'confirmed') !== !!row.receipt ||
+      (row.state === 'retryable' && row.error !== 'transient') ||
+      (row.state === 'failed' && row.error !== 'rejected' && row.error !== 'conflict') ||
+      (!['retryable', 'failed'].includes(row.state) && row.error !== undefined)
     )
       throw new DomainError('OUTBOX_DAMAGED');
     if (row.attempt) {

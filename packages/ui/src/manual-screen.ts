@@ -319,6 +319,10 @@ export class ManualScreen implements OnDestroy {
     await this.action(async () => {
       if (this.existing()) await session.unlock(this.credential);
       else await session.create(this.credential);
+      if (gen !== this.generation) {
+        session.vault.lock();
+        return;
+      }
       this.credential = '';
       this.existing.set(true);
       if (this.initialCatalog) {
@@ -344,6 +348,7 @@ export class ManualScreen implements OnDestroy {
       if (gen !== this.generation || loaded.ownerId !== session.vault.profile.ownerId)
         throw new Error('Perfil distinto');
       await session.saveCatalog(loaded.catalog);
+      if (gen !== this.generation) return;
       this.catalog.set(loaded.catalog);
       this.message.set('Catálogo local actualizado.');
     });

@@ -14,6 +14,7 @@ it('downloads catalog with encapsulated token and locks consumers on session cha
         items: [
           {
             id: account,
+            version: '1',
             name: 'Synthetic',
             currency: 'PEN',
             state: 'active',
@@ -24,7 +25,9 @@ it('downloads catalog with encapsulated token and locks consumers on session cha
       });
     if (path.startsWith('/v1/categories'))
       return Response.json({
-        items: [{ id: category, name: 'Synthetic', kind: 'expense', state: 'active' }],
+        items: [
+          { id: category, version: '1', name: 'Synthetic', kind: 'expense', state: 'active' },
+        ],
         nextCursor: null,
       });
     return new Response(null, { status: 204 });
@@ -36,6 +39,7 @@ it('downloads catalog with encapsulated token and locks consumers on session cha
   const loaded = await client.manualCatalog();
   expect(loaded.ownerId).toBe(id);
   expect(loaded.catalog.accounts[0]).not.toHaveProperty('balance');
+  expect(loaded.catalog.accounts[0]?.version).toBe('1');
   await client.logout();
   expect(lock).toHaveBeenCalledTimes(2);
 });

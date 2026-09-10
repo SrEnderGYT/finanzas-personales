@@ -16,6 +16,11 @@ export interface AuthSession {
   expiresAt: string;
   current: boolean;
 }
+function catalogVersion(value: unknown): string {
+  if (typeof value !== 'string' || !/^[1-9]\d{0,18}$/.test(value))
+    throw new Error('Versión de catálogo inválida.');
+  return value;
+}
 
 /** Tokens live only in this instance, never in browser storage or URLs. */
 export class AuthClient {
@@ -90,6 +95,7 @@ export class AuthClient {
       if (a['state'] !== 'active' && a['state'] !== 'inactive') throw new Error('Cuenta inválida.');
       return {
         id: identifier(a['id'] as string),
+        version: catalogVersion(a['version']),
         name: catalogName(a['name']),
         currency: currency(a['currency']),
         state: a['state'],
@@ -104,6 +110,7 @@ export class AuthClient {
           throw new Error('Categoría inválida.');
         return {
           id: identifier(c['id'] as string),
+          version: catalogVersion(c['version']),
           name: catalogName(c['name']),
           kind: c['kind'],
           state: c['state'],

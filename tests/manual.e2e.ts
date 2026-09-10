@@ -34,6 +34,10 @@ test('manual pending survives browser termination offline and reconnect never co
     expect((await new AxeBuilder({ page }).include('.manual-page').analyze()).violations).toEqual(
       [],
     );
+    await page.evaluate(() => {
+      (document.activeElement as HTMLElement)?.blur();
+      window.scrollTo(0, 0);
+    });
     await page.screenshot({ path: 'docs/evidence/P08/desktop.png', fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.screenshot({ path: 'docs/evidence/P08/mobile-light.png', fullPage: true });

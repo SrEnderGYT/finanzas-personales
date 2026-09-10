@@ -18,12 +18,14 @@ export interface ManualCommand {
   payload: ManualPayload;
 }
 export interface ManualAccount {
+  version?: string;
   id: string;
   name: string;
   currency: Currency;
   state: 'active' | 'inactive';
 }
 export interface ManualCategory {
+  version?: string;
   id: string;
   name: string;
   kind: 'expense' | 'income';
