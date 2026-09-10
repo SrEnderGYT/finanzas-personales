@@ -1,17 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 mkdir -p dist/android-offline
+export ANDROID_USER_HOME="$RUNNER_TEMP/p08-android"
+export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+mkdir -p "$ANDROID_AVD_HOME"
 sdkmanager "system-images;android-35;google_apis;x86_64" "emulator" > dist/android-offline/sdk.log
 echo no | avdmanager create avd -n p08 -k "system-images;android-35;google_apis;x86_64" --force
+"$ANDROID_HOME/emulator/emulator" -list-avds | grep -qx p08
 sudo chmod 666 /dev/kvm
 "$ANDROID_HOME/emulator/emulator" -avd p08 -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect > dist/android-offline/emulator.log 2>&1 &
 emulator_pid=$!
 trap 'adb logcat -d > dist/android-offline/logcat.txt; kill "$emulator_pid" || true' EXIT
-adb wait-for-device
+timeout 90 adb wait-for-device || { cat dist/android-offline/emulator.log; exit 1; }
 for attempt in $(seq 1 120); do
   if [[ "$(adb shell getprop sys.boot_completed | tr -d '\r')" == "1" ]]; then break; fi
   sleep 2
 done
+test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1" || { cat dist/android-offline/emulator.log; exit 1; }
 adb shell input keyevent 82
 adb shell settings put system screen_off_timeout 1800000
 adb shell locksettings set-pin 123456
