@@ -58,7 +58,7 @@ export const MOBILE_MODE = new InjectionToken<boolean>('MOBILE_MODE', { factory:
       <a routerLink="/inicio" routerLinkActive="active"><span aria-hidden="true">⌂</span>Inicio</a
       ><a routerLink="/movimientos" routerLinkActive="active"
         ><span aria-hidden="true">⇅</span>Movimientos</a
-      ><a routerLink="/nuevo" class="add-tab" aria-label="Registrar movimiento DEMO"
+      ><a routerLink="/registro" class="add-tab" aria-label="Registrar movimiento local"
         ><span>+</span></a
       ><a routerLink="/analisis" routerLinkActive="active"
         ><span aria-hidden="true">▥</span>Análisis</a
@@ -74,6 +74,7 @@ export class Shell {
   readonly menu = [
     { path: '/inicio', label: 'Inicio', icon: '⌂' },
     { path: '/movimientos', label: 'Movimientos', icon: '⇅' },
+    { path: '/registro', label: 'Registrar pendiente', icon: '+' },
     { path: '/cuentas', label: 'Cuentas', icon: '▣' },
     { path: '/tarjetas', label: 'Tarjetas', icon: '▤' },
     { path: '/presupuestos', label: 'Presupuestos', icon: '◴' },

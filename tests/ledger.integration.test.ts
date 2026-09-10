@@ -40,6 +40,45 @@ afterAll(async () => {
   await pool.end();
   await admin.end();
 });
+it('composes a ledger write in a caller transaction and rolls back on caller failure', async () => {
+  const a = await fixture();
+  const command: Envelope = {
+    operationId: randomUUID(),
+    deviceId: randomUUID(),
+    entityId: randomUUID(),
+    schemaVersion: 1,
+    baseVersion: '0',
+    command: {
+      type: 'post',
+      payload: {
+        kind: 'expense',
+        currency: 'PEN',
+        amountMinor: '10',
+        businessDate: '2026-08-01',
+        timezone: 'America/Lima',
+        debitAccountId: a.accounts[2]!.id,
+        creditAccountId: a.accounts[0]!.id,
+      },
+    },
+  };
+  const service = new LedgerService(store, clock);
+  await expect(
+    db.asUser(a.userId, async (c) => {
+      await service.executeInTransaction(c, a, command);
+      throw new Error('caller rollback');
+    }),
+  ).rejects.toThrow('caller rollback');
+  expect(
+    (
+      await db.asUser(a.userId, (c) =>
+        c.query('SELECT 1 FROM app.ledger_receipts WHERE operation_id=$1', [command.operationId]),
+      )
+    ).rowCount,
+  ).toBe(0);
+  await expect(
+    db.asUser(a.userId, (c) => service.executeInTransaction(c, { userId: randomUUID() }, command)),
+  ).rejects.toThrow('INVALID_TRANSACTION_CONTEXT');
+});
 it('seals balanced journals and rejects append, mutation and cross-user access', async () => {
   const a = await fixture(),
     b = await fixture();

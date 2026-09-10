@@ -1,5 +1,13 @@
 import { nativeGoogleFlow } from '../../shared/src/native-google-flow';
 import { nativeAuthHttp } from '../../shared/src/native-auth-http';
+import {
+  identifier,
+  instant,
+  closed,
+  currency,
+  catalogName,
+  type ManualCatalog,
+} from '../../domain/src';
 
 export interface AuthSession {
   id: string;
@@ -8,13 +16,118 @@ export interface AuthSession {
   expiresAt: string;
   current: boolean;
 }
+function catalogVersion(value: unknown): string {
+  if (typeof value !== 'string' || !/^[1-9]\d{0,18}$/.test(value))
+    throw new Error('Versión de catálogo inválida.');
+  return value;
+}
 
 /** Tokens live only in this instance, never in browser storage or URLs. */
 export class AuthClient {
   static forNativeServer(apiOrigin: string, transport: typeof fetch = fetch) {
-    return new AuthClient(true, nativeAuthHttp(apiOrigin, transport));
+    return new AuthClient(true, nativeAuthHttp(apiOrigin, transport), apiOrigin);
   }
-  private token: string | undefined;
+  private sessionToken: string | undefined;
+  private readonly localLocks = new Set<() => void>();
+  private get token() {
+    return this.sessionToken;
+  }
+  private set token(value: string | undefined) {
+    if (value !== this.sessionToken) {
+      this.sessionToken = value;
+      for (const lock of this.localLocks) lock();
+    }
+  }
+  onSessionChange(lock: () => void) {
+    this.localLocks.add(lock);
+    return () => this.localLocks.delete(lock);
+  }
+  async manualCatalog(): Promise<{ ownerId: string; catalog: ManualCatalog }> {
+    const token = this.token;
+    if (!this.enabled || !token) throw new Error('Inicia sesión para descargar tus cuentas.');
+    const get = async (path: string) => {
+      const response = await this.transport(path, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'same-origin',
+        cache: 'no-store',
+        redirect: 'error',
+        signal: AbortSignal.timeout(15000),
+      });
+      if (response.status === 401) this.token = undefined;
+      if (!response.ok)
+        throw new Error('No se pudo descargar el catálogo. Conservamos la copia anterior.');
+      return response.json() as Promise<unknown>;
+    };
+    const me = await get('/v1/me');
+    if (!me || typeof me !== 'object' || !('id' in me)) throw new Error('Identidad inválida.');
+    const ownerId = identifier(me.id as string);
+    const pages = async (path: string) => {
+      const items: Record<string, unknown>[] = [],
+        seen = new Set<string>();
+      let cursor: string | null = null;
+      do {
+        const data = await get(
+          path + '?state=all&limit=100' + (cursor ? '&cursor=' + encodeURIComponent(cursor) : ''),
+        );
+        closed(data, ['items', 'nextCursor']);
+        if (
+          !Array.isArray(data['items']) ||
+          data['items'].length > 100 ||
+          items.length + data['items'].length > 10000
+        )
+          throw new Error('Catálogo inválido.');
+        for (const row of data['items']) {
+          if (!row || typeof row !== 'object') throw new Error('Catálogo inválido.');
+          items.push(row as Record<string, unknown>);
+        }
+        cursor = data['nextCursor'] as string | null;
+        if (
+          cursor !== null &&
+          (typeof cursor !== 'string' || cursor.length > 80 || seen.has(cursor))
+        )
+          throw new Error('Paginación inválida.');
+        if (cursor) seen.add(cursor);
+      } while (cursor);
+      return items;
+    };
+    const accounts = (await pages('/v1/accounts')).map<ManualCatalog['accounts'][number]>((a) => {
+      if (a['state'] !== 'active' && a['state'] !== 'inactive') throw new Error('Cuenta inválida.');
+      return {
+        id: identifier(a['id'] as string),
+        version: catalogVersion(a['version']),
+        name: catalogName(a['name']),
+        currency: currency(a['currency']),
+        state: a['state'],
+      };
+    });
+    const categories = (await pages('/v1/categories')).map<ManualCatalog['categories'][number]>(
+      (c) => {
+        if (
+          (c['state'] !== 'active' && c['state'] !== 'archived') ||
+          (c['kind'] !== 'expense' && c['kind'] !== 'income')
+        )
+          throw new Error('Categoría inválida.');
+        return {
+          id: identifier(c['id'] as string),
+          version: catalogVersion(c['version']),
+          name: catalogName(c['name']),
+          kind: c['kind'],
+          state: c['state'],
+        };
+      },
+    );
+    if (
+      new Set(accounts.map((a) => a.id)).size !== accounts.length ||
+      new Set(categories.map((c) => c.id)).size !== categories.length
+    )
+      throw new Error('El catálogo cambió durante la descarga; vuelve a intentar.');
+    if (this.token !== token) throw new Error('La sesión cambió durante la descarga.');
+    return {
+      ownerId,
+      catalog: { accounts, categories, downloadedAt: instant(new Date().toISOString()) },
+    };
+  }
   private challenge: string | undefined;
   get mfaPending() {
     return this.challenge !== undefined;
@@ -25,6 +138,7 @@ export class AuthClient {
   constructor(
     readonly enabled: boolean,
     private readonly transport: typeof fetch = (...args) => fetch(...args),
+    readonly catalogEnvironment: string = 'same-origin',
   ) {}
   get signedIn() {
     return this.token !== undefined;

@@ -20,6 +20,15 @@ describe('Nest/Fastify integration', () => {
       });
     try {
       for (const origin of ['capacitor://localhost', 'https://localhost']) {
+        for (const path of ['/v1/me', '/v1/accounts', '/v1/categories']) {
+          const catalog = await preflight(origin, path, 'GET', 'authorization');
+          expect(catalog.statusCode).toBe(204);
+          expect(catalog.headers['access-control-allow-origin']).toBe(origin);
+          expect(catalog.headers['access-control-allow-methods']).toBe('GET');
+          expect(catalog.headers['access-control-allow-credentials']).toBeUndefined();
+          expect((await preflight(origin, path, 'POST', 'authorization')).statusCode).toBe(403);
+          expect((await preflight(origin, path, 'GET', 'x-user-id')).statusCode).toBe(403);
+        }
         const result = await preflight(origin);
         expect(result.statusCode).toBe(204);
         expect(result.headers['access-control-allow-origin']).toBe(origin);

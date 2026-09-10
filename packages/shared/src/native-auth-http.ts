@@ -11,9 +11,13 @@ export function nativeAuthHttp(apiOrigin: string, transport: typeof fetch = fetc
   )
     throw new Error('A fixed HTTPS API origin is required.');
   return async (input, options) => {
+    const catalogRead =
+      typeof input === 'string' &&
+      options?.method === 'GET' &&
+      /^\/v1\/(me|accounts|categories)(\?[a-zA-Z0-9_:%=&.-]+)?$/.test(input);
     if (
       typeof input !== 'string' ||
-      !/^\/v1\/auth\/[a-zA-Z0-9/-]+$/.test(input) ||
+      (!/^\/v1\/auth\/[a-zA-Z0-9/-]+$/.test(input) && !catalogRead) ||
       input.includes('//')
     )
       throw new Error('Invalid authentication API path.');

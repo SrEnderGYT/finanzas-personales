@@ -38,28 +38,45 @@ export class NativeVaultStore implements VaultStore {
   private constructor(
     private readonly connection: SQLiteConnection,
     private readonly db: SQLiteDBConnection,
+    private readonly name = 'finanzas_prototype',
   ) {}
-  static async open(): Promise<NativeVaultStore> {
+  static async open(name = 'finanzas_prototype'): Promise<NativeVaultStore> {
+    if (!/^finanzas_[a-z0-9_]{1,90}$/.test(name)) throw new Error('Nombre de bóveda inválido.');
     if (!Capacitor.isNativePlatform())
       throw new Error('SQLite cifrada sólo se utiliza en la aplicación nativa.');
     const connection = new SQLiteConnection(CapacitorSQLite);
     if (!(await connection.isSecretStored()).result) {
+      let databases: string[];
+      try {
+        databases = (await connection.getDatabaseList()).values ?? [];
+      } catch (error) {
+        // Android plugin 8.1.1 signals a fresh empty installation with this exact error.
+        // Other failures are not evidence that it is safe to create a new key.
+        if (
+          !(error instanceof Error) ||
+          error.message.trim() !== 'getDatabaseList: No databases available'
+        )
+          throw error;
+        databases = [];
+      }
+      if (databases.length)
+        throw new Error('Falta la clave de cifrado de una base existente. No se recreó.');
       const secret = Array.from(crypto.getRandomValues(new Uint8Array(32)), (n) =>
         n.toString(16).padStart(2, '0'),
       ).join('');
       await connection.setEncryptionSecret(secret);
     }
-    const db = await connection.createConnection('finanzas_prototype', true, 'secret', 1, false);
+    const db = await connection.createConnection(name, true, 'secret', 1, false);
     await db.open();
     // Local prototype migration v1; deliberately separate from future PostgreSQL migrations.
     await db.execute(
       'CREATE TABLE IF NOT EXISTS prototype_v1 (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);',
     );
-    if (!(await connection.isDatabaseEncrypted('finanzas_prototype')).result) {
-      await connection.closeConnection('finanzas_prototype', false);
+    if (!(await connection.isDatabaseEncrypted(name)).result) {
+      await connection.closeConnection(name, false);
       throw new Error('La base nativa no confirmó cifrado. No se admiten escrituras.');
     }
-    return new NativeVaultStore(connection, db);
+    return new NativeVaultStore(connection, db, name);
   }
   async get(key: string): Promise<string | undefined> {
     const result = await this.db.query('SELECT value FROM prototype_v1 WHERE key = ?;', [key]);
@@ -78,6 +95,14 @@ export class NativeVaultStore implements VaultStore {
     return (result.values ?? []) as Array<{ key: string; value: string }>;
   }
   async close() {
-    await this.connection.closeConnection('finanzas_prototype', false);
+    await this.connection.closeConnection(this.name, false);
+  }
+  async compareAndSwap(key: string, expected: string, value: string): Promise<boolean> {
+    const result = await this.db.run('UPDATE prototype_v1 SET value=? WHERE key=? AND value=?;', [
+      value,
+      key,
+      expected,
+    ]);
+    return result.changes?.changes === 1;
   }
 }
