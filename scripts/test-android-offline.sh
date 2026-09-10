@@ -29,3 +29,5 @@ for stage in seed reopen; do
   adb pull "/sdcard/Android/data/app.finanzas.personales.demo/files/p08-$stage.png" "dist/android-offline/$stage.png"
   adb shell am force-stop app.finanzas.personales.demo
 done
+adb shell am instrument -w -r -e stage corrupt -e class app.finanzas.personales.demo.ManualOutboxTest app.finanzas.personales.demo.test/androidx.test.runner.AndroidJUnitRunner | tee dist/android-offline/corrupt.txt
+grep -q 'OK (1 test)' dist/android-offline/corrupt.txt

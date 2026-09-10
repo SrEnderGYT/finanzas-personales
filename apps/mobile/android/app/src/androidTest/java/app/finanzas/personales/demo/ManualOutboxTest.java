@@ -11,6 +11,7 @@ import org.json.JSONTokener;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -43,15 +44,34 @@ public class ManualOutboxTest {
     js("(()=>{const e=document.querySelector('[name=" + name + "]');e.value=" + org.json.JSONObject.quote(value) + ";e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));})()");
   }
   @Test public void encryptedPendingSurvivesProcessDeath() throws Exception {
+    String stage = InstrumentationRegistry.getArguments().getString("stage");
+    File damaged = null;
+    if ("corrupt".equals(stage)) {
+      for (String name : instrumentation.getTargetContext().databaseList()) {
+        if (name.startsWith("finanzas_manual_") && name.endsWith(".db")) {
+          damaged = instrumentation.getTargetContext().getDatabasePath(name);
+          try (RandomAccessFile file = new RandomAccessFile(damaged, "rw")) { file.write(new byte[16]); }
+        }
+      }
+      assertNotNull("Existing synthetic database to corrupt", damaged);
+    }
     Intent intent = new Intent(instrumentation.getTargetContext(), MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
     activity = (MainActivity) instrumentation.startActivitySync(intent);
     waitFor("!!document.querySelector('fp-shell') || !!document.querySelector('main')");
     js("location.hash='/registro'");
     waitFor("!!document.querySelector('.manual-page')");
     click("Probar con datos DEMO");
+    if (damaged != null) {
+      waitFor("document.querySelector('.manual-feedback').textContent.includes('No se completó')");
+      assertEquals("0", js("document.querySelectorAll('[name=amount]').length"));
+      byte[] header = new byte[16];
+      try (FileInputStream input = new FileInputStream(damaged)) { assertEquals(16, input.read(header)); }
+      assertArrayEquals("Damaged vault must not be recreated", new byte[16], header);
+      return;
+    }
     waitFor("!!document.querySelector('[name=credential]')");
     fill("credential", "123456");
-    boolean seed = "seed".equals(InstrumentationRegistry.getArguments().getString("stage"));
+    boolean seed = "seed".equals(stage);
     if (!seed) {
       fill("credential", "654321");
       click("Desbloquear");
