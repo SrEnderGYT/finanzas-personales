@@ -15,7 +15,7 @@ afterAll(async () => {
   await pool.end();
   await admin.end();
 });
-async function fixture() {
+async function fixture(kind: 'expense' | 'income' = 'expense') {
   const userId = randomUUID(),
     accountId = randomUUID(),
     categoryId = randomUUID();
@@ -42,7 +42,7 @@ async function fixture() {
     env({
       type: 'category.create',
       id: categoryId,
-      payload: { name: 'Synthetic', kind: 'expense', state: 'active', position: 0 },
+      payload: { name: 'Synthetic', kind, state: 'active', position: 0 },
     }),
     (c, n) => mutateCategory(c, userId, n),
   );
@@ -55,7 +55,7 @@ async function fixture() {
       schemaVersion: 1,
       baseVersion: '0',
       payload: {
-        kind: 'expense',
+        kind,
         accountId,
         categoryId,
         currency: 'PEN',
@@ -76,11 +76,11 @@ it('confirms exactly once, preserves explicit date/zone and rejects cross-user r
     (
       await db.asUser(a.userId, (c) =>
         c.query(
-          "SELECT amount_minor,to_char(business_date,'YYYY-MM-DD') day,timezone FROM app.manual_movements",
+          "SELECT amount_minor,to_char(business_date,'YYYY-MM-DD') AS financial_day,timezone FROM app.manual_movements",
         ),
       )
     ).rows,
-  ).toEqual([{ amount_minor: '10', day: '2026-01-01', timezone: 'America/Lima' }]);
+  ).toEqual([{ amount_minor: '10', financial_day: '2026-01-01', timezone: 'America/Lima' }]);
   await expect(
     service.confirm(a, { ...a.command, payload: { ...a.command.payload, note: 'different' } }),
   ).rejects.toThrow('IDEMPOTENCY_CONFLICT');
@@ -104,6 +104,41 @@ it('confirms exactly once, preserves explicit date/zone and rejects cross-user r
       payload: { ...a.command.payload, currency: 'USD' },
     }),
   ).rejects.toThrow('REFERENCE_MISMATCH');
+});
+it('posts income, rejects incompatible categories and replays after archival', async () => {
+  const a = await fixture('income');
+  await expect(
+    service.confirm(a, { ...a.command, payload: { ...a.command.payload, kind: 'expense' } }),
+  ).rejects.toThrow('REFERENCE_MISMATCH');
+  const receipt = await service.confirm(a, a.command);
+  const totals = await db.asUser(a.userId, (c) =>
+    c.query(
+      'SELECT a.nature,sum(e.debit_minor)::text AS debit,sum(e.credit_minor)::text AS credit FROM app.ledger_entries e JOIN app.ledger_accounts a ON a.user_id=e.user_id AND a.id=e.account_id GROUP BY a.nature ORDER BY a.nature',
+    ),
+  );
+  expect(totals.rows).toEqual([
+    { nature: 'asset', debit: '10', credit: '0' },
+    { nature: 'income', debit: '0', credit: '10' },
+  ]);
+  await new CatalogExecutor(db).execute(
+    a.userId,
+    {
+      operationId: randomUUID(),
+      deviceId: randomUUID(),
+      schemaVersion: 1,
+      baseVersion: '1',
+      command: {
+        type: 'category.update',
+        id: a.command.payload.categoryId,
+        payload: { state: 'inactive' },
+      },
+    },
+    (c, n) => mutateCategory(c, a.userId, n),
+  );
+  expect(await service.confirm(a, a.command)).toEqual(receipt);
+  await expect(
+    service.confirm(a, { ...a.command, operationId: randomUUID(), movementId: randomUUID() }),
+  ).rejects.toThrow('REFERENCE_INACTIVE');
 });
 it('rolls back journal and receipt when movement insertion fails', async () => {
   const a = await fixture();
