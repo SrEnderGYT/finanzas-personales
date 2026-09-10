@@ -22,6 +22,7 @@ import { EmailController, EMAIL_AUTH } from './email-controller';
 import { type EmailAuth } from './email-auth';
 import { GoogleController, GOOGLE_AUTH, NATIVE_GOOGLE_AUTH } from './google-controller';
 import { registerNativeCors } from './native-cors';
+import { registerCatalogCors } from './catalog-cors';
 import { type GoogleAuth } from './google-auth';
 import { MfaController, MFA_LOGIN } from './mfa-controller';
 import { AccountsController, CategoriesController } from './catalog/controller';
@@ -100,6 +101,7 @@ export async function createApp(options: AppOptions = {}) {
     reply.header('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
   });
   if (options.nativeAuthCors) registerNativeCors(adapter.getInstance());
+  if (options.nativeAuthCors) registerCatalogCors(adapter.getInstance());
   adapter.getInstance().addHook('onResponse', async (request, reply) => {
     options.log?.({ requestId: request.id, method: request.method, status: reply.statusCode });
   });
