@@ -11,7 +11,8 @@ const pool = new Pool({ connectionString: process.env['P04_TEST_DATABASE_URL'] }
 let app: Awaited<ReturnType<typeof createApp>>;
 let authority: SessionAuthority;
 const a = randomUUID(),
-  b = randomUUID();
+  b = randomUUID(),
+  secondLogin = randomUUID();
 let ha: { authorization: string }, hb: { authorization: string };
 let secondClient: { authorization: string };
 const accountId = randomUUID(),
@@ -37,13 +38,14 @@ beforeAll(async () => {
   await admin.query('INSERT INTO app.users(id) VALUES($1),($2)', [a, b]);
   authority = new SessionAuthority(db, {
     verify: async (token) => {
+      if (token === secondLogin) return a;
       if (token !== a && token !== b) throw new Error();
       return token;
     },
   });
   const sa = await authority.issue(a),
     sb = await authority.issue(b);
-  secondClient = { authorization: 'Bearer ' + (await authority.issue(a)).token };
+  secondClient = { authorization: 'Bearer ' + (await authority.issue(secondLogin)).token };
   ha = { authorization: 'Bearer ' + sa.token };
   hb = { authorization: 'Bearer ' + sb.token };
   app = await createApp({ database: db, identity: authority, sessions: authority });
