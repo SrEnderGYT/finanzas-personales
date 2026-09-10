@@ -48,17 +48,27 @@ export class SyncService {
       const after = cursor?.[1] ?? '0';
       if (BigInt(after) > BigInt(head.last_sequence)) throw new DomainError('INVALID_CURSOR');
       const rows = (
-        await c.query<{ sequence: string; movement: unknown; receipt: unknown }>(
+        await c.query<{
+          sequence: string;
+          movement: unknown;
+          receipt: unknown;
+          revision: unknown | null;
+        }>(
           `SELECT s.sequence,
        jsonb_build_object('id',m.id,'operationId',m.operation_id,'kind',m.kind,'accountId',m.account_id,'categoryId',m.category_id,'currency',m.currency,'amountMinor',m.amount_minor::text,'businessDate',to_char(m.business_date,'YYYY-MM-DD'),'timezone',m.timezone,'occurredAt',CASE WHEN m.occurred_at IS NULL THEN NULL ELSE to_char(m.occurred_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') END,'note',m.note) AS movement,
-       jsonb_build_object('operationId',r.operation_id,'movementId',r.movement_id,'payloadHash',r.payload_hash,'recordedAt',to_char(r.recorded_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) AS receipt
+       jsonb_build_object('operationId',r.operation_id,'movementId',r.movement_id,'payloadHash',r.payload_hash,'recordedAt',to_char(r.recorded_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) AS receipt,
+       CASE WHEN x.root_id IS NULL THEN NULL ELSE jsonb_build_object('rootId',x.root_id,'version',x.version::text,'previousId',x.previous_id,'reversalId',x.reversal_id) END AS revision
        FROM app.sync_changes s JOIN app.manual_movements m ON (m.user_id,m.id)=(s.user_id,s.movement_id)
        JOIN app.manual_receipts r ON (r.user_id,r.operation_id)=(s.user_id,s.operation_id)
+       LEFT JOIN app.manual_corrections x ON (x.user_id,x.replacement_id)=(m.user_id,m.id)
        WHERE s.user_id=$1 AND s.sequence>$2 AND s.sequence<=$3 ORDER BY s.sequence LIMIT $4`,
           [userId, after, head.last_sequence, limit + 1],
         )
       ).rows;
-      const changes = rows.slice(0, limit);
+      const changes = rows.slice(0, limit).map(({ revision, ...row }) => ({
+        ...row,
+        ...(revision ? { revision } : {}),
+      }));
       const sequence = changes.at(-1)?.sequence ?? after;
       return {
         changes,

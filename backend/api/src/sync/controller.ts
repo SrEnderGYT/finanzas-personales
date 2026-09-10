@@ -10,6 +10,8 @@ import {
   HttpException,
   Inject,
   Post,
+  Param,
+  Res,
   Query,
   ServiceUnavailableException,
   UseFilters,
@@ -28,6 +30,7 @@ import type { IdentityVerifier } from '../auth';
 import { DATABASE, IDENTITY } from '../users';
 import { UserDatabase } from '../database';
 import { SyncService } from './service';
+import { ManualCorrectionService } from '../manual/corrections';
 @Catch()
 class SyncErrors implements ExceptionFilter {
   catch(error: unknown, host: ArgumentsHost) {
@@ -82,6 +85,28 @@ export class SyncController {
     const userId = await this.identity.verify(token);
     if (!this.database) throw new ServiceUnavailableException();
     return { userId, service: new SyncService(this.database) };
+  }
+  @Get('movements/:rootId')
+  @ApiOperation({ summary: 'Versión actual de un movimiento; historial contable inmutable' })
+  async currentMovement(
+    @Headers('authorization') token: string | undefined,
+    @Param('rootId') rootId: string,
+  ) {
+    const c = await this.context(token);
+    return new ManualCorrectionService(c.service.database).current(c.userId, rootId);
+  }
+  @Post('corrections')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Corrección explícita con versión esperada o resolución de conflicto' })
+  async correction(
+    @Headers('authorization') token: string | undefined,
+    @Body() body: unknown,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    const c = await this.context(token);
+    const result = await new ManualCorrectionService(c.service.database).execute(c.userId, body);
+    reply.status(result.status === 'conflict' ? 409 : 200);
+    return result;
   }
   @Post('commands')
   @HttpCode(200)

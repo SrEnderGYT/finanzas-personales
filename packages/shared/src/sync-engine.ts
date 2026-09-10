@@ -18,6 +18,7 @@ export interface SyncChange {
   sequence: string;
   movement: ConfirmedMovement;
   receipt: ManualReceipt;
+  revision?: { rootId: string; version: string; previousId: string; reversalId: string };
 }
 export interface ChangePage {
   changes: SyncChange[];
@@ -135,8 +136,16 @@ export class SyncEngine {
         // immutable financial content and receipts cannot.
         if (
           previous &&
-          canonical({ movement: previous.movement, receipt: previous.receipt }) !==
-            canonical({ movement: change.movement, receipt: change.receipt })
+          canonical({
+            movement: previous.movement,
+            receipt: previous.receipt,
+            revision: previous.revision,
+          }) !==
+            canonical({
+              movement: change.movement,
+              receipt: change.receipt,
+              revision: change.revision,
+            })
         )
           throw new DomainError('IMMUTABLE_CHANGE_CONFLICT');
         rebuilt.movements[change.movement.id] = change;
@@ -326,7 +335,7 @@ export function validatePage(input: unknown): ChangePage {
   )
     throw new DomainError('INVALID_CHANGE_PAGE');
   const changes: SyncChange[] = input['changes'].map((raw) => {
-    closed(raw, ['sequence', 'movement', 'receipt']);
+    closed(raw, ['sequence', 'movement', 'receipt', 'revision']);
     if (typeof raw['sequence'] !== 'string' || !/^[1-9]\d{0,18}$/.test(raw['sequence']))
       throw new DomainError('INVALID_CHANGE_SEQUENCE');
     const m = raw['movement'],
@@ -347,6 +356,25 @@ export function validatePage(input: unknown): ChangePage {
     closed(r, ['operationId', 'movementId', 'payloadHash', 'recordedAt']);
     const id = identifier(m['id'] as string),
       operationId = identifier(m['operationId'] as string);
+    let revision: SyncChange['revision'];
+    if (raw['revision'] !== undefined) {
+      const value = raw['revision'];
+      closed(value, ['rootId', 'version', 'previousId', 'reversalId']);
+      if (
+        typeof value['version'] !== 'string' ||
+        !/^[1-9]\d{0,17}$/.test(value['version']) ||
+        BigInt(value['version']) < 2n
+      )
+        throw new DomainError('INVALID_VERSION');
+      revision = {
+        rootId: identifier(value['rootId'] as string),
+        version: value['version'],
+        previousId: identifier(value['previousId'] as string),
+        reversalId: identifier(value['reversalId'] as string),
+      };
+      if ([revision.rootId, revision.previousId, revision.reversalId].includes(id))
+        throw new DomainError('INVALID_REVISION');
+    }
     if (m['kind'] !== 'expense' && m['kind'] !== 'income') throw new DomainError('INVALID_KIND');
     if (typeof m['businessDate'] !== 'string' || typeof m['timezone'] !== 'string')
       throw new DomainError('REQUIRED_FINANCIAL_DATE');
@@ -372,6 +400,7 @@ export function validatePage(input: unknown): ChangePage {
       throw new DomainError('ACK_MISMATCH');
     return {
       sequence: raw['sequence'],
+      ...(revision ? { revision } : {}),
       movement: {
         id,
         operationId,

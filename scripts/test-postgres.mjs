@@ -81,6 +81,7 @@ try {
                 'tests/catalog-api.integration.test.ts',
                 'tests/manual.integration.test.ts',
                 'tests/sync.integration.test.ts',
+                'tests/corrections.integration.test.ts',
                 'tests/sessions.integration.test.ts',
                 'tests/email-auth.integration.test.ts',
                 'tests/google-auth.integration.test.ts',
