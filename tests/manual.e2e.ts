@@ -4,6 +4,33 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+test('manual form validates date, preserves entries and switches income currency explicitly', async ({
+  page,
+}) => {
+  await page.goto('/#/registro');
+  await page.getByRole('button', { name: 'Probar con datos DEMO' }).click();
+  await page.locator('[name=credential]').fill('frase sintética de prueba');
+  await page.getByRole('button', { name: 'Crear espacio cifrado' }).click();
+  await expect(page.locator('[name=amount]')).toBeVisible();
+  await page.getByRole('button', { name: 'Ingreso', exact: true }).click();
+  await page.locator('[name=account]').selectOption({ label: 'Cuenta USD DEMO · USD' });
+  await page.locator('[name=category]').selectOption({ label: 'Sueldo DEMO' });
+  await page.locator('[name=amount]').fill('0.20');
+  await page.locator('[name=date]').fill('');
+  await page.locator('[name=note]').fill('Synthetic income');
+  await page.getByRole('button', { name: 'Guardar pendiente' }).click();
+  await expect(page.locator('.pending-row')).toHaveCount(0);
+  await expect(page.locator('[name=amount]')).toHaveValue('0.20');
+  await expect(page.locator('[name=note]')).toHaveValue('Synthetic income');
+  await page.locator('[name=date]').fill('2026-01-01');
+  await page.getByRole('button', { name: 'Guardar pendiente' }).click();
+  await expect(page.locator('.pending-row')).toContainText('Ingreso · USD 0.20');
+  await page.getByRole('button', { name: 'Gasto', exact: true }).click();
+  await expect(page.locator('[name=category]')).toHaveValue('');
+  await page.getByRole('button', { name: 'Bloquear', exact: true }).click();
+  await expect(page.locator('.pending-row')).toHaveCount(0);
+});
+
 test('manual pending survives browser termination offline and reconnect never confirms', async () => {
   const profile = await mkdtemp(join(tmpdir(), 'manual-synthetic-'));
   let context = await chromium.launchPersistentContext(profile, {
