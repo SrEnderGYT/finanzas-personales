@@ -3,7 +3,12 @@ import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { AUTH_CLIENT } from './auth-provider';
 import { ManualSession } from '../../shared/src/manual-session';
-import { SyncEngine, type SyncSnapshot, type SyncState } from '../../shared/src/sync-engine';
+import {
+  SyncEngine,
+  SyncHttpError,
+  type SyncSnapshot,
+  type SyncState,
+} from '../../shared/src/sync-engine';
 import type { OutboxRecord } from '../../shared/src/manual-outbox';
 import type { ManualCatalog } from '../../domain/src';
 @Injectable({ providedIn: 'root' })
@@ -142,6 +147,51 @@ export class ProductWorkspace {
         this.rerun = false;
         void this.syncNow();
       }
+    }
+  }
+  async recoverCheckpoint() {
+    const session = this.session;
+    if (!session?.vault.unlocked || session.vault.profile.mode !== 'product' || this.syncing)
+      return;
+    if (!navigator.onLine) {
+      this.state.set('offline');
+      return;
+    }
+    if (!this.auth.canUseOwner(session.vault.profile.ownerId)) {
+      this.state.set('session_required');
+      return;
+    }
+    const epoch = this.epoch;
+    if (this.timer) clearTimeout(this.timer);
+    this.syncing = true;
+    this.rerun = false;
+    this.state.set('syncing');
+    this.error.set('');
+    this.engine = new SyncEngine(session.vault, this.auth.syncApi(session.vault.profile.ownerId));
+    try {
+      const state = await this.engine.recoverCheckpoint();
+      if (epoch !== this.epoch) return;
+      await this.refresh();
+      if (epoch !== this.epoch) return;
+      this.state.set(state);
+      this.error.set('Descarga recuperada. Tus pendientes se conservaron sin enviar.');
+    } catch (error) {
+      if (epoch !== this.epoch) return;
+      if (error instanceof SyncHttpError && error.status === 401) {
+        this.auth.expireSession();
+        return;
+      }
+      this.state.set(
+        error instanceof SyncHttpError && error.status === 403 ? 'forbidden' : 'invalid',
+      );
+      this.error.set(
+        'No se pudo recuperar la descarga. La copia anterior y tus pendientes se conservaron.',
+      );
+    } finally {
+      this.syncing = false;
+      // A recovery is download-only; reconnect/queued events must not silently
+      // turn the explicit repair action into an upload.
+      this.rerun = false;
     }
   }
   enterDemo() {

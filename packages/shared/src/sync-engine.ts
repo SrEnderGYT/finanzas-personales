@@ -9,7 +9,7 @@ import {
   type ManualPayload,
 } from '../../domain/src';
 import { ManualOutbox, type ManualReceipt } from './manual-outbox';
-import { ProductVault } from './product-vault';
+import { ProductVault, digest } from './product-vault';
 export interface ConfirmedMovement extends ManualPayload {
   id: string;
   operationId: string;
@@ -99,6 +99,76 @@ export class SyncEngine {
       this.running = undefined;
     });
     return this.running;
+  }
+  /** Explicit, download-only repair. Never sends or discards an outbox command. */
+  recoverCheckpoint(): Promise<SyncState> {
+    if (this.running) throw new DomainError('SYNC_BUSY');
+    this.aborter = new AbortController();
+    this.running = this.rebuildCheckpoint(this.aborter.signal).finally(() => {
+      this.running = undefined;
+    });
+    return this.running;
+  }
+  private async rebuildCheckpoint(signal: AbortSignal): Promise<SyncState> {
+    if (this.vault.profile.mode !== 'product') throw new DomainError('DEMO_SYNC_FORBIDDEN');
+    // Authentication/ciphertext damage must not be treated as an empty installation.
+    const saved = await this.vault.read<SyncSnapshot>('sync:v1');
+    const before = saved ? validateSnapshot(saved.value) : empty();
+    const rebuilt = empty();
+    let sequence = 0n;
+    const cursors = new Set<string>();
+    while (true) {
+      if (signal.aborted) return 'locked';
+      const page = validatePage(await this.api.pull(rebuilt.cursor, signal));
+      if (signal.aborted || !this.vault.unlocked) return 'locked';
+      if (rebuilt.generation && rebuilt.generation !== page.cursorGeneration)
+        throw new DomainError('CURSOR_GENERATION_CHANGED');
+      if (cursors.has(page.nextCursor)) throw new DomainError('CURSOR_NOT_ADVANCING');
+      cursors.add(page.nextCursor);
+      for (const change of page.changes) {
+        if (BigInt(change.sequence) <= sequence) throw new DomainError('INVALID_CHANGE_SEQUENCE');
+        sequence = BigInt(change.sequence);
+        if (rebuilt.movements[change.movement.id])
+          throw new DomainError('IMMUTABLE_CHANGE_CONFLICT');
+        const previous = before.movements[change.movement.id];
+        // Sequence numbers can change after an explicit server checkpoint rebuild;
+        // immutable financial content and receipts cannot.
+        if (
+          previous &&
+          canonical({ movement: previous.movement, receipt: previous.receipt }) !==
+            canonical({ movement: change.movement, receipt: change.receipt })
+        )
+          throw new DomainError('IMMUTABLE_CHANGE_CONFLICT');
+        rebuilt.movements[change.movement.id] = change;
+      }
+      rebuilt.cursor = page.nextCursor;
+      rebuilt.generation = page.cursorGeneration;
+      if (!page.hasMore) break;
+    }
+    if (Object.keys(before.movements).some((id) => !rebuilt.movements[id]))
+      throw new DomainError('RECOVERY_HISTORY_MISSING');
+    rebuilt.retries = before.retries;
+    rebuilt.failures = before.failures;
+    rebuilt.lastSync = this.now().toISOString();
+    validateSnapshot(rebuilt);
+    if (signal.aborted || !this.vault.unlocked) return 'locked';
+    if (saved) {
+      // Preserve the exact prior encrypted checkpoint before CAS. If another tab
+      // wins the CAS, this immutable encrypted evidence remains safe to retain.
+      await this.vault.insert('sync-evidence:' + (await digest(saved.raw)), {
+        version: 1,
+        reason: 'explicit_checkpoint_recovery',
+        recoveredAt: this.now().toISOString(),
+        previousCiphertext: saved.raw,
+      });
+    }
+    if (signal.aborted || !this.vault.unlocked) return 'locked';
+    const committed = saved
+      ? await this.vault.replace('sync:v1', saved.raw, rebuilt)
+      : await this.vault.insert('sync:v1', rebuilt);
+    if (!committed) throw new DomainError('SYNC_CHECKPOINT_CONFLICT');
+    await this.changed();
+    return 'idle';
   }
   private async perform(signal: AbortSignal): Promise<SyncState> {
     if (this.vault.profile.mode !== 'product') throw new DomainError('DEMO_SYNC_FORBIDDEN');

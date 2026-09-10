@@ -9,6 +9,7 @@ import {
   SyncHttpError,
   type SyncApi,
   type SyncChange,
+  type SyncSnapshot,
 } from '../packages/shared/src/sync-engine';
 const profile = () => ({
   ownerId: crypto.randomUUID(),
@@ -50,6 +51,128 @@ async function fixture() {
   const first = await new ManualOutbox(vault).enqueue(command(), catalog);
   return { p, name, vault, catalog, command, first };
 }
+async function recoveryFixture() {
+  const f = await fixture();
+  const change: SyncChange = {
+    sequence: '1',
+    movement: {
+      ...f.first.command.payload,
+      id: f.first.command.movementId,
+      operationId: f.first.command.operationId,
+    },
+    receipt: {
+      operationId: f.first.command.operationId,
+      movementId: f.first.command.movementId,
+      payloadHash: f.first.hash,
+      recordedAt: '2026-01-02T00:00:00.000Z',
+    },
+  };
+  const checkpoint: SyncSnapshot = {
+    version: 1,
+    cursor: 'invalidatedCursor',
+    generation: crypto.randomUUID(),
+    movements: { [change.movement.id]: change },
+    retries: {},
+    failures: {},
+  };
+  await f.vault.insert('sync:v1', checkpoint);
+  const original = (await f.vault.read('sync:v1'))!.raw;
+  const send = vi.fn<SyncApi['send']>();
+  const generation = crypto.randomUUID();
+  const api: SyncApi = {
+    send,
+    pull: vi.fn(async () => ({
+      changes: [change],
+      nextCursor: 'newCursor',
+      hasMore: false,
+      cursorGeneration: generation,
+    })),
+  };
+  return { ...f, change, original, send, generation, api };
+}
+it('explicit checkpoint repair retains encrypted evidence and exactly one untouched pending after reopen', async () => {
+  const f = await recoveryFixture();
+  const before = await new ManualOutbox(f.vault).list();
+  expect(await new SyncEngine(f.vault, f.api).recoverCheckpoint()).toBe('idle');
+  expect(f.api.pull).toHaveBeenCalledWith(undefined, expect.any(AbortSignal));
+  expect(f.send).not.toHaveBeenCalled();
+  const evidence = await f.vault.ids('sync-evidence:');
+  expect(evidence).toHaveLength(1);
+  expect(
+    (await f.vault.read<{ previousCiphertext: string }>(evidence[0]!))!.value.previousCiphertext,
+  ).toBe(f.original);
+  expect(JSON.stringify(await f.vault.store.entries())).not.toContain('America/Lima');
+  await f.vault.close();
+  const reopened = new ProductVault(await IndexedVaultStore.open(f.name), f.p);
+  await reopened.unlock('synthetic sync phrase');
+  const engine = new SyncEngine(reopened, f.api);
+  expect(await engine.outbox.list()).toEqual(before);
+  expect((await engine.snapshot()).generation).toBe(f.generation);
+  expect((await engine.snapshot()).cursor).toBe('newCursor');
+  await reopened.close();
+});
+it('repair refuses missing or rewritten immutable server history and retains the original checkpoint', async () => {
+  const f = await recoveryFixture();
+  for (const changes of [
+    [],
+    [{ ...f.change, movement: { ...f.change.movement, amountMinor: '20' } }],
+  ]) {
+    f.api.pull = async () => ({
+      changes,
+      nextCursor: 'newCursor',
+      hasMore: false,
+      cursorGeneration: f.generation,
+    });
+    await expect(new SyncEngine(f.vault, f.api).recoverCheckpoint()).rejects.toMatchObject({
+      code: changes.length ? 'IMMUTABLE_CHANGE_CONFLICT' : 'RECOVERY_HISTORY_MISSING',
+    });
+    expect((await f.vault.read('sync:v1'))!.raw).toBe(f.original);
+  }
+  expect((await new ManualOutbox(f.vault).list())[0]!.state).toBe('pending');
+  await f.vault.close();
+});
+it('interrupted or revoked repair never checkpoints a partial download', async () => {
+  const f = await recoveryFixture();
+  for (const failure of [new Error('Synthetic network loss'), new SyncHttpError(401)]) {
+    f.api.pull = async (cursor) => {
+      if (cursor) throw failure;
+      return {
+        changes: [f.change],
+        nextCursor: 'page1',
+        hasMore: true,
+        cursorGeneration: f.generation,
+      };
+    };
+    await expect(new SyncEngine(f.vault, f.api).recoverCheckpoint()).rejects.toBe(failure);
+    expect((await f.vault.read('sync:v1'))!.raw).toBe(f.original);
+  }
+  expect(f.send).not.toHaveBeenCalled();
+  await f.vault.close();
+});
+it('repair cannot overwrite a concurrent checkpoint or recreate corrupted ciphertext', async () => {
+  const f = await recoveryFixture();
+  const next = (await f.vault.read<SyncSnapshot>('sync:v1'))!.value;
+  f.api.pull = async () => {
+    await f.vault.replace('sync:v1', f.original, { ...next, cursor: 'concurrentCursor' });
+    return {
+      changes: [f.change],
+      nextCursor: 'newCursor',
+      hasMore: false,
+      cursorGeneration: f.generation,
+    };
+  };
+  const engine = new SyncEngine(f.vault, f.api);
+  await expect(engine.recoverCheckpoint()).rejects.toMatchObject({
+    code: 'SYNC_CHECKPOINT_CONFLICT',
+  });
+  expect((await engine.snapshot()).cursor).toBe('concurrentCursor');
+  const raw = (await f.vault.read('sync:v1'))!.raw;
+  await f.vault.store.compareAndSwap('sync:v1', raw, '{"damaged":true}');
+  await expect(engine.recoverCheckpoint()).rejects.toThrow();
+  expect(await f.vault.store.get('sync:v1')).toBe('{"damaged":true}');
+  expect((await engine.outbox.list())[0]!.state).toBe('pending');
+  await f.vault.close();
+});
 it('recovers a lost response through authenticated pull and reopens one confirmed operation', async () => {
   const f = await fixture(),
     generation = crypto.randomUUID();

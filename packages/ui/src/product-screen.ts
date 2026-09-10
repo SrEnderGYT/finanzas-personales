@@ -38,6 +38,16 @@ import { Money, type ManualPayload } from '../../domain/src';
             >
           </div>
           <p role="alert">{{ workspace.error() }}</p>
+          @if (workspace.state() === 'invalid' && workspace.unlocked()) {
+            <section class="manual-card" aria-label="Recuperar sincronización">
+              <h2>Recuperar la descarga</h2>
+              <p>
+                Volveremos a consultar el historial confirmado. Se conservarán la copia anterior
+                cifrada y todos tus pendientes. Esta acción no envía movimientos.
+              </p>
+              <button fpButton (click)="workspace.recoverCheckpoint()">Recuperar descarga</button>
+            </section>
+          }
           <section class="manual-card" aria-label="Lista de movimientos">
             @for (row of movements(); track row.id) {
               <article class="pending-row" [attr.data-state]="row.state">
