@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import { authSystem } from './support/auth-system';
+// Inject transport loss at the browser request boundary. PWA/offline-shell
+// persistence remains covered by manual.e2e.ts with the real service worker.
+test.use({ serviceWorkers: 'block' });
 let system: Awaited<ReturnType<typeof authSystem>>;
 test.beforeAll(async () => {
   system = await authSystem();

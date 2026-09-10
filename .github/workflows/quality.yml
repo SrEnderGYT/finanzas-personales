@@ -22,7 +22,7 @@ jobs:
           fetch-depth: 0
       - id: files
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          BASE_SHA: ${{ github.event.before || github.event.pull_request.base.sha }}
         run: node scripts/ci-native-changes.mjs
   quality:
     if: github.event_name != 'workflow_dispatch' || inputs.scope != 'android'
