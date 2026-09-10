@@ -2,6 +2,7 @@ package app.finanzas.personales.demo;
 
 import android.app.Instrumentation;
 import android.content.Intent;
+import android.graphics.Bitmap;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import org.junit.Test;
@@ -9,6 +10,7 @@ import org.junit.runner.RunWith;
 import org.json.JSONTokener;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -50,6 +52,12 @@ public class ManualOutboxTest {
     waitFor("!!document.querySelector('[name=credential]')");
     fill("credential", "123456");
     boolean seed = "seed".equals(InstrumentationRegistry.getArguments().getString("stage"));
+    if (!seed) {
+      fill("credential", "654321");
+      click("Desbloquear");
+      waitFor("document.querySelector('.manual-feedback').textContent.includes('No se completó')");
+      fill("credential", "123456");
+    }
     click(seed ? "Crear espacio cifrado" : "Desbloquear");
     waitFor("!!document.querySelector('[name=amount]')");
     if (seed) {
@@ -58,7 +66,7 @@ public class ManualOutboxTest {
       fill("amount", "0.10");
       fill("date", "2026-01-01");
       fill("note", "Synthetic Android offline");
-      click("Guardar pendiente");
+      js("(()=>{const b=Array.from(document.querySelectorAll('button')).find(b=>b.textContent.trim()==='Guardar pendiente');for(let i=0;i<5;i++)b.click();})()");
     }
     waitFor("document.querySelectorAll('.pending-row').length===1");
     String text = js("document.querySelector('.pending-row').textContent");
@@ -76,5 +84,14 @@ public class ManualOutboxTest {
       checked = true;
     }
     assertTrue("Real encrypted database present", checked);
+    js("document.querySelector('.pending-row').scrollIntoView({block:'center'})");
+    instrumentation.waitForIdleSync();
+    Bitmap screenshot = instrumentation.getUiAutomation().takeScreenshot();
+    assertNotNull("Native screenshot before instrumentation closes activity", screenshot);
+    File evidence = new File(instrumentation.getTargetContext().getExternalFilesDir(null), seed ? "p08-seed.png" : "p08-reopen.png");
+    try (FileOutputStream output = new FileOutputStream(evidence)) {
+      assertTrue(screenshot.compress(Bitmap.CompressFormat.PNG, 100, output));
+    }
+    screenshot.recycle();
   }
 }
