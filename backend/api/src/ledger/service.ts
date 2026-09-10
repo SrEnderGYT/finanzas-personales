@@ -31,37 +31,9 @@ export class LedgerService {
   ) {}
   async execute(context: LedgerContext, input: Envelope): Promise<LedgerResult> {
     try {
-      identifier(context.userId);
-      const command = normalizeEnvelope(input, this.clock);
-      const hash = createHash('sha256').update(canonical(command)).digest('hex');
-      return await this.store.database.asUser(context.userId, async (c) => {
-        await c.query("SELECT pg_advisory_xact_lock(hashtextextended('ledger:'||$1,0))", [
-          context.userId,
-        ]);
-        const receipt = (
-          await c.query<{ payload_hash: string; result: { transactionIds: string[] } }>(
-            'SELECT payload_hash,result FROM app.ledger_receipts WHERE user_id=$1 AND operation_id=$2',
-            [context.userId, command.operationId],
-          )
-        ).rows[0];
-        if (receipt) {
-          if (receipt.payload_hash !== hash) throw new DomainError('IDEMPOTENCY_CONFLICT');
-          return { status: 'alreadyApplied' as const, result: receipt.result };
-        }
-        const journals = await this.prepare(c, context.userId, command);
-        for (const journal of journals)
-          await this.store.insert(c, context.userId, journal, command.operationId);
-        const result = { transactionIds: journals.map((j) => j.id) };
-        await c.query(
-          'INSERT INTO app.ledger_receipts(user_id,operation_id,payload_hash,result) VALUES($1,$2,$3,$4)',
-          [context.userId, command.operationId, hash, result],
-        );
-        await c.query(
-          "INSERT INTO app.ledger_audit(user_id,operation_id,entity_id,action,outcome) VALUES($1,$2,$3,$4,'applied')",
-          [context.userId, command.operationId, command.entityId, command.command.type],
-        );
-        return { status: 'applied' as const, result };
-      });
+      return await this.store.database.asUser(context.userId, (c) =>
+        this.executeInTransaction(c, context, input),
+      );
     } catch (error) {
       if (error instanceof DomainError) {
         const code = (error as DomainError).code;
@@ -73,6 +45,42 @@ export class LedgerService {
         return { status: 'invalid', code: 'LEDGER_CONSTRAINT' };
       throw error; // transient infrastructure failures are retryable; no receipt survives rollback.
     }
+  }
+  /** Internal composition point: caller owns BEGIN/COMMIT and must propagate failures. */
+  async executeInTransaction(c: PoolClient, context: LedgerContext, input: Envelope) {
+    identifier(context.userId);
+    const actual = (
+      await c.query<{ id: string }>("SELECT current_setting('app.user_id',true) AS id")
+    ).rows[0]?.id;
+    if (actual !== context.userId) throw new DomainError('INVALID_TRANSACTION_CONTEXT');
+    const command = normalizeEnvelope(input, this.clock);
+    const hash = createHash('sha256').update(canonical(command)).digest('hex');
+    await c.query("SELECT pg_advisory_xact_lock(hashtextextended('ledger:'||$1,0))", [
+      context.userId,
+    ]);
+    const receipt = (
+      await c.query<{ payload_hash: string; result: { transactionIds: string[] } }>(
+        'SELECT payload_hash,result FROM app.ledger_receipts WHERE user_id=$1 AND operation_id=$2',
+        [context.userId, command.operationId],
+      )
+    ).rows[0];
+    if (receipt) {
+      if (receipt.payload_hash !== hash) throw new DomainError('IDEMPOTENCY_CONFLICT');
+      return { status: 'alreadyApplied' as const, result: receipt.result };
+    }
+    const journals = await this.prepare(c, context.userId, command);
+    for (const journal of journals)
+      await this.store.insert(c, context.userId, journal, command.operationId);
+    const result = { transactionIds: journals.map((j) => j.id) };
+    await c.query(
+      'INSERT INTO app.ledger_receipts(user_id,operation_id,payload_hash,result) VALUES($1,$2,$3,$4)',
+      [context.userId, command.operationId, hash, result],
+    );
+    await c.query(
+      "INSERT INTO app.ledger_audit(user_id,operation_id,entity_id,action,outcome) VALUES($1,$2,$3,$4,'applied')",
+      [context.userId, command.operationId, command.entityId, command.command.type],
+    );
+    return { status: 'applied' as const, result };
   }
   async version(context: LedgerContext, id: string): Promise<string> {
     identifier(id);
