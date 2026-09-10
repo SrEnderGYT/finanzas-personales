@@ -157,7 +157,7 @@ it('two independent sessions produce one atomic correction and a durable 409 wit
     Array.from({ length: 5 }, () => postCorrection(keep, secondClient)),
   );
   expect(resolutions.every((r) => r.statusCode === 200)).toBe(true);
-  expect(new Set(resolutions.map((r) => JSON.stringify(r.json()))).size).toBe(1);
+  for (const resolution of resolutions) expect(resolution.json()).toEqual(resolutions[0]!.json());
   expect(resolutions[0]!.json().server).toEqual(winner.server);
   expect(
     (

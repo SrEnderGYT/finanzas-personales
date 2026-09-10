@@ -3,11 +3,12 @@ import { RouterLink } from '@angular/router';
 import { ProductWorkspace } from './product-workspace';
 import { Screen } from './screen';
 import { UI_PRIMITIVES } from './primitives';
-import { Money, type ManualPayload } from '../../domain/src';
+import { Money, type ManualPayload, type MovementVersion } from '../../domain/src';
+import { CorrectionEditor } from './correction-editor';
 
 @Component({
   selector: 'fp-product-screen',
-  imports: [RouterLink, Screen, ...UI_PRIMITIVES],
+  imports: [RouterLink, Screen, CorrectionEditor, ...UI_PRIMITIVES],
   styleUrl: './manual-screen.css',
   template: `
     @if (!workspace.product()) {
@@ -68,6 +69,9 @@ import { Money, type ManualPayload } from '../../domain/src';
                     <p role="alert">
                       {{ row.failure }}. El registro se conserva y no se reintenta automáticamente.
                     </p>
+                  }
+                  @if (row.head) {
+                    <fp-correction-editor [movement]="row.head" />
                   }
                 </div>
                 <span class="pending-badge">{{ status(row.state) }}</span>
@@ -155,17 +159,29 @@ export class ProductScreen {
   readonly movements = computed(() => {
     const items = new Map<
       string,
-      { id: string; payload: ManualPayload; state: string; failure?: string }
+      {
+        id: string;
+        payload: ManualPayload;
+        state: string;
+        failure?: string;
+        head?: MovementVersion;
+      }
     >();
+    const confirmedIds = new Set<string>();
     for (const change of Object.values(this.workspace.snapshot()?.movements ?? {})) {
-      items.set(change.movement.id, {
-        id: change.movement.id,
+      confirmedIds.add(change.movement.id);
+      const rootId = change.revision?.rootId ?? change.movement.id;
+      const version = change.revision?.version ?? '1';
+      if (BigInt(items.get(rootId)?.head?.version ?? '0') >= BigInt(version)) continue;
+      items.set(rootId, {
+        id: rootId,
         payload: change.movement,
         state: 'confirmed',
+        head: { rootId, version, movementId: change.movement.id, payload: change.movement },
       });
     }
     for (const row of this.workspace.rows()) {
-      if (items.has(row.command.movementId)) continue;
+      if (confirmedIds.has(row.command.movementId)) continue;
       const failure = this.workspace.snapshot()?.failures[row.command.operationId];
       items.set(row.command.movementId, {
         id: row.command.movementId,

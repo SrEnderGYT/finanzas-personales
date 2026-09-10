@@ -1,9 +1,11 @@
+import type { CorrectionApi } from '../../shared/src/correction-queue';
 import { nativeGoogleFlow } from '../../shared/src/native-google-flow';
 import { nativeAuthHttp } from '../../shared/src/native-auth-http';
 import { SyncHttpError, validatePage, type SyncApi } from '../../shared/src/sync-engine';
 import type { ManualReceipt } from '../../shared/src/manual-outbox';
 import {
   identifier,
+  normalizeMovementVersion,
   instant,
   closed,
   currency,
@@ -33,39 +35,73 @@ export class AuthClient {
   expireSession() {
     this.token = undefined;
   }
-  syncApi(ownerId: string): SyncApi {
-    const send = async (path: string, method: string, signal: AbortSignal, body?: unknown) => {
-      if (!this.enabled || !this.token || this.verifiedOwner !== ownerId)
-        throw new SyncHttpError(401, 'SESSION_REQUIRED');
-      const token = this.token;
-      const response = await this.transport(path, {
-        method,
-        headers: {
-          Authorization: 'Bearer ' + token,
-          ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-        },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-        signal: AbortSignal.any([signal, AbortSignal.timeout(15000)]),
-        credentials: 'same-origin',
-        cache: 'no-store',
-        redirect: 'error',
-      });
-      if (token !== this.token || this.verifiedOwner !== ownerId)
-        throw new SyncHttpError(401, 'SESSION_CHANGED');
-      const data: unknown = await response.json().catch(() => null);
-      if (!response.ok) {
-        const error =
-          data &&
-          typeof data === 'object' &&
-          'error' in data &&
-          typeof data.error === 'string' &&
-          /^[A-Z_]{1,80}$/.test(data.error)
-            ? data.error
-            : 'REQUEST_FAILED';
-        throw new SyncHttpError(response.status, error);
-      }
-      return data;
+  private async productRequest(
+    ownerId: string,
+    path: string,
+    method: string,
+    signal: AbortSignal,
+    body?: unknown,
+    allowConflict = false,
+  ) {
+    if (!this.enabled || !this.token || this.verifiedOwner !== ownerId)
+      throw new SyncHttpError(401, 'SESSION_REQUIRED');
+    const token = this.token;
+    const response = await this.transport(path, {
+      method,
+      headers: {
+        Authorization: 'Bearer ' + token,
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      signal: AbortSignal.any([signal, AbortSignal.timeout(15000)]),
+      credentials: 'same-origin',
+      cache: 'no-store',
+      redirect: 'error',
+    });
+    if (token !== this.token || this.verifiedOwner !== ownerId)
+      throw new SyncHttpError(401, 'SESSION_CHANGED');
+    const data: unknown = await response.json().catch(() => null);
+    if (
+      !response.ok &&
+      !(
+        allowConflict &&
+        response.status === 409 &&
+        data &&
+        typeof data === 'object' &&
+        'local' in data
+      )
+    ) {
+      const error =
+        data &&
+        typeof data === 'object' &&
+        'error' in data &&
+        typeof data.error === 'string' &&
+        /^[A-Z_]{1,80}$/.test(data.error)
+          ? data.error
+          : 'REQUEST_FAILED';
+      throw new SyncHttpError(response.status, error);
+    }
+    return data;
+  }
+  correctionApi(ownerId: string): CorrectionApi {
+    return {
+      current: async (rootId, signal) =>
+        normalizeMovementVersion(
+          await this.productRequest(
+            ownerId,
+            '/v1/sync/movements/' + identifier(rootId),
+            'GET',
+            signal,
+          ),
+          { now: () => new Date() },
+        ),
+      execute: (command, signal) =>
+        this.productRequest(ownerId, '/v1/sync/corrections', 'POST', signal, command, true),
     };
+  }
+  syncApi(ownerId: string): SyncApi {
+    const send = (path: string, method: string, signal: AbortSignal, body?: unknown) =>
+      this.productRequest(ownerId, path, method, signal, body);
     return {
       send: async (command, signal) => {
         const data = await send('/v1/sync/commands', 'POST', signal, command);

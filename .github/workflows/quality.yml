@@ -148,4 +148,5 @@ jobs:
           path: |
             docs/evidence/P05/mfa-*.png
             docs/evidence/P09/product-*.png
+            docs/evidence/P10/conflict-*.png
           retention-days: 7

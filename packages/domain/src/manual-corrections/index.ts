@@ -140,3 +140,22 @@ export function differingMovementFields(local: ManualPayload, server: ManualPayl
       canonical(server[key as keyof ManualPayload] ?? null),
   );
 }
+export function normalizeMovementVersion(input: unknown, clock: Clock): MovementVersion {
+  closed(input, ['rootId', 'version', 'movementId', 'payload']);
+  const rootId = identifier(input['rootId'] as string);
+  const movementId = identifier(input['movementId'] as string);
+  if (typeof input['version'] !== 'string' || !/^[1-9]\d{0,17}$/.test(input['version']))
+    throw new DomainError('INVALID_VERSION');
+  const normalized = normalizeManual(
+    {
+      operationId: rootId,
+      deviceId: rootId,
+      movementId,
+      schemaVersion: 1,
+      baseVersion: '0',
+      payload: input['payload'],
+    },
+    clock,
+  );
+  return { rootId, movementId, version: input['version'], payload: normalized.payload };
+}

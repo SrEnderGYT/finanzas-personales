@@ -60,3 +60,37 @@ en este documento.
 - Staging autenticado utilizable, separado del preview DEMO de GitHub Pages.
 - CI completo, evidencia desktop/mobile y pruebas nativas relevantes.
 - PR P10 separado, sin merge automático.
+
+## Correcciones y revisión entre clientes
+
+La migración 020 añade recibos de corrección, una cadena de revisiones inmutable
+y auditoría mínima. Los recibos conservan el comando y el resultado necesarios
+para recuperar conflictos y respuestas perdidas; las tablas tienen RLS forzada
+y FK compuestas por propietario. El runtime solo inserta y consulta, sin permisos
+para sobrescribir o borrar historia.
+
+`POST /v1/sync/corrections` compara `expectedVersion` bajo los bloqueos existentes
+catálogo → ledger. Una versión obsoleta devuelve 409 con la propuesta local,
+la versión del servidor y los campos diferentes, y conserva ese resultado para
+reintentos. `keep_server` requiere una referencia a un conflicto; `replace` exige
+motivo, IDs distintos, fecha/zona explícitas para el reverso y un comando manual
+de sustitución. Una decisión aplicada por conflicto es única.
+
+La única extracción de P08 es `confirmInTransaction`, que verifica el contexto
+de la conexión y permite confirmar reverso P06, sustitución P08, linaje, recibos y
+auditoría en una transacción. No se modifica la regla financiera de P06. El feed
+P09 conserva los movimientos históricos y añade metadatos inmutables de revisión
+a las sustituciones; la lista presenta la última revisión sin sumar gastos de nuevo.
+
+Las propuestas de corrección tienen una cola cifrada propia que reutiliza la bóveda
+y CAS, con estados pending/sending/retryable/requires_review/applied. No se resuelve
+un conflicto automáticamente. Un envío interrumpido conserva su lease y los mismos
+IDs; una respuesta validada se guarda cifrada. La UI permite corregir importe,
+fecha y nota, con motivo obligatorio, y decidir entre conservar servidor o registrar
+la propuesta mediante reverso y sustitución. Las cuentas y categorías no se editan
+en este formulario.
+
+Validación local de este bloque: 90 unitarias pasan, lint y formato pasan. Se añadieron
+pruebas PostgreSQL de concurrencia, aislamiento, rollback e inmutabilidad y un
+recorrido con dos contextos de navegador independientes. Su ejecución completa,
+capturas y staging siguen pendientes; no se declara P10 terminado.
