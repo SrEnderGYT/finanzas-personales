@@ -54,3 +54,23 @@ La lista combina operaciones locales y cambios confirmados por ID, sin sumarlos 
 ## Límites de esta entrega
 
 Sin resolución de conflictos P10, analítica P11, CSV, tarjetas, presupuestos ni Gmail. El cache de confirmados no es una copia de respaldo ni una segunda fuente de saldos. Borrar los datos del dispositivo puede eliminar pendientes todavía no confirmados; no se promete recuperación de claves. El snapshot de cambios usa un único registro cifrado en P09; particionamiento y mediciones extensas de rendimiento quedan pendientes de una necesidad demostrada. Sin merge automático.
+
+## Evidencia de cierre — 10 septiembre 2026
+
+Código validado: `bb4455d`; cliente/nativo sin cambios respecto de `67c60c1`. Los artifacts de `pull_request` identifican el commit de integración temporal generado por GitHub, no un merge realizado en las ramas.
+
+| Comprobación | Resultado y evidencia |
+| --- | --- |
+| Calidad, tipos, formato, Web/Mobile/backend | Aprobados en [CI 34474031839](https://github.com/SrEnderGYT/finanzas-personales/actions/runs/34474031839) |
+| Unitarias / API / PostgreSQL | 78 / 2 / 68 aprobadas; incluye regresión financiera, idempotencia y RLS |
+| Navegador real + PostgreSQL | 6 aprobadas: autenticación y recorrido sync con pérdida de respuesta |
+| Preview / pruebas PWA existentes | 12 pruebas de navegador aprobadas; el preview no habilita autenticación real |
+| Android | APK debug y tres recorridos instrumentados SQLCipher (crear, reabrir, corrupción) aprobados en [CI nativo 34473768937](https://github.com/SrEnderGYT/finanzas-personales/actions/runs/34473768937) |
+| iOS | Build de simulador sin firma aprobado en el mismo CI; sin instalación física ni TestFlight |
+| Dependencias / secretos | Auditoría: 0 vulnerabilidades; escaneo de cambios sin secretos |
+
+Capturas de producto verificadas visualmente: [desktop](evidence/P09/product-desktop.png), [móvil claro](evidence/P09/product-mobile-light.png), [móvil oscuro](evidence/P09/product-mobile-dark.png). Evidencia SQLCipher: [creación](evidence/P09/android-created.png) y [reapertura](evidence/P09/android-reopened.png). La captura nativa corresponde al perfil de prueba local, no a una conexión nativa con staging.
+
+Artifacts: [APK de desarrollo](https://github.com/SrEnderGYT/finanzas-personales/actions/runs/34473768937/artifacts/10150693788), [iOS simulador](https://github.com/SrEnderGYT/finanzas-personales/actions/runs/34473768937/artifacts/10150695786), [pruebas Android](https://github.com/SrEnderGYT/finanzas-personales/actions/runs/34473768937/artifacts/10150768108). Tienen la retención temporal configurada en GitHub Actions; el APK incluye metadatos de commit, entorno, fecha y versión.
+
+P09 entrega código y pruebas de sincronización real con servidor desechable. **Staging público de producto permanece sin configurar**: requiere elección de proveedor y configuración externa. La URL GitHub Pages sigue siendo exclusivamente DEMO. No se ha hecho merge ni iniciado P10.
