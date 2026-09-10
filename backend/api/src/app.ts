@@ -23,6 +23,7 @@ import { type EmailAuth } from './email-auth';
 import { GoogleController, GOOGLE_AUTH, NATIVE_GOOGLE_AUTH } from './google-controller';
 import { registerNativeCors } from './native-cors';
 import { registerCatalogCors } from './catalog-cors';
+import { SyncController } from './sync/controller';
 import { type GoogleAuth } from './google-auth';
 import { MfaController, MFA_LOGIN } from './mfa-controller';
 import { AccountsController, CategoriesController } from './catalog/controller';
@@ -77,6 +78,7 @@ export async function createApp(options: AppOptions = {}) {
       MfaController,
       AccountsController,
       CategoriesController,
+      SyncController,
     ],
     providers: [
       { provide: IDENTITY, useValue: options.identity ?? denyIdentity },

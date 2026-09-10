@@ -3,10 +3,29 @@ on:
   push:
     branches: [main, 'feature/**', 'fix/**']
   pull_request:
+  workflow_dispatch:
+    inputs:
+      scope:
+        type: choice
+        default: full
+        options: [full, sync-server, android]
 permissions:
   contents: read
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      native: ${{ steps.files.outputs.native }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - id: files
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: node scripts/ci-native-changes.mjs
   quality:
+    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'android'
     name: Lint, tests y builds
     runs-on: ubuntu-latest
     steps:
@@ -18,18 +37,31 @@ jobs:
       - run: npm install --global npm@11.6.1
       - run: npm ci
       - run: npm run lint
+        if: inputs.scope != 'sync-server'
       - run: npm run format:check
+        if: inputs.scope != 'sync-server'
       - run: npm run typecheck
+        if: inputs.scope != 'sync-server'
       - run: npm test
+        if: inputs.scope != 'sync-server'
       - run: npm run test:integration
+        if: inputs.scope != 'sync-server'
       - run: npm run test:postgres
+        if: inputs.scope != 'sync-server'
+      - run: npm run test:postgres -- --suite=tests/sync.integration.test.ts
+        if: inputs.scope == 'sync-server'
       - run: npm run build
+        if: inputs.scope != 'sync-server'
       - run: npm run security
+        if: inputs.scope != 'sync-server'
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: inputs.scope != 'sync-server'
         with:
           name: builds-${{ github.sha }}
           path: dist/
   android:
+    needs: changes
+    if: inputs.scope == 'android' || (inputs.scope != 'sync-server' && needs.changes.outputs.native == 'true')
     name: Android debug APK
     runs-on: ubuntu-latest
     steps:
@@ -70,6 +102,8 @@ jobs:
           path: dist/android-offline/
           retention-days: 14
   ios:
+    needs: changes
+    if: inputs.scope != 'android' && inputs.scope != 'sync-server' && needs.changes.outputs.native == 'true'
     name: iOS simulator sin firma
     runs-on: macos-latest
     steps:
@@ -89,6 +123,7 @@ jobs:
           path: dist/ios/Build/Products/Debug-iphonesimulator/*.app
           retention-days: 7
   auth-system:
+    if: inputs.scope != 'android' && inputs.scope != 'sync-server'
     name: Browser + PostgreSQL auth
     runs-on: ubuntu-latest
     timeout-minutes: 10
