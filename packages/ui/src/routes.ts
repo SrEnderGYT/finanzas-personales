@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { Screen } from './screen';
+import { ProductScreen } from './product-screen';
 import { AuthScreen } from './auth-screen';
 import { ManualScreen } from './manual-screen';
 export const DEMO_ROUTES: Routes = [
@@ -16,6 +16,6 @@ export const DEMO_ROUTES: Routes = [
     'configuracion',
     'analisis',
     'nuevo',
-  ].map((view) => ({ path: view, component: Screen, data: { view } })),
+  ].map((view) => ({ path: view, component: ProductScreen, data: { view } })),
   { path: '**', redirectTo: 'inicio' },
 ];

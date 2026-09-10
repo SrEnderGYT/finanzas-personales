@@ -124,7 +124,7 @@ jobs:
           retention-days: 7
   auth-system:
     if: inputs.scope != 'android' && inputs.scope != 'sync-server'
-    name: Browser + PostgreSQL auth
+    name: Browser + PostgreSQL auth y sync
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -143,5 +143,7 @@ jobs:
         if: always()
         with:
           name: auth-system-visual-${{ github.sha }}
-          path: docs/evidence/P05/mfa-*.png
+          path: |
+            docs/evidence/P05/mfa-*.png
+            docs/evidence/P09/product-*.png
           retention-days: 7

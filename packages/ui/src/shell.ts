@@ -1,6 +1,7 @@
 import { Component, InjectionToken, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { DemoState } from './demo-state';
+import { ProductWorkspace } from './product-workspace';
 import { UI_PRIMITIVES } from './primitives';
 export const MOBILE_MODE = new InjectionToken<boolean>('MOBILE_MODE', { factory: () => false });
 @Component({
@@ -24,12 +25,19 @@ export const MOBILE_MODE = new InjectionToken<boolean>('MOBILE_MODE', { factory:
       </nav>
       <div class="sidebar-note">
         <span aria-hidden="true">◇</span><strong>Tu dinero, con claridad.</strong>
-        <p>Explora la experiencia con datos de muestra.</p>
-        <fp-badge>DEMO</fp-badge>
+        @if (product.product()) {
+          <p>Registra y revisa tus movimientos.</p>
+        } @else {
+          <p>Explora la experiencia con datos de muestra.</p>
+          <fp-badge>DEMO</fp-badge>
+        }
       </div>
       <div class="profile-mini">
-        <span class="avatar">D</span>
-        <div><strong>Espacio de prueba</strong><small>Sin datos personales</small></div>
+        <span class="avatar">{{ product.product() ? 'P' : 'D' }}</span>
+        <div>
+          <strong>{{ product.product() ? 'Mi espacio' : 'Espacio de prueba' }}</strong
+          ><small>{{ product.product() ? 'Acceso privado' : 'Sin datos personales' }}</small>
+        </div>
       </div>
     </aside>
     <div class="main-frame">
@@ -70,11 +78,12 @@ export const MOBILE_MODE = new InjectionToken<boolean>('MOBILE_MODE', { factory:
 })
 export class Shell {
   readonly mobile = inject(MOBILE_MODE);
+  readonly product = inject(ProductWorkspace);
   readonly state = inject(DemoState);
   readonly menu = [
     { path: '/inicio', label: 'Inicio', icon: '⌂' },
     { path: '/movimientos', label: 'Movimientos', icon: '⇅' },
-    { path: '/registro', label: 'Registrar pendiente', icon: '+' },
+    { path: '/registro', label: 'Registrar movimiento', icon: '+' },
     { path: '/cuentas', label: 'Cuentas', icon: '▣' },
     { path: '/tarjetas', label: 'Tarjetas', icon: '▤' },
     { path: '/presupuestos', label: 'Presupuestos', icon: '◴' },
