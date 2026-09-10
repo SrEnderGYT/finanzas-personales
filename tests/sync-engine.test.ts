@@ -6,6 +6,7 @@ import { ProductVault, digest } from '../packages/shared/src/product-vault';
 import { ManualOutbox } from '../packages/shared/src/manual-outbox';
 import {
   SyncEngine,
+  movementVersion,
   SyncHttpError,
   type SyncApi,
   type SyncChange,
@@ -90,6 +91,15 @@ async function recoveryFixture() {
   };
   return { ...f, change, original, send, generation, api };
 }
+it('a correction projection separates movement identity from its closed financial payload', async () => {
+  const f = await recoveryFixture();
+  const head = movementVersion(f.change);
+  expect(head.payload).toEqual(f.first.command.payload);
+  expect(head.payload).not.toHaveProperty('id');
+  expect(head.payload).not.toHaveProperty('operationId');
+  expect(head.movementId).toBe(f.first.command.movementId);
+  await f.vault.close();
+});
 it('explicit checkpoint repair retains encrypted evidence and exactly one untouched pending after reopen', async () => {
   const f = await recoveryFixture();
   const before = await new ManualOutbox(f.vault).list();

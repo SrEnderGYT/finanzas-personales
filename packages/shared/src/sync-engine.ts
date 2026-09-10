@@ -7,6 +7,7 @@ import {
   instant,
   Money,
   type ManualPayload,
+  type MovementVersion,
 } from '../../domain/src';
 import { ManualOutbox, type ManualReceipt } from './manual-outbox';
 import { ProductVault, digest } from './product-vault';
@@ -25,6 +26,16 @@ export interface ChangePage {
   nextCursor: string;
   hasMore: boolean;
   cursorGeneration: string;
+}
+export function movementVersion(change: SyncChange): MovementVersion {
+  const { id, operationId, ...payload } = change.movement;
+  void operationId;
+  return {
+    rootId: change.revision?.rootId ?? id,
+    version: change.revision?.version ?? '1',
+    movementId: id,
+    payload,
+  };
 }
 export interface SyncApi {
   send(

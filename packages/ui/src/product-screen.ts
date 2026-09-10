@@ -5,6 +5,7 @@ import { Screen } from './screen';
 import { UI_PRIMITIVES } from './primitives';
 import { Money, type ManualPayload, type MovementVersion } from '../../domain/src';
 import { CorrectionEditor } from './correction-editor';
+import { movementVersion } from '../../shared/src/sync-engine';
 
 @Component({
   selector: 'fp-product-screen',
@@ -177,7 +178,7 @@ export class ProductScreen {
         id: rootId,
         payload: change.movement,
         state: 'confirmed',
-        head: { rootId, version, movementId: change.movement.id, payload: change.movement },
+        head: movementVersion(change),
       });
     }
     for (const row of this.workspace.rows()) {

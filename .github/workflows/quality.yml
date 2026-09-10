@@ -8,7 +8,8 @@ on:
       scope:
         type: choice
         default: full
-        options: [full, sync-server, correction-server, android]
+        options:
+          [full, sync-server, correction-server, postgres-contract, correction-browser, android]
 permissions:
   contents: read
 jobs:
@@ -25,7 +26,7 @@ jobs:
           BASE_SHA: ${{ github.event.before || github.event.pull_request.base.sha }}
         run: node scripts/ci-native-changes.mjs
   quality:
-    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'android'
+    if: github.event_name != 'workflow_dispatch' || (inputs.scope != 'android' && inputs.scope != 'correction-browser')
     name: Lint, tests y builds
     runs-on: ubuntu-latest
     steps:
@@ -37,33 +38,35 @@ jobs:
       - run: npm install --global npm@11.6.1
       - run: npm ci
       - run: npm run lint
-        if: inputs.scope != 'sync-server' && inputs.scope != 'correction-server'
+        if: inputs.scope != 'sync-server' && inputs.scope != 'correction-server' && inputs.scope != 'postgres-contract'
       - run: npm run format:check
-        if: inputs.scope != 'sync-server' && inputs.scope != 'correction-server'
+        if: inputs.scope != 'sync-server' && inputs.scope != 'correction-server' && inputs.scope != 'postgres-contract'
       - run: npm run typecheck
-        if: inputs.scope != 'sync-server' && inputs.scope != 'correction-server'
+        if: inputs.scope != 'sync-server' && inputs.scope != 'correction-server' && inputs.scope != 'postgres-contract'
       - run: npm test
-        if: inputs.scope != 'sync-server' && inputs.scope != 'correction-server'
+        if: inputs.scope != 'sync-server' && inputs.scope != 'correction-server' && inputs.scope != 'postgres-contract'
       - run: npm run test:integration
-        if: inputs.scope != 'sync-server' && inputs.scope != 'correction-server'
+        if: inputs.scope != 'sync-server' && inputs.scope != 'correction-server' && inputs.scope != 'postgres-contract'
       - run: npm run test:postgres
-        if: inputs.scope != 'sync-server' && inputs.scope != 'correction-server'
+        if: inputs.scope != 'sync-server' && inputs.scope != 'correction-server' && inputs.scope != 'postgres-contract'
       - run: npm run test:postgres -- --suite=tests/sync.integration.test.ts
         if: inputs.scope == 'sync-server'
       - run: npm run test:postgres -- --suite=tests/corrections.integration.test.ts
         if: inputs.scope == 'correction-server'
+      - run: npm run test:postgres -- --suite=tests/postgres.integration.test.ts
+        if: inputs.scope == 'postgres-contract'
       - run: npm run build
-        if: inputs.scope != 'sync-server' && inputs.scope != 'correction-server'
+        if: inputs.scope != 'sync-server' && inputs.scope != 'correction-server' && inputs.scope != 'postgres-contract'
       - run: npm run security
-        if: inputs.scope != 'sync-server' && inputs.scope != 'correction-server'
+        if: inputs.scope != 'sync-server' && inputs.scope != 'correction-server' && inputs.scope != 'postgres-contract'
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: inputs.scope != 'sync-server' && inputs.scope != 'correction-server'
+        if: inputs.scope != 'sync-server' && inputs.scope != 'correction-server' && inputs.scope != 'postgres-contract'
         with:
           name: builds-${{ github.sha }}
           path: dist/
   android:
     needs: changes
-    if: inputs.scope == 'android' || (inputs.scope != 'sync-server' && inputs.scope != 'correction-server' && needs.changes.outputs.native == 'true')
+    if: inputs.scope == 'android' || (inputs.scope != 'correction-browser' && inputs.scope != 'sync-server' && inputs.scope != 'correction-server' && inputs.scope != 'postgres-contract' && needs.changes.outputs.native == 'true')
     name: Android debug APK
     runs-on: ubuntu-latest
     steps:
@@ -105,7 +108,7 @@ jobs:
           retention-days: 14
   ios:
     needs: changes
-    if: inputs.scope != 'android' && inputs.scope != 'sync-server' && inputs.scope != 'correction-server' && needs.changes.outputs.native == 'true'
+    if: inputs.scope != 'android' && inputs.scope != 'correction-browser' && inputs.scope != 'sync-server' && inputs.scope != 'correction-server' && inputs.scope != 'postgres-contract' && needs.changes.outputs.native == 'true'
     name: iOS simulator sin firma
     runs-on: macos-latest
     steps:
@@ -125,7 +128,7 @@ jobs:
           path: dist/ios/Build/Products/Debug-iphonesimulator/*.app
           retention-days: 7
   auth-system:
-    if: inputs.scope != 'android' && inputs.scope != 'sync-server' && inputs.scope != 'correction-server'
+    if: inputs.scope != 'android' && inputs.scope != 'sync-server' && inputs.scope != 'correction-server' && inputs.scope != 'postgres-contract'
     name: Browser + PostgreSQL auth y sync
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -141,6 +144,8 @@ jobs:
       - run: npm run build:backend
       - run: npm exec playwright -- install --with-deps chromium
       - run: npm run test:auth-system
+        env:
+          P10_BROWSER_ONLY: ${{ inputs.scope == 'correction-browser' && '1' || '0' }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
