@@ -15,9 +15,10 @@ export class ProductVault {
   private key: CryptoKey | undefined;
   private generation = 0;
   readonly scope: string;
+  readonly profile: Readonly<LocalProfile>;
   constructor(
     readonly store: MutableVaultStore,
-    readonly profile: LocalProfile,
+    profile: LocalProfile,
   ) {
     identifier(profile.ownerId);
     if (
@@ -26,7 +27,8 @@ export class ProductVault {
       profile.environment.length > 200
     )
       throw new DomainError('INVALID_PROFILE');
-    this.scope = canonical({ ...profile, version: 1 });
+    this.profile = Object.freeze({ ...profile });
+    this.scope = canonical({ ...this.profile, version: 1 });
   }
   get unlocked() {
     return this.key !== undefined;

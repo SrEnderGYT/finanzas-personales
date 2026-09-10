@@ -31,8 +31,10 @@ export class LedgerService {
   ) {}
   async execute(context: LedgerContext, input: Envelope): Promise<LedgerResult> {
     try {
+      identifier(context.userId);
+      const normalized = normalizeEnvelope(input, this.clock);
       return await this.store.database.asUser(context.userId, (c) =>
-        this.executeInTransaction(c, context, input),
+        this.executeInTransaction(c, context, normalized),
       );
     } catch (error) {
       if (error instanceof DomainError) {

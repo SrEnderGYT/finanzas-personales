@@ -20,7 +20,7 @@ export interface AuthSession {
 /** Tokens live only in this instance, never in browser storage or URLs. */
 export class AuthClient {
   static forNativeServer(apiOrigin: string, transport: typeof fetch = fetch) {
-    return new AuthClient(true, nativeAuthHttp(apiOrigin, transport));
+    return new AuthClient(true, nativeAuthHttp(apiOrigin, transport), apiOrigin);
   }
   private sessionToken: string | undefined;
   private readonly localLocks = new Set<() => void>();
@@ -131,6 +131,7 @@ export class AuthClient {
   constructor(
     readonly enabled: boolean,
     private readonly transport: typeof fetch = (...args) => fetch(...args),
+    readonly catalogEnvironment: string = 'same-origin',
   ) {}
   get signedIn() {
     return this.token !== undefined;

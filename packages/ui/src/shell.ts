@@ -37,6 +37,7 @@ export const MOBILE_MODE = new InjectionToken<boolean>('MOBILE_MODE', { factory:
         <span class="topbar-brand">finanzas<span>.</span></span
         ><span class="breadcrumb">Mi espacio <span>/</span> Vista general</span>
         <div class="topbar-actions">
+          <a routerLink="/registro" class="auth-entry">Registrar</a>
           <a routerLink="/acceso" class="auth-entry">Acceso</a>
           <fp-badge>DEMO · Datos sintéticos</fp-badge
           ><button

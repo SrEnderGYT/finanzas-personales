@@ -15,10 +15,8 @@ export class ManualMovementService {
       userId = context.userId;
     const hash = createHash('sha256').update(canonical(command)).digest('hex');
     return this.database.asUser(userId, async (c) => {
-      await c.query(
-        "SELECT pg_advisory_xact_lock(hashtextextended('catalog:'||$1,0)),pg_advisory_xact_lock(hashtextextended('ledger:'||$1,0))",
-        [userId],
-      );
+      await c.query("SELECT pg_advisory_xact_lock(hashtextextended('catalog:'||$1,0))", [userId]);
+      await c.query("SELECT pg_advisory_xact_lock(hashtextextended('ledger:'||$1,0))", [userId]);
       const old = (
         await c.query<{ payload_hash: string; movement_id: string; recorded_at: Date }>(
           'SELECT * FROM app.manual_receipts WHERE user_id=$1 AND operation_id=$2',
