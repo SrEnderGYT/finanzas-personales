@@ -50,9 +50,17 @@ let pendingCallback = captureCallback();
             <p>Conectar Gmail requerirá un permiso diferente, en una fase posterior.</p>
           </div>
         </div>
-        <a routerLink="/inicio" class="auth-back">← Volver a la vista de muestra</a>
+        <a routerLink="/inicio" class="auth-back">{{
+          client.enabled ? '← Volver a Mi espacio' : '← Volver a la vista de muestra'
+        }}</a>
       </div>
       <div class="auth-panel">
+        @if (client.privateStaging) {
+          <p class="auth-notice" role="note">
+            Acceso privado de pruebas. Utiliza la cuenta de revisión y la contraseña configurada en
+            Render. El registro público y el envío de correos están deshabilitados.
+          </p>
+        }
         @if (!client.enabled) {
           <p class="auth-notice" role="note">
             <strong>Vista previa</strong><br />El acceso real aún no está conectado aquí. Explora
@@ -89,9 +97,16 @@ let pendingCallback = captureCallback();
               </li>
             }
           </ul>
-          <button type="button" class="auth-secondary" [disabled]="busy()" (click)="google('link')">
-            Vincular Google
-          </button>
+          @if (!client.privateStaging) {
+            <button
+              type="button"
+              class="auth-secondary"
+              [disabled]="busy()"
+              (click)="google('link')"
+            >
+              Vincular Google
+            </button>
+          }
           <button type="button" class="auth-secondary" [disabled]="busy()" (click)="logout(false)">
             Cerrar sesión
           </button>
@@ -187,7 +202,7 @@ let pendingCallback = captureCallback();
               {{ mode() === 'mfa' ? 'Usar un código de recuperación' : 'Usar el autenticador' }}
             </button>
           }
-          @if (mode() === 'login') {
+          @if (mode() === 'login' && !client.privateStaging) {
             <button
               type="button"
               class="auth-secondary"

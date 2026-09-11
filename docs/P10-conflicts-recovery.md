@@ -61,6 +61,20 @@ en este documento.
 - CI completo, evidencia desktop/mobile y pruebas nativas relevantes.
 - PR P10 separado, sin merge automático.
 
+## Evidencia verificada el 10 de septiembre de 2026
+
+- [Prueba multicliente PostgreSQL](https://github.com/SrEnderGYT/finanzas-personales/actions/runs/34540892210):
+  dos contextos de navegador, respuesta 409 real, comparación y resolución explícita,
+  respuesta perdida tras commit y reintento sin duplicar la corrección.
+- [Contrato PostgreSQL](https://github.com/SrEnderGYT/finanzas-personales/actions/runs/34540890481):
+  20 migraciones y 31 tablas con RLS comprobadas. Son suites dirigidas, no CI final completo.
+- Capturas sintéticas del commit `a051229`, inspeccionadas visualmente:
+  [desktop](evidence/P10/conflict-desktop.png),
+  [móvil claro](evidence/P10/conflict-mobile-light.png),
+  [móvil oscuro](evidence/P10/conflict-mobile-dark.png).
+- [Procedimiento de staging](P10-staging-runbook.md): preparación local; configuración
+  privada y despliegue real pendientes. No confundirlo con la URL DEMO existente.
+
 ## Correcciones y revisión entre clientes
 
 La migración 020 añade recibos de corrección, una cadena de revisiones inmutable

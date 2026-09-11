@@ -10,7 +10,10 @@ import { LiveGoogleProvider } from './google-provider';
 import { MfaLogin } from './mfa-login';
 import { MfaStore } from './mfa-store';
 import { MfaSecrets } from './mfa-secrets';
-async function main() {
+export async function startApi(
+  port = Number(process.env['PORT'] ?? 3000),
+  host = process.env['HOST'] ?? '127.0.0.1',
+) {
   const required = (name: string) => {
     const value = process.env[name];
     if (!value) throw new Error('Missing server configuration');
@@ -91,14 +94,16 @@ async function main() {
         void app.close().then(() => Promise.all([pool.end(), authPool.end()]));
       });
     }
-    await app.listen(Number(process.env['PORT'] ?? 3000), process.env['HOST'] ?? '127.0.0.1');
+    await app.listen(port, host);
+    return app;
   } catch {
     await pool.end();
     await authPool.end();
     throw new Error('Server startup failed; check secure configuration');
   }
 }
-void main().catch(() => {
-  process.stderr.write('Server startup failed; check secure configuration\n');
-  process.exitCode = 1;
-});
+if (require.main === module)
+  void startApi().catch(() => {
+    process.stderr.write('Server startup failed; check secure configuration\n');
+    process.exitCode = 1;
+  });

@@ -68,7 +68,6 @@ import {
           />
         </label>
         <p>Zona: America/Lima. El reverso se registra con la fecha de hoy en esta zona.</p>
-        <p role="alert">{{ error() }}</p>
         @if (frozen()) {
           <p>El reintento conserva exactamente esta propuesta para evitar duplicados.</p>
         }
@@ -79,6 +78,9 @@ import {
           Cancelar
         </button>
       </form>
+    }
+    @if (error()) {
+      <p role="alert">{{ error() }}</p>
     }
     @for (row of attempts(); track row.command.operationId) {
       @if (row.result?.status === 'conflict' && !resolved(row.command.operationId)) {

@@ -237,6 +237,7 @@ export class AuthClient {
     readonly enabled: boolean,
     private readonly transport: typeof fetch = (...args) => fetch(...args),
     readonly catalogEnvironment: string = 'same-origin',
+    readonly privateStaging = false,
   ) {}
   get signedIn() {
     return this.token !== undefined;
