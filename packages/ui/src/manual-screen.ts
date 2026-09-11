@@ -172,8 +172,10 @@ import {
           ><small class="field-error">{{ errors()['note'] }}</small>
           @if (!activeAccounts().length || !compatibleCategories().length) {
             <p>
-              No hay cuentas o categorías compatibles en la copia local. Prepara el catálogo
-              mediante P07 y vuelve a descargarlo.
+              No hay cuentas o categorías compatibles en la copia local.
+              @if (workspace.product()) {
+                <a routerLink="/cuentas">Crear una cuenta o categoría</a>
+              }
             </p>
           }
           <button

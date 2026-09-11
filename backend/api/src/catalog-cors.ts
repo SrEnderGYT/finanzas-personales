@@ -16,7 +16,16 @@ export function registerCatalogCors(server: FastifyInstance) {
       ].includes(path!)
     )
       return;
-    const method = path === '/v1/sync/commands' || path === '/v1/sync/corrections' ? 'POST' : 'GET';
+    const requestedMethod =
+      request.method === 'OPTIONS'
+        ? request.headers['access-control-request-method']
+        : request.method;
+    const catalogCreate =
+      (path === '/v1/accounts' || path === '/v1/categories') && requestedMethod === 'POST';
+    const method =
+      catalogCreate || path === '/v1/sync/commands' || path === '/v1/sync/corrections'
+        ? 'POST'
+        : 'GET';
     const allowedHeaders =
       method === 'POST' ? ['authorization', 'content-type'] : ['authorization'];
     const origin = request.headers.origin;

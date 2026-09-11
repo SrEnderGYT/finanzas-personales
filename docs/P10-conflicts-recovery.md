@@ -74,6 +74,9 @@ en este documento.
   [móvil oscuro](evidence/P10/conflict-mobile-dark.png).
 - [Procedimiento de staging](P10-staging-runbook.md): preparación local; configuración
   privada y despliegue real pendientes. No confundirlo con la URL DEMO existente.
+- [Android](https://github.com/SrEnderGYT/finanzas-personales/actions/runs/34560769844):
+  build y persistencia cifrada con reapertura en emulador aprobados para `dd2a4a1`.
+  No acredita dispositivo físico ni los cambios posteriores de alta de catálogo.
 
 ## Correcciones y revisión entre clientes
 

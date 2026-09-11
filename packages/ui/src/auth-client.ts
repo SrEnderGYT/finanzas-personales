@@ -10,6 +10,8 @@ import {
   closed,
   currency,
   catalogName,
+  normalizeCatalog,
+  type CatalogEnvelope,
   type ManualCatalog,
 } from '../../domain/src';
 
@@ -82,6 +84,34 @@ export class AuthClient {
       throw new SyncHttpError(response.status, error);
     }
     return data;
+  }
+  async createCatalog(ownerId: string, input: CatalogEnvelope, signal: AbortSignal) {
+    const command = normalizeCatalog(input);
+    if (command.command.type !== 'account.create' && command.command.type !== 'category.create')
+      throw new Error('INVALID_CATALOG_CREATION');
+    const entity = command.command.type === 'account.create' ? 'account' : 'category';
+    const response = await this.productRequest(
+      ownerId,
+      '/v1/' + (entity === 'account' ? 'accounts' : 'categories'),
+      'POST',
+      signal,
+      command,
+    );
+    closed(response, ['status', 'result']);
+    if (response['status'] !== 'applied' && response['status'] !== 'alreadyApplied')
+      throw new Error('INVALID_CATALOG_RECEIPT');
+    const result = response['result'];
+    closed(result, ['changes']);
+    const changes = result['changes'];
+    if (!Array.isArray(changes) || changes.length !== 1) throw new Error('INVALID_CATALOG_RECEIPT');
+    const change = changes[0];
+    closed(change, ['id', 'entity', 'version']);
+    if (
+      change['id'] !== command.command.id ||
+      change['entity'] !== entity ||
+      change['version'] !== '1'
+    )
+      throw new Error('INVALID_CATALOG_RECEIPT');
   }
   correctionApi(ownerId: string): CorrectionApi {
     return {

@@ -6,10 +6,11 @@ import { UI_PRIMITIVES } from './primitives';
 import { Money, type ManualPayload, type MovementVersion } from '../../domain/src';
 import { CorrectionEditor } from './correction-editor';
 import { movementVersion } from '../../shared/src/sync-engine';
+import { CatalogCreator } from './catalog-creator';
 
 @Component({
   selector: 'fp-product-screen',
-  imports: [RouterLink, Screen, CorrectionEditor, ...UI_PRIMITIVES],
+  imports: [RouterLink, Screen, CorrectionEditor, CatalogCreator, ...UI_PRIMITIVES],
   styleUrl: './manual-screen.css',
   template: `
     @if (!workspace.product()) {
@@ -94,6 +95,9 @@ import { movementVersion } from '../../shared/src/sync-engine';
             }
           </section>
         } @else if (view() === 'cuentas') {
+          @if (workspace.unlocked()) {
+            <fp-catalog-creator />
+          }
           <section class="manual-card">
             <h2>Tus cuentas</h2>
             <p>
@@ -113,6 +117,19 @@ import { movementVersion } from '../../shared/src/sync-engine';
               <a routerLink="/registro">Abrir espacio</a>
             }
           </section>
+          @if (workspace.unlocked()) {
+            <section class="manual-card" aria-label="Tus categorías">
+              <h2>Tus categorías</h2>
+              @for (category of workspace.catalog()?.categories ?? []; track category.id) {
+                <p>
+                  {{ category.name }} · {{ category.kind === 'expense' ? 'Gasto' : 'Ingreso' }} ·
+                  {{ category.state === 'active' ? 'Activa' : 'Archivada' }}
+                </p>
+              } @empty {
+                <p>Crea una categoría de gasto o ingreso para empezar.</p>
+              }
+            </section>
+          }
         } @else if (view() === 'configuracion') {
           <section class="manual-card">
             <h2>Tu acceso</h2>

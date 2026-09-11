@@ -34,39 +34,46 @@ test('two independent clients resolve a real 409 with immutable history and lost
   await page.getByRole('button', { name: 'Entrar', exact: true }).click();
   const { token } = (await (await login).json()) as { token: string };
   await expect(page.getByRole('heading', { name: 'Tu sesión', exact: true })).toBeVisible();
-  const headers = { authorization: `Bearer ${token}` },
-    accountId = randomUUID(),
-    categoryId = randomUUID();
-  for (const [path, type, id, payload] of [
-    [
-      '/v1/accounts',
-      'account.create',
-      accountId,
-      { name: 'Cuenta sintética', type: 'cash', currency: 'PEN', state: 'active', position: 0 },
-    ],
-    [
-      '/v1/categories',
-      'category.create',
-      categoryId,
-      { name: 'Categoría sintética', kind: 'expense', state: 'active', position: 0 },
-    ],
-  ] as const) {
-    const result = await page.request.post(system.url + path, {
-      headers,
-      data: {
-        operationId: randomUUID(),
-        deviceId: randomUUID(),
-        schemaVersion: 1,
-        baseVersion: '0',
-        command: { type, id, payload },
-      },
-    });
-    expect(result.status()).toBe(201);
-  }
+  const headers = { authorization: `Bearer ${token}` };
   await page.locator('.sidebar').getByRole('link', { name: 'Registrar movimiento' }).click();
   await page.getByRole('button', { name: 'Preparar perfil conectado' }).click();
   await page.getByLabel('Frase local').fill('Synthetic browser vault phrase');
   await page.getByRole('button', { name: 'Crear espacio cifrado' }).click();
+  await expect(page.locator('select[name=account] option')).toHaveCount(1);
+  await page.locator('.sidebar').getByRole('link', { name: 'Cuentas', exact: true }).click();
+  await page.locator('input[name=catalog-name]').fill('Cuenta sintética');
+  let accountId = '',
+    lostCatalogResponse = false;
+  const catalogOperations: string[] = [];
+  await page.route('**/v1/accounts', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    catalogOperations.push(route.request().postDataJSON().operationId);
+    const response = await route.fetch();
+    expect(response.status()).toBe(201);
+    accountId = (await response.json()).result.changes[0].id;
+    if (!lostCatalogResponse) {
+      lostCatalogResponse = true;
+      await route.abort();
+    } else await route.fulfill({ response });
+  });
+  await page.getByRole('button', { name: 'Crear cuenta', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('No se pudo comprobar el alta');
+  // Recreate the component: the retry comes from the encrypted durable intent.
+  await page.locator('.sidebar').getByRole('link', { name: 'Inicio', exact: true }).click();
+  await page.locator('.sidebar').getByRole('link', { name: 'Cuentas', exact: true }).click();
+  await page.getByRole('button', { name: 'Comprobar alta pendiente' }).click();
+  await expect(page.getByRole('status')).toContainText('Alta confirmada');
+  expect(catalogOperations).toHaveLength(2);
+  expect(new Set(catalogOperations).size).toBe(1);
+  await page.locator('select[name=catalog-entity]').selectOption('category');
+  await page.locator('input[name=catalog-name]').fill('Categoría sintética');
+  const categoryCreated = page.waitForResponse(
+    (r) => r.url().endsWith('/v1/categories') && r.request().method() === 'POST',
+  );
+  await page.getByRole('button', { name: 'Crear categoría', exact: true }).click();
+  const categoryId = (await (await categoryCreated).json()).result.changes[0].id as string;
+  await expect(page.getByRole('status')).toContainText('Alta confirmada');
+  await page.locator('.sidebar').getByRole('link', { name: 'Registrar movimiento' }).click();
   await expect(page.locator('select[name=account] option')).toHaveCount(2);
   await expect(page.locator('.topbar')).not.toContainText('DEMO');
   await expect(page.locator('.sidebar')).not.toContainText('Espacio de prueba');

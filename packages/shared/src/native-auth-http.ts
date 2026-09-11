@@ -21,9 +21,14 @@ export function nativeAuthHttp(apiOrigin: string, transport: typeof fetch = fetc
         options?.method === 'POST') ||
         (/^\/v1\/sync\/movements\/[0-9a-f-]{36}$/.test(input) && options?.method === 'GET') ||
         (/^\/v1\/sync\/changes(\?[a-zA-Z0-9_:%=&.-]+)?$/.test(input) && options?.method === 'GET'));
+    const catalogCreate =
+      (input === '/v1/accounts' || input === '/v1/categories') && options?.method === 'POST';
     if (
       typeof input !== 'string' ||
-      (!/^\/v1\/auth\/[a-zA-Z0-9/-]+$/.test(input) && !catalogRead && !syncCall) ||
+      (!/^\/v1\/auth\/[a-zA-Z0-9/-]+$/.test(input) &&
+        !catalogRead &&
+        !catalogCreate &&
+        !syncCall) ||
       input.includes('//')
     )
       throw new Error('Invalid authentication API path.');

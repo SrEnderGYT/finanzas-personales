@@ -55,9 +55,12 @@ no debe publicarlas ni introducirlas mediante automatización del navegador.
 
 Registro público y recuperación por email permanecen cerrados en este staging
 por invitación. No se afirma que haya correo transaccional o Google configurados.
-La cuenta nueva no recibe cuentas, categorías ni saldos ficticios. La interfaz de
-alta basada en P07 y su prueba de recorrido siguen pendientes antes de entregar
-el entorno como funcional.
+La cuenta nueva no recibe cuentas, categorías ni saldos ficticios. Tras preparar
+y desbloquear el espacio cifrado, Cuentas permite crear cuentas y categorías
+mediante P07. El alta conserva su comando cifrado antes de enviarlo y reintenta
+con los mismos identificadores si se pierde la respuesta. No admite saldo editable.
+La prueba del recorrido en el proveedor sigue pendiente antes de entregar el entorno
+como funcional.
 
 ## Validación y recuperación
 

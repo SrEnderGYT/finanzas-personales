@@ -26,7 +26,15 @@ describe('Nest/Fastify integration', () => {
           expect(catalog.headers['access-control-allow-origin']).toBe(origin);
           expect(catalog.headers['access-control-allow-methods']).toBe('GET');
           expect(catalog.headers['access-control-allow-credentials']).toBeUndefined();
-          expect((await preflight(origin, path, 'POST', 'authorization')).statusCode).toBe(403);
+          expect((await preflight(origin, path, 'POST', 'authorization')).statusCode).toBe(
+            path === '/v1/me' ? 403 : 204,
+          );
+          expect((await preflight(origin, path, 'PATCH', 'authorization')).statusCode).toBe(403);
+          if (path !== '/v1/me') {
+            const creation = await preflight(origin, path, 'POST', 'authorization,content-type');
+            expect(creation.headers['access-control-allow-methods']).toBe('POST');
+            expect((await preflight(origin, path, 'POST', 'x-user-id')).statusCode).toBe(403);
+          }
           expect((await preflight(origin, path, 'GET', 'x-user-id')).statusCode).toBe(403);
         }
         const result = await preflight(origin);
