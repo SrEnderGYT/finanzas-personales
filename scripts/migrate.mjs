@@ -18,6 +18,7 @@ export async function migrate(pool) {
     const applied = await client.query(
       'SELECT name, checksum FROM public.schema_migrations ORDER BY name',
     );
+    const role = await client.query('SELECT rolsuper FROM pg_roles WHERE rolname=current_user');
     if (applied.rows.some((row) => !names.includes(row.name)))
       throw new Error('Unknown migration history');
     for (const name of names) {
@@ -31,7 +32,28 @@ export async function migrate(pool) {
       if (applied.rows.some((row) => row.name > name)) throw new Error('Out-of-order migration');
       await client.query('BEGIN');
       try {
-        await client.query(sql);
+        // PostgreSQL managed owners are not superusers. Transferring the narrowly
+        // scoped SECURITY DEFINER function needs SET ROLE and CREATE on its schema
+        // during the transfer only. Preserve the immutable migration/checksum and
+        // revoke both temporary privileges before this transaction can commit.
+        let execution = sql;
+        if (name === '002_sessions.sql' && role.rows[0]?.rolsuper === false) {
+          const transfer =
+            'ALTER FUNCTION app.resolve_session(text) OWNER TO finanzas_session_lookup;';
+          if (sql.split(transfer).length !== 2)
+            throw new Error('Unexpected session migration contract');
+          execution = sql.replace(
+            transfer,
+            `
+GRANT finanzas_session_lookup TO CURRENT_USER WITH SET TRUE;
+GRANT CREATE ON SCHEMA app TO finanzas_session_lookup;
+${transfer}
+REVOKE CREATE ON SCHEMA app FROM finanzas_session_lookup;
+GRANT finanzas_session_lookup TO CURRENT_USER WITH SET FALSE;
+`,
+          );
+        }
+        await client.query(execution);
         await client.query(
           'INSERT INTO public.schema_migrations (name, checksum) VALUES ($1, $2)',
           [name, checksum],

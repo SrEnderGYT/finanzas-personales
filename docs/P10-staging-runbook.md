@@ -64,6 +64,16 @@ como funcional.
 
 ## Validación y recuperación
 
+Compatibilidad con PostgreSQL administrado: la migración histórica 002 conserva
+su archivo y checksum. Cuando el ejecutor detecta un propietario sin superusuario,
+concede temporalmente SET del rol de lookup al migrador y CREATE de esquema al
+rol de lookup exclusivamente alrededor de la transferencia de propiedad de
+`resolve_session`. Retira ambos permisos dentro de la misma transacción. El runtime
+no recibe membresía del lookup, CREATE ni BYPASSRLS. La suite PostgreSQL provisiona
+un propietario CREATEROLE sin superusuario y comprueba que no quedan esos permisos.
+Esto resuelve una incompatibilidad de instalación; no cambia el contrato P05 ni
+reescribe migraciones aplicadas.
+
 Comprobar HTTPS, login, creación de cuenta/categoría, persistencia cifrada,
 sincronización y corrección entre dos clientes. No basta con `/health` ni un build.
 Conservar RLS, aislamiento A/B y los identificadores de reintento.
