@@ -23,12 +23,19 @@ export function nativeAuthHttp(apiOrigin: string, transport: typeof fetch = fetc
         (/^\/v1\/sync\/changes(\?[a-zA-Z0-9_:%=&.-]+)?$/.test(input) && options?.method === 'GET'));
     const catalogCreate =
       (input === '/v1/accounts' || input === '/v1/categories') && options?.method === 'POST';
+    const gmailCall =
+      typeof input === 'string' &&
+      ((input === '/v1/gmail/connection' &&
+        (options?.method === 'GET' || options?.method === 'DELETE')) ||
+        ((input === '/v1/gmail/oauth/start' || input === '/v1/gmail/sync') &&
+          options?.method === 'POST'));
     if (
       typeof input !== 'string' ||
       (!/^\/v1\/auth\/[a-zA-Z0-9/-]+$/.test(input) &&
         !catalogRead &&
         !catalogCreate &&
-        !syncCall) ||
+        !syncCall &&
+        !gmailCall) ||
       input.includes('//')
     )
       throw new Error('Invalid authentication API path.');
