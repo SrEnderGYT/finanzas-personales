@@ -51,15 +51,25 @@ const subscriptionMerchants: readonly [RegExp, string][] = [
   [/\bnetflix\b/i, 'Netflix'],
   [/\b(prime video|amazon prime)\b/i, 'Prime Video'],
   [/\byoutube premium\b/i, 'YouTube Premium'],
-  [/\bdisney\+?|disney plus\b/i, 'Disney+'],
-  [/\b(hbo max|max\.com|\bmax\b)\b/i, 'Max'],
+  [/\b(disney\+?|disney plus)\b/i, 'Disney+'],
+  [/\b(hbo max|max\.com|max)\b/i, 'Max'],
   [/\bapple music\b/i, 'Apple Music'],
   [/\bgoogle one\b/i, 'Google One'],
-  [/\bicloud\+?|icloud plus\b/i, 'iCloud+'],
+  [/\b(icloud\+?|icloud plus)\b/i, 'iCloud+'],
   [/\bmicrosoft 365\b/i, 'Microsoft 365'],
   [/\bcanva\b/i, 'Canva'],
   [/\badobe\b/i, 'Adobe'],
   [/\bdropbox\b/i, 'Dropbox'],
+];
+
+const billedServiceMerchants: readonly [RegExp, string][] = [
+  [/\bclaro\b/i, 'Claro'],
+  [/\bmovistar\b/i, 'Movistar'],
+  [/\bentel\b/i, 'Entel'],
+  [/\bwin(?:\.pe)?\b/i, 'WIN'],
+  [/\bluz del sur\b/i, 'Luz del Sur'],
+  [/\benel\b/i, 'Enel'],
+  [/\bsedapal\b/i, 'Sedapal'],
 ];
 
 const rejectedTransaction =
@@ -129,13 +139,8 @@ function statementMoney(text: string) {
   return money(text);
 }
 
-function institution(text: string) {
-  for (const [pattern, name] of institutionRules) if (pattern.test(text)) return name;
-  return undefined;
-}
-
-function subscriptionMerchant(text: string) {
-  for (const [pattern, name] of subscriptionMerchants) if (pattern.test(text)) return name;
+function namedMatch(text: string, rules: readonly (readonly [RegExp, string])[]) {
+  for (const [pattern, name] of rules) if (pattern.test(text)) return name;
   return undefined;
 }
 
@@ -143,6 +148,7 @@ function classify(
   text: string,
   hasAmount: boolean,
   recurringMerchant?: string,
+  billedServiceMerchant?: string,
 ): { kind: FinancialMailKind; confidence: number } | undefined {
   if (!hasAmount) return undefined;
 
@@ -193,6 +199,12 @@ function classify(
     return { kind: 'debt', confidence: 88 };
 
   if (
+    billedServiceMerchant &&
+    /\b(recibo|factura|servicio|monto a pagar|importe|vencimiento)\b/i.test(text)
+  )
+    return { kind: 'expense', confidence: 88 };
+
+  if (
     /\b(compra realizada|consumo realizado|cargo realizado|cargo procesado|retiro realizado|d[eé]bito realizado|pago realizado)\b/i.test(
       text,
     )
@@ -212,20 +224,30 @@ export function parseFinancialMail(input: FinancialMailInput): ParsedFinancialMa
   if (rejectedTransaction.test(text) || marketingOffer.test(text) || subscriptionCancellation.test(text))
     return undefined;
 
-  const recurringMerchant = subscriptionMerchant(text);
+  const bank = namedMatch(text, institutionRules);
+  const recurringMerchant = namedMatch(text, subscriptionMerchants);
+  const billedServiceMerchant = namedMatch(text, billedServiceMerchants);
   const statementContext =
     /\b(estado de cuenta|pago m[ií]nimo|pago total|total a pagar|saldo (?:de|en) (?:tu )?tarjeta)\b/i.test(
       text,
     );
   const detectedMoney = statementContext ? statementMoney(text) : money(text);
 
-  if (documentOnly.test(text) && !/\b(pago|cargo|compra|consumo|d[eé]bito) (?:realizado|procesado|aprobado)\b/i.test(text))
+  if (
+    documentOnly.test(text) &&
+    !/\b(pago|cargo|compra|consumo|d[eé]bito) (?:realizado|procesado|aprobado)\b/i.test(text)
+  )
     return undefined;
 
-  const category = classify(text, Boolean(detectedMoney), recurringMerchant);
+  const category = classify(
+    text,
+    Boolean(detectedMoney),
+    recurringMerchant,
+    billedServiceMerchant,
+  );
   if (!category || !detectedMoney) return undefined;
 
-  const bank = institution(text);
+  const merchant = recurringMerchant ?? billedServiceMerchant;
   const confidence = Math.min(99, category.confidence + (bank ? 3 : 0));
   const summary = compact(subject || snippet || `${category.kind} detectado`, 512);
   const fingerprint = createHash('sha256')
@@ -234,7 +256,7 @@ export function parseFinancialMail(input: FinancialMailInput): ParsedFinancialMa
         input.messageId,
         category.kind,
         bank ?? '',
-        recurringMerchant ?? '',
+        merchant ?? '',
         detectedMoney.currency,
         detectedMoney.amountMinor.toString(),
       ].join('|'),
@@ -243,7 +265,7 @@ export function parseFinancialMail(input: FinancialMailInput): ParsedFinancialMa
   return {
     kind: category.kind,
     ...(bank ? { institution: bank } : {}),
-    ...(recurringMerchant ? { merchant: recurringMerchant } : {}),
+    ...(merchant ? { merchant } : {}),
     currency: detectedMoney.currency,
     amountMinor: detectedMoney.amountMinor,
     occurredAt: new Date(input.receivedAt).toISOString(),
