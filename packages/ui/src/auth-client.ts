@@ -272,6 +272,45 @@ export class AuthClient {
   get signedIn() {
     return this.token !== undefined;
   }
+  async gmail(
+    path: 'connection' | 'oauth/start' | 'sync',
+    method: 'GET' | 'POST' | 'DELETE',
+    body?: unknown,
+    signal?: AbortSignal,
+  ): Promise<unknown> {
+    if (!this.enabled || !this.token) throw new SyncHttpError(401, 'SESSION_REQUIRED');
+    const token = this.token;
+    const response = await this.transport(`/v1/gmail/${path}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      credentials: 'same-origin',
+      cache: 'no-store',
+      redirect: 'error',
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(15000)])
+        : AbortSignal.timeout(15000),
+    });
+    if (token !== this.token) throw new SyncHttpError(401, 'SESSION_CHANGED');
+    if (response.status === 401) this.token = undefined;
+    const data: unknown =
+      response.status === 204 ? undefined : await response.json().catch(() => null);
+    if (!response.ok) {
+      const code =
+        data &&
+        typeof data === 'object' &&
+        'error' in data &&
+        typeof data.error === 'string' &&
+        /^[A-Za-z0-9_-]{1,80}$/.test(data.error)
+          ? data.error
+          : 'GMAIL_REQUEST_FAILED';
+      throw new SyncHttpError(response.status, code);
+    }
+    return data;
+  }
   private async request(
     path: string,
     method: string,

@@ -8,6 +8,7 @@ on:
         'feature/p05-auth',
         'feature/p08-manual-outbox',
         'feature/p09-sync-product',
+        'feature/p15-gmail-connection-ui',
       ]
   pull_request:
     paths: ['apps/**', 'packages/**', 'tests/**', 'scripts/**']

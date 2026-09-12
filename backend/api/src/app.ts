@@ -28,6 +28,8 @@ import { type GoogleAuth } from './google-auth';
 import { MfaController, MFA_LOGIN } from './mfa-controller';
 import { AccountsController, CategoriesController } from './catalog/controller';
 import { type MfaLogin } from './mfa-login';
+import { GMAIL_CONNECTION, GmailController, type GmailConnectionService } from './gmail-controller';
+
 @Controller()
 class HealthController {
   @Get('health') health() {
@@ -65,6 +67,7 @@ export interface AppOptions {
   googleAuth?: GoogleAuth;
   nativeGoogleAuth?: GoogleAuth;
   mfaLogin?: MfaLogin;
+  gmail?: GmailConnectionService;
   log?: (event: { requestId: string; method: string; status: number }) => void;
 }
 export async function createApp(options: AppOptions = {}) {
@@ -79,6 +82,7 @@ export async function createApp(options: AppOptions = {}) {
       AccountsController,
       CategoriesController,
       SyncController,
+      GmailController,
     ],
     providers: [
       { provide: IDENTITY, useValue: options.identity ?? denyIdentity },
@@ -88,6 +92,7 @@ export async function createApp(options: AppOptions = {}) {
       { provide: GOOGLE_AUTH, useValue: options.googleAuth ?? null },
       { provide: NATIVE_GOOGLE_AUTH, useValue: options.nativeGoogleAuth ?? null },
       { provide: MFA_LOGIN, useValue: options.mfaLogin ?? null },
+      { provide: GMAIL_CONNECTION, useValue: options.gmail ?? null },
     ],
   })
   class AppModule {}
