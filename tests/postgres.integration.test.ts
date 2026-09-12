@@ -155,7 +155,11 @@ describe('PostgreSQL 17 — user isolation with the actual restricted runtime ro
     if (segments.length !== 3 || !segments[2]) throw new Error('Expected a compact signed JWT');
     const signatureIndex = Math.floor(segments[2].length / 2);
     const signatureCharacter = segments[2][signatureIndex];
-    const tamperedSignature = `${segments[2].slice(0, signatureIndex)}${signatureCharacter === 'A' ? 'B' : 'A'}${segments[2].slice(signatureIndex + 1)}`;
+    const replacement = signatureCharacter === 'A' ? 'B' : 'A';
+    const tamperedSignature =
+      segments[2].slice(0, signatureIndex) +
+      replacement +
+      segments[2].slice(signatureIndex + 1);
     const tampered = `${segments[0]}.${segments[1]}.${tamperedSignature}`;
     const invalid = await fetch(`${base}/v1/me`, {
       headers: { authorization: `Bearer ${tampered}` },
