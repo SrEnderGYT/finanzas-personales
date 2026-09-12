@@ -1,6 +1,7 @@
 import { it, expect, vi } from 'vitest';
 import { AuthClient } from '../packages/ui/src/auth-client';
 import { nativeAuthHttp } from '../packages/shared/src/native-auth-http';
+import { normalizeCatalog } from '../packages/domain/src';
 it('downloads catalog with encapsulated token and locks consumers on session changes', async () => {
   const id = crypto.randomUUID(),
     account = crypto.randomUUID(),
@@ -45,6 +46,38 @@ it('downloads catalog with encapsulated token and locks consumers on session cha
   expect(loaded.ownerId).toBe(id);
   expect(loaded.catalog.accounts[0]).not.toHaveProperty('balance');
   expect(loaded.catalog.accounts[0]?.version).toBe('1');
+  const command = normalizeCatalog({
+    operationId: crypto.randomUUID(),
+    deviceId: crypto.randomUUID(),
+    schemaVersion: 1,
+    baseVersion: '0',
+    command: {
+      type: 'account.create',
+      id: account,
+      payload: { name: 'Synthetic', type: 'cash', currency: 'PEN', state: 'active', position: 0 },
+    },
+  });
+  const before = transport.mock.calls.length;
+  await expect(
+    client.createCatalog(crypto.randomUUID(), command, new AbortController().signal),
+  ).rejects.toMatchObject({ status: 401 });
+  expect(transport).toHaveBeenCalledTimes(before);
+  transport.mockResolvedValueOnce(
+    Response.json({
+      status: 'applied',
+      result: { changes: [{ id: crypto.randomUUID(), entity: 'account', version: '1' }] },
+    }),
+  );
+  await expect(client.createCatalog(id, command, new AbortController().signal)).rejects.toThrow(
+    'INVALID_CATALOG_RECEIPT',
+  );
+  transport.mockResolvedValueOnce(
+    Response.json({
+      status: 'alreadyApplied',
+      result: { changes: [{ id: account, entity: 'account', version: '1' }] },
+    }),
+  );
+  await client.createCatalog(id, command, new AbortController().signal);
   await client.logout();
   expect(client.canUseOwner(id)).toBe(false);
   await expect(client.syncApi(id).send({}, new AbortController().signal)).rejects.toMatchObject({
@@ -67,11 +100,14 @@ it('native sync capability stays on its fixed HTTPS origin and cannot send to an
   ).rejects.toThrow();
   expect(transport).toHaveBeenCalledTimes(2);
 });
-it('permits only GET catalog reads on a fixed native origin', async () => {
+it('permits catalog reads and explicit creation on a fixed native origin', async () => {
   const transport = vi.fn<typeof fetch>().mockResolvedValue(Response.json({})),
     http = nativeAuthHttp('https://api.example.test', transport);
   await http('/v1/accounts?state=all&limit=100', { method: 'GET' });
   expect(transport).toHaveBeenCalledTimes(1);
-  await expect(http('/v1/accounts', { method: 'POST' })).rejects.toThrow();
+  await http('/v1/accounts', { method: 'POST' });
+  await http('/v1/categories', { method: 'POST' });
+  await expect(http('/v1/accounts', { method: 'DELETE' })).rejects.toThrow();
+  await expect(http('/v1/accounts/foreign', { method: 'PATCH' })).rejects.toThrow();
   await expect(http('/v1/manual', { method: 'GET' })).rejects.toThrow();
 });

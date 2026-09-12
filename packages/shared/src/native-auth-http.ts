@@ -17,11 +17,32 @@ export function nativeAuthHttp(apiOrigin: string, transport: typeof fetch = fetc
       /^\/v1\/(me|accounts|categories)(\?[a-zA-Z0-9_:%=&.-]+)?$/.test(input);
     const syncCall =
       typeof input === 'string' &&
-      ((input === '/v1/sync/commands' && options?.method === 'POST') ||
+      (((input === '/v1/sync/commands' || input === '/v1/sync/corrections') &&
+        options?.method === 'POST') ||
+        (/^\/v1\/sync\/movements\/[0-9a-f-]{36}$/.test(input) && options?.method === 'GET') ||
         (/^\/v1\/sync\/changes(\?[a-zA-Z0-9_:%=&.-]+)?$/.test(input) && options?.method === 'GET'));
+    const catalogCreate =
+      (input === '/v1/accounts' || input === '/v1/categories') && options?.method === 'POST';
+    const gmailCandidates =
+      typeof input === 'string' &&
+      ((/^\/v1\/gmail\/candidates(?:\?status=(?:pending|confirmed|discarded|all))?$/.test(input) &&
+        options?.method === 'GET') ||
+        (/^\/v1\/gmail\/candidates\/[0-9a-f-]{36}\/(?:confirm|discard)$/.test(input) &&
+          options?.method === 'POST'));
+    const gmailCall =
+      typeof input === 'string' &&
+      ((input === '/v1/gmail/connection' &&
+        (options?.method === 'GET' || options?.method === 'DELETE')) ||
+        ((input === '/v1/gmail/oauth/start' || input === '/v1/gmail/sync') &&
+          options?.method === 'POST') ||
+        gmailCandidates);
     if (
       typeof input !== 'string' ||
-      (!/^\/v1\/auth\/[a-zA-Z0-9/-]+$/.test(input) && !catalogRead && !syncCall) ||
+      (!/^\/v1\/auth\/[a-zA-Z0-9/-]+$/.test(input) &&
+        !catalogRead &&
+        !catalogCreate &&
+        !syncCall &&
+        !gmailCall) ||
       input.includes('//')
     )
       throw new Error('Invalid authentication API path.');

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
-test('public auth preview is disabled, accessible and responsive in both themes', async ({
+test('public entry is login-first and never exposes private navigation without an API', async ({
   page,
 }) => {
   let requests = 0;
@@ -10,15 +10,19 @@ test('public auth preview is disabled, accessible and responsive in both themes'
   });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto('/#/acceso');
+  await expect(page.getByRole('heading', { name: 'Un lugar para tenerlo claro.' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Bienvenido de nuevo' })).toBeVisible();
+  await expect(page.getByText('Servidor de Finanzas no conectado')).toBeVisible();
   await expect(page.getByLabel('Correo electrónico')).toBeDisabled();
+  await expect(page.getByLabel('Contraseña', { exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Entrar', exact: true })).toBeDisabled();
-  await page.screenshot({ path: 'docs/evidence/P05/desktop.png', fullPage: true });
+  await expect(page.locator('.sidebar')).toHaveCount(0);
+  await expect(page.getByText(/DEMO|Vista previa|vista de muestra/i)).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 });
   for (const theme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme: theme });
     await page.goto('http://127.0.0.1:4174/#/acceso');
-    await expect(page.getByRole('heading', { name: 'Bienvenido de nuevo' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Un lugar para tenerlo claro.' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
@@ -26,12 +30,7 @@ test('public auth preview is disabled, accessible and responsive in both themes'
       .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
       .analyze();
     expect(audit.violations.map((entry) => entry.id)).toEqual([]);
-    await page.screenshot({ path: `docs/evidence/P05/mobile-${theme}.png`, fullPage: true });
   }
-  await page.getByRole('button', { name: 'Crear una cuenta' }).click();
-  await expect(page.getByRole('heading', { name: 'Crea tu cuenta' })).toBeVisible();
-  await page.getByRole('button', { name: 'Ya tengo el código' }).click();
-  await expect(page.getByLabel('Código del correo')).toBeDisabled();
   expect(requests).toBe(0);
 });
 

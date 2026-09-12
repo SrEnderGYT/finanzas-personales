@@ -1,16 +1,29 @@
-name: Preview DEMO
+name: Aplicación Web
 on:
   push:
     branches:
       [
+        'main',
         'feature/p02-*',
         'feature/p03-*',
         'feature/p05-auth',
         'feature/p08-manual-outbox',
         'feature/p09-sync-product',
+        'feature/p11-functional-dashboard',
+        'feature/p15-gmail-connection-ui',
+        'feature/p16-bcp-review',
+        'feature/p17-real-app',
       ]
   pull_request:
-    paths: ['apps/**', 'packages/**', 'tests/**', 'scripts/**']
+    paths:
+      [
+        'apps/**',
+        'packages/**',
+        'tests/**',
+        'scripts/**',
+        'backend/**',
+        '.github/workflows/preview.yml',
+      ]
 permissions:
   contents: read
 concurrency:
@@ -29,7 +42,8 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm exec playwright -- install --with-deps chromium
-      - run: npm run test:e2e
+      - name: Validate public login-first application
+        run: npm exec playwright -- test tests/ui.e2e.ts
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
@@ -38,15 +52,18 @@ jobs:
             docs/evidence/
             playwright-report/
             test-results/
-      - name: Build public static preview
+      - name: Build authenticated web application
+        env:
+          FINANZAS_API_ORIGIN: ${{ vars.FINANZAS_API_ORIGIN || 'https://finanzas-personales-staging.onrender.com' }}
         run: |
           npm exec ng -- build web --base-href /finanzas-personales/
+          node scripts/configure-web-origin.mjs
           npm exec ng -- build mobile --base-href /finanzas-personales/mobile/
           mkdir -p dist/pages/mobile
           cp -R dist/web/browser/. dist/pages/
           cp -R dist/mobile/browser/. dist/pages/mobile/
-          printf '{"commit":"%s","environment":"synthetic-demo"}\n' "$GITHUB_SHA" > dist/pages/build-info.json
-      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa
+          printf '{"commit":"%s","environment":"authenticated-web"}\n' "$GITHUB_SHA" > dist/pages/build-info.json
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa02
         with:
           path: dist/pages
   deploy:
@@ -60,6 +77,6 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Deploy DEMO only
+      - name: Deploy application
         id: deployment
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e

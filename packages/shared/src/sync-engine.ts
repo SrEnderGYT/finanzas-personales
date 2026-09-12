@@ -7,9 +7,10 @@ import {
   instant,
   Money,
   type ManualPayload,
+  type MovementVersion,
 } from '../../domain/src';
 import { ManualOutbox, type ManualReceipt } from './manual-outbox';
-import { ProductVault } from './product-vault';
+import { ProductVault, digest } from './product-vault';
 export interface ConfirmedMovement extends ManualPayload {
   id: string;
   operationId: string;
@@ -18,12 +19,23 @@ export interface SyncChange {
   sequence: string;
   movement: ConfirmedMovement;
   receipt: ManualReceipt;
+  revision?: { rootId: string; version: string; previousId: string; reversalId: string };
 }
 export interface ChangePage {
   changes: SyncChange[];
   nextCursor: string;
   hasMore: boolean;
   cursorGeneration: string;
+}
+export function movementVersion(change: SyncChange): MovementVersion {
+  const { id, operationId, ...payload } = change.movement;
+  void operationId;
+  return {
+    rootId: change.revision?.rootId ?? id,
+    version: change.revision?.version ?? '1',
+    movementId: id,
+    payload,
+  };
 }
 export interface SyncApi {
   send(
@@ -99,6 +111,84 @@ export class SyncEngine {
       this.running = undefined;
     });
     return this.running;
+  }
+  /** Explicit, download-only repair. Never sends or discards an outbox command. */
+  recoverCheckpoint(): Promise<SyncState> {
+    if (this.running) throw new DomainError('SYNC_BUSY');
+    this.aborter = new AbortController();
+    this.running = this.rebuildCheckpoint(this.aborter.signal).finally(() => {
+      this.running = undefined;
+    });
+    return this.running;
+  }
+  private async rebuildCheckpoint(signal: AbortSignal): Promise<SyncState> {
+    if (this.vault.profile.mode !== 'product') throw new DomainError('DEMO_SYNC_FORBIDDEN');
+    // Authentication/ciphertext damage must not be treated as an empty installation.
+    const saved = await this.vault.read<SyncSnapshot>('sync:v1');
+    const before = saved ? validateSnapshot(saved.value) : empty();
+    const rebuilt = empty();
+    let sequence = 0n;
+    const cursors = new Set<string>();
+    while (true) {
+      if (signal.aborted) return 'locked';
+      const page = validatePage(await this.api.pull(rebuilt.cursor, signal));
+      if (signal.aborted || !this.vault.unlocked) return 'locked';
+      if (rebuilt.generation && rebuilt.generation !== page.cursorGeneration)
+        throw new DomainError('CURSOR_GENERATION_CHANGED');
+      if (cursors.has(page.nextCursor)) throw new DomainError('CURSOR_NOT_ADVANCING');
+      cursors.add(page.nextCursor);
+      for (const change of page.changes) {
+        if (BigInt(change.sequence) <= sequence) throw new DomainError('INVALID_CHANGE_SEQUENCE');
+        sequence = BigInt(change.sequence);
+        if (rebuilt.movements[change.movement.id])
+          throw new DomainError('IMMUTABLE_CHANGE_CONFLICT');
+        const previous = before.movements[change.movement.id];
+        // Sequence numbers can change after an explicit server checkpoint rebuild;
+        // immutable financial content and receipts cannot.
+        if (
+          previous &&
+          canonical({
+            movement: previous.movement,
+            receipt: previous.receipt,
+            revision: previous.revision,
+          }) !==
+            canonical({
+              movement: change.movement,
+              receipt: change.receipt,
+              revision: change.revision,
+            })
+        )
+          throw new DomainError('IMMUTABLE_CHANGE_CONFLICT');
+        rebuilt.movements[change.movement.id] = change;
+      }
+      rebuilt.cursor = page.nextCursor;
+      rebuilt.generation = page.cursorGeneration;
+      if (!page.hasMore) break;
+    }
+    if (Object.keys(before.movements).some((id) => !rebuilt.movements[id]))
+      throw new DomainError('RECOVERY_HISTORY_MISSING');
+    rebuilt.retries = before.retries;
+    rebuilt.failures = before.failures;
+    rebuilt.lastSync = this.now().toISOString();
+    validateSnapshot(rebuilt);
+    if (signal.aborted || !this.vault.unlocked) return 'locked';
+    if (saved) {
+      // Preserve the exact prior encrypted checkpoint before CAS. If another tab
+      // wins the CAS, this immutable encrypted evidence remains safe to retain.
+      await this.vault.insert('sync-evidence:' + (await digest(saved.raw)), {
+        version: 1,
+        reason: 'explicit_checkpoint_recovery',
+        recoveredAt: this.now().toISOString(),
+        previousCiphertext: saved.raw,
+      });
+    }
+    if (signal.aborted || !this.vault.unlocked) return 'locked';
+    const committed = saved
+      ? await this.vault.replace('sync:v1', saved.raw, rebuilt)
+      : await this.vault.insert('sync:v1', rebuilt);
+    if (!committed) throw new DomainError('SYNC_CHECKPOINT_CONFLICT');
+    await this.changed();
+    return 'idle';
   }
   private async perform(signal: AbortSignal): Promise<SyncState> {
     if (this.vault.profile.mode !== 'product') throw new DomainError('DEMO_SYNC_FORBIDDEN');
@@ -256,7 +346,7 @@ export function validatePage(input: unknown): ChangePage {
   )
     throw new DomainError('INVALID_CHANGE_PAGE');
   const changes: SyncChange[] = input['changes'].map((raw) => {
-    closed(raw, ['sequence', 'movement', 'receipt']);
+    closed(raw, ['sequence', 'movement', 'receipt', 'revision']);
     if (typeof raw['sequence'] !== 'string' || !/^[1-9]\d{0,18}$/.test(raw['sequence']))
       throw new DomainError('INVALID_CHANGE_SEQUENCE');
     const m = raw['movement'],
@@ -277,6 +367,25 @@ export function validatePage(input: unknown): ChangePage {
     closed(r, ['operationId', 'movementId', 'payloadHash', 'recordedAt']);
     const id = identifier(m['id'] as string),
       operationId = identifier(m['operationId'] as string);
+    let revision: SyncChange['revision'];
+    if (raw['revision'] !== undefined) {
+      const value = raw['revision'];
+      closed(value, ['rootId', 'version', 'previousId', 'reversalId']);
+      if (
+        typeof value['version'] !== 'string' ||
+        !/^[1-9]\d{0,17}$/.test(value['version']) ||
+        BigInt(value['version']) < 2n
+      )
+        throw new DomainError('INVALID_VERSION');
+      revision = {
+        rootId: identifier(value['rootId'] as string),
+        version: value['version'],
+        previousId: identifier(value['previousId'] as string),
+        reversalId: identifier(value['reversalId'] as string),
+      };
+      if ([revision.rootId, revision.previousId, revision.reversalId].includes(id))
+        throw new DomainError('INVALID_REVISION');
+    }
     if (m['kind'] !== 'expense' && m['kind'] !== 'income') throw new DomainError('INVALID_KIND');
     if (typeof m['businessDate'] !== 'string' || typeof m['timezone'] !== 'string')
       throw new DomainError('REQUIRED_FINANCIAL_DATE');
@@ -302,6 +411,7 @@ export function validatePage(input: unknown): ChangePage {
       throw new DomainError('ACK_MISMATCH');
     return {
       sequence: raw['sequence'],
+      ...(revision ? { revision } : {}),
       movement: {
         id,
         operationId,

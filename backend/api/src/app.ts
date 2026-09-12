@@ -23,18 +23,21 @@ import { type EmailAuth } from './email-auth';
 import { GoogleController, GOOGLE_AUTH, NATIVE_GOOGLE_AUTH } from './google-controller';
 import { registerNativeCors } from './native-cors';
 import { registerCatalogCors } from './catalog-cors';
+import { registerWebCors } from './web-cors';
 import { SyncController } from './sync/controller';
 import { type GoogleAuth } from './google-auth';
 import { MfaController, MFA_LOGIN } from './mfa-controller';
 import { AccountsController, CategoriesController } from './catalog/controller';
 import { type MfaLogin } from './mfa-login';
+import { GMAIL_CONNECTION, GmailController, type GmailConnectionService } from './gmail-controller';
+
 @Controller()
 class HealthController {
   @Get('health') health() {
     return { status: 'ok', environment: 'development', financialData: false };
   }
   @Get('v1') version() {
-    return { version: '1', stage: 'P05-in-progress', financialCore: false };
+    return { version: '1', stage: 'P17-real-app', financialCore: true };
   }
 }
 @Catch()
@@ -58,6 +61,7 @@ class SafeErrors implements ExceptionFilter {
 }
 export interface AppOptions {
   nativeAuthCors?: boolean;
+  webCorsOrigins?: readonly string[];
   identity?: IdentityVerifier;
   database?: UserDatabase;
   sessions?: SessionAuthority;
@@ -65,6 +69,7 @@ export interface AppOptions {
   googleAuth?: GoogleAuth;
   nativeGoogleAuth?: GoogleAuth;
   mfaLogin?: MfaLogin;
+  gmail?: GmailConnectionService;
   log?: (event: { requestId: string; method: string; status: number }) => void;
 }
 export async function createApp(options: AppOptions = {}) {
@@ -79,6 +84,7 @@ export async function createApp(options: AppOptions = {}) {
       AccountsController,
       CategoriesController,
       SyncController,
+      GmailController,
     ],
     providers: [
       { provide: IDENTITY, useValue: options.identity ?? denyIdentity },
@@ -88,6 +94,7 @@ export async function createApp(options: AppOptions = {}) {
       { provide: GOOGLE_AUTH, useValue: options.googleAuth ?? null },
       { provide: NATIVE_GOOGLE_AUTH, useValue: options.nativeGoogleAuth ?? null },
       { provide: MFA_LOGIN, useValue: options.mfaLogin ?? null },
+      { provide: GMAIL_CONNECTION, useValue: options.gmail ?? null },
     ],
   })
   class AppModule {}
@@ -104,6 +111,7 @@ export async function createApp(options: AppOptions = {}) {
   });
   if (options.nativeAuthCors) registerNativeCors(adapter.getInstance());
   if (options.nativeAuthCors) registerCatalogCors(adapter.getInstance());
+  registerWebCors(adapter.getInstance(), options.webCorsOrigins ?? []);
   adapter.getInstance().addHook('onResponse', async (request, reply) => {
     options.log?.({ requestId: request.id, method: request.method, status: reply.statusCode });
   });
@@ -115,7 +123,6 @@ export async function createApp(options: AppOptions = {}) {
     app,
     new DocumentBuilder().setTitle('Finanzas API').setVersion('1.0').addBearerAuth().build(),
   );
-  // JSON only: no third-party scripts or public interactive console.
   adapter.getInstance().get('/openapi.json', async () => spec);
   await app.init();
   await adapter.getInstance().ready();

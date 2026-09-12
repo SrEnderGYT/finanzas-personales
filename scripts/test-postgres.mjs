@@ -56,8 +56,31 @@ try {
     }
   }
   if (!ready) throw new Error('PostgreSQL unavailable');
-  await migrate(pool);
-  await migrate(pool);
+  // Match managed PostgreSQL: migrations run as the database owner with
+  // CREATEROLE, never as a superuser. Test fixture administration remains separate.
+  const migrationPassword = randomBytes(32).toString('hex');
+  await pool.query(
+    `CREATE ROLE finanzas_migrator LOGIN NOSUPERUSER NOCREATEDB CREATEROLE NOBYPASSRLS PASSWORD '${migrationPassword}'`,
+  );
+  await pool.query('ALTER DATABASE finanzas_test OWNER TO finanzas_migrator');
+  const migrationPool = new pg.Pool({
+    connectionString: `postgresql://finanzas_migrator:${migrationPassword}@127.0.0.1:${port}/finanzas_test`,
+  });
+  try {
+    await migrate(migrationPool);
+    await migrate(migrationPool);
+    const privileges = (
+      await migrationPool.query(`SELECT
+      has_schema_privilege('finanzas_session_lookup', 'app', 'CREATE') AS lookup_create,
+      pg_has_role(current_user, 'finanzas_session_lookup', 'SET') AS owner_set,
+      pg_has_role('finanzas_runtime', 'finanzas_session_lookup', 'MEMBER') AS runtime_lookup
+    `)
+    ).rows[0];
+    if (privileges.lookup_create || privileges.owner_set || privileges.runtime_lookup)
+      throw new Error('Temporary migration privileges leaked');
+  } finally {
+    await migrationPool.end();
+  }
   // Random hexadecimal secret, never persisted or printed. Role provisioning is infrastructure.
   await pool.query(
     `CREATE ROLE finanzas_api LOGIN PASSWORD '${runtimePassword}' IN ROLE finanzas_runtime`,
@@ -81,6 +104,7 @@ try {
                 'tests/catalog-api.integration.test.ts',
                 'tests/manual.integration.test.ts',
                 'tests/sync.integration.test.ts',
+                'tests/corrections.integration.test.ts',
                 'tests/sessions.integration.test.ts',
                 'tests/email-auth.integration.test.ts',
                 'tests/google-auth.integration.test.ts',

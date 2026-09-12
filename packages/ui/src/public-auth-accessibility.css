@@ -1,0 +1,35 @@
+.auth-brand-panel {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: #312e81;
+}
+
+.auth-brand-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 85% 10%, #ffffff24 0 9%, transparent 10%),
+    radial-gradient(circle at 20% 80%, #14b8a655 0 12%, transparent 13%),
+    linear-gradient(145deg, #111827, #312e81 58%, #635bff);
+}
+
+.auth-overline,
+.auth-brand-copy > p {
+  color: #ffffff;
+}
+
+.login-heading > span,
+.create-account > span {
+  color: var(--text);
+}
+
+.explore-button,
+a.explore-button {
+  border-color: #111827;
+  background: #111827;
+  color: #ffffff;
+}

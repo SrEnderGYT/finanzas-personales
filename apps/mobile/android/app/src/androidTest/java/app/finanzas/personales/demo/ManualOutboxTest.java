@@ -26,6 +26,26 @@ public class ManualOutboxTest {
   private final Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
   private final UiAutomation automation = instrumentation.getUiAutomation();
   private MainActivity activity;
+  private void shell(String command) throws Exception {
+    try (FileInputStream output = new android.os.ParcelFileDescriptor.AutoCloseInputStream(automation.executeShellCommand(command))) {
+      byte[] buffer = new byte[1024];
+      while (output.read(buffer) != -1) { /* Wait for the command to complete. */ }
+    }
+  }
+  private void unlockSyntheticDevice(android.app.KeyguardManager keyguard) throws Exception {
+    int width = activity.getResources().getDisplayMetrics().widthPixels;
+    int height = activity.getResources().getDisplayMetrics().heightPixels;
+    for (int attempt = 0; attempt < 3 && keyguard.isKeyguardLocked(); attempt++) {
+      shell("input keyevent 224");
+      shell("input swipe " + width / 2 + " " + height * 4 / 5 + " " + width / 2 + " " + height / 5 + " 300");
+      Thread.sleep(1000); // Let the secure PIN bouncer finish its animation.
+      if (!keyguard.isKeyguardLocked()) break;
+      shell("input text 123456"); // Disposable AVD PIN installed by the test runner.
+      shell("input keyevent 66");
+      for (int poll = 0; poll < 20 && keyguard.isKeyguardLocked(); poll++) Thread.sleep(250);
+    }
+    assertFalse("Synthetic AVD must be unlocked before financial UI tests", keyguard.isKeyguardLocked());
+  }
   private String js(String source) throws Exception {
     CountDownLatch latch = new CountDownLatch(1);
     AtomicReference<String> result = new AtomicReference<>();
@@ -60,8 +80,9 @@ public class ManualOutboxTest {
     }
     Intent intent = new Intent(instrumentation.getTargetContext(), MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
     activity = (MainActivity) instrumentation.startActivitySync(intent);
-    for (int i = 0; i < 40 && !activity.hasWindowFocus(); i++) Thread.sleep(250);
     android.app.KeyguardManager keyguard = (android.app.KeyguardManager) activity.getSystemService(android.content.Context.KEYGUARD_SERVICE);
+    unlockSyntheticDevice(keyguard);
+    for (int i = 0; i < 40 && !activity.hasWindowFocus(); i++) Thread.sleep(250);
     assertTrue("Native foreground window; keyguardLocked=" + keyguard.isKeyguardLocked(), activity.hasWindowFocus());
     waitFor("!!document.querySelector('fp-shell') || !!document.querySelector('main')");
     js("location.hash='/registro'");

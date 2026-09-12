@@ -1,44 +1,75 @@
-# Finanzas personales · preview DEMO
+# Finanzas personales
 
-Web Angular, UI móvil Ionic/Capacitor y PWA con datos exclusivamente sintéticos. Repositorio público; la futura aplicación real tendrá beta privada. No se conectó Gmail ni se importaron proyectos o datos financieros anteriores.
+Aplicación de finanzas personales Web, PWA, Android e iOS en desarrollo activo. El producto incluye base financiera, cuentas, categorías, movimientos, trabajo offline, sincronización, resolución de conflictos, dashboard, autenticación y automatización financiera con Gmail.
 
-- [Preview Web](https://srendergyt.github.io/finanzas-personales/)
-- [Preview Mobile](https://srendergyt.github.io/finanzas-personales/mobile/)
-- [P01 — workspace](docs/P01-workspace.md) · [PR #2](https://github.com/SrEnderGYT/finanzas-personales/pull/2)
-- [P02 — diseño, capturas y PWA](docs/P02-preview.md) · [PR #3](https://github.com/SrEnderGYT/finanzas-personales/pull/3)
-- [P03 — prototipo cifrado](docs/P03-almacenamiento.md)
-- [P04 — backend, PostgreSQL y aislamiento](docs/P04-backend.md)
-- [P05 — autenticación y sesiones, en desarrollo](docs/P05-autenticacion.md)
+- [Aplicación Web](https://srendergyt.github.io/finanzas-personales/)
+- [Experiencia móvil](https://srendergyt.github.io/finanzas-personales/mobile/)
+- [P10 — sincronización, conflictos y staging](docs/P10-staging-runbook.md)
+- [P11 — dashboard funcional](https://github.com/SrEnderGYT/finanzas-personales/pull/12)
+- [P15 — conexión Gmail](https://github.com/SrEnderGYT/finanzas-personales/pull/13)
+- [P16 — aplicación pública y revisión financiera](https://github.com/SrEnderGYT/finanzas-personales/pull/14)
+- [P17 — login obligatorio, Gmail y finanzas detectadas](https://github.com/SrEnderGYT/finanzas-personales/pull/15)
 
-La URL muestra el último preview publicado; `build-info.json` identifica el commit. Consultar las ejecuciones Actions antes de asociar un binario o despliegue a una revisión. Los PR de implementación siguen abiertos, apilados; sólo fase0 fue fusionada con aprobación del propietario.
+## Aplicación Web
 
-## Qué puedes probar
+La publicación Web es **login-first**: la entrada pública es Acceso y las rutas financieras permanecen protegidas hasta que exista una sesión válida. No se publican saldos, tarjetas, movimientos, suscripciones ni deudas ficticias como sustituto de información personal.
 
-Dashboard DEMO, monedas PEN/USD separadas, rangos de fechas, búsqueda, formulario efímero de muestra, tarjetas/cuentas ilustrativas, presupuestos y temas claro/oscuro/sistema. En Configuración, P03 añade bóveda local cifrada con comandos sintéticos pendientes. No representa sincronización bancaria ni aplicación lista para datos reales.
+Cuando el API privado todavía no está conectado, el login permanece visible pero bloquea el ingreso de credenciales y muestra el estado del servicio. Al habilitar el API HTTPS, el mismo cliente utiliza autenticación real, PostgreSQL, RLS, almacenamiento cifrado y los contratos privados del producto.
 
-## Reproducir
+## Finanzas y automatización
 
-Node24.14.1 y npm11.6.1. `npm ci`; `npm run build`; `npm start` (web); `npm run start:mobile` (móvil). `npm run cap:sync` genera activos y registra plugins en Android/iOS. `npm run lint`, `npm run format:check`, `npm run typecheck`, `npm test`, `npm run test:integration`, `npm run test:e2e`, `npm run security`.
+- **Inicio y movimientos:** resumen por moneda y actividad confirmada/pendiente del usuario autenticado.
+- **Cuentas y categorías:** catálogo privado asociado al usuario.
+- **Gmail:** autorización separada con `gmail.readonly`, sincronización por rango y bandeja de hallazgos financieros.
+- **Tarjetas:** actividad e instituciones detectadas desde correos autorizados; sin correo conectado no se inventan valores.
+- **Suscripciones:** cargos recurrentes detectados para revisión.
+- **Deudas:** avisos de deuda, cuotas, vencimientos o pagos detectados para revisión.
+- **Registro:** confirmación manual mediante el ledger y outbox idempotente; una detección no altera saldos automáticamente.
 
-GitHub Actions produce APK debug con metadata de commit/versión/fecha/entorno y compilación de simulador iOS sin firma. No hay certificados, provisioning ni TestFlight configurados. Pruebas físicas de biometría/almacenamiento nativo pendientes; pruebas web no las sustituyen.
+La conexión Gmail utiliza un consentimiento independiente del login. El refresh token se mantiene en servidor cifrado y no se almacena en el navegador. Las detecciones se revisan antes de convertirse en movimientos financieros.
 
-## Estructura
+## Base técnica implementada
 
 ```text
-apps/web          Angular web/PWA
-apps/mobile       Ionic/Capacitor + Android/iOS
-packages/domain   Lugar del dominio P06; aún no core financiero
-packages/shared   Contratos DEMO y prototipo cifrado
-packages/ui       Componentes, temas y experiencia DEMO
-backend/api       Nest/Fastify, User, migraciones PostgreSQL y RLS
-infra             Configuración de infraestructura; secretos externos
-docs              Arquitectura, decisiones, entregas y evidencia
+apps/web          Angular Web + PWA
+apps/mobile       Ionic / Capacitor + Android / iOS
+packages/domain   Money exacto, fechas y ledger financiero
+packages/shared   Contratos compartidos y utilidades
+packages/ui       Producto, autenticación, Gmail y experiencia responsive
+backend/api       NestJS / Fastify, PostgreSQL, autenticación, sync y RLS
+infra             Configuración de infraestructura y staging
+scripts           Calidad, migraciones, pruebas y automatización
+docs              Arquitectura, contratos, decisiones y evidencia
 ```
 
-## Revisión y seguridad
+El core financiero usa importes exactos, separación PEN/USD, asientos consistentes e idempotencia. Las cuentas y categorías están aisladas por usuario. El flujo offline conserva pendientes cifrados y la sincronización evita duplicar operaciones cuando una respuesta se pierde después del commit. P10 añade conflictos versionados y recuperación explícita del checkpoint.
 
-Main protegida por PR/checks, incluidos administradores. [Auditoría de publicación y decisiones aprobadas](docs/09-aprobacion-ejecucion.md). Secretos externos al repositorio; fixtures sintéticas. El repositorio público no publica infraestructura ni datos reales.
+## Calidad y seguridad
 
-**Continuación después de P03 autorizada por el propietario.** P04 añade preferencias persistentes protegidas; `npm run test:postgres` verifica aislamiento en PostgreSQL real con Docker. El dashboard permanece DEMO. Después del core manual habrá otra revisión antes de Gmail. No hay merge automático de PR grandes.
+El repositorio ejecuta lint, Prettier, TypeScript, pruebas unitarias, integración API, PostgreSQL, navegador, builds Web/backend/Android/iOS, auditoría de dependencias y secret scanning. GitHub Pages no contiene contraseñas, refresh tokens, correos personales ni información financiera real en el repositorio.
 
-[Arquitectura](ARCHITECTURE.md) · [Roadmap](ROADMAP.md) · [Seguridad](SECURITY.md) · [22 entregables de fase0](docs/08-trazabilidad.md) · [Plan Maestro histórico](docs/referencia/Plan_Maestro_Codex_App_Finanzas.pdf)
+Para activar login y Gmail con datos reales se requiere desplegar el API privado HTTPS y configurar sus variables externas de forma segura; esas credenciales nunca deben almacenarse en GitHub.
+
+## Desarrollo local
+
+Node 24.14.1 y npm 11.6.1.
+
+```bash
+npm ci
+npm run build
+npm start
+npm run start:mobile
+npm run lint
+npm run format:check
+npm run typecheck
+npm test
+npm run test:integration
+npm run test:e2e
+npm run security
+```
+
+## Estado del roadmap
+
+La infraestructura y el core avanzan desde P01 hasta P10. P11 consolidó la capa funcional; P15/P16 prepararon Gmail y la revisión financiera; P17 sustituye la experiencia pública sintética por una aplicación login-first conectable al API privado y a Gmail real.
+
+[Arquitectura](ARCHITECTURE.md) · [Roadmap](ROADMAP.md) · [Seguridad](SECURITY.md) · [Trazabilidad](docs/08-trazabilidad.md)

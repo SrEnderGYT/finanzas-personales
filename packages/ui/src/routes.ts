@@ -1,21 +1,36 @@
 import { Routes } from '@angular/router';
-import { ProductScreen } from './product-screen';
-import { AuthScreen } from './auth-screen';
+import { authenticatedGuard } from './auth-guard';
+import { LatestScreen } from './latest-screen';
+import { LatestGmailScreen } from './latest-gmail-screen';
+import { LatestAuthScreen } from './latest-auth-screen';
 import { ManualScreen } from './manual-screen';
-export const DEMO_ROUTES: Routes = [
-  { path: '', pathMatch: 'full', redirectTo: () => (location.search ? 'acceso' : 'inicio') },
-  { path: 'acceso', component: AuthScreen },
-  { path: 'registro', component: ManualScreen },
-  { path: 'pendientes', component: ManualScreen },
-  ...[
-    'inicio',
-    'movimientos',
-    'cuentas',
-    'tarjetas',
-    'presupuestos',
-    'configuracion',
-    'analisis',
-    'nuevo',
-  ].map((view) => ({ path: view, component: ProductScreen, data: { view } })),
-  { path: '**', redirectTo: 'inicio' },
+import { DetectedFinancesScreen } from './detected-finances-screen';
+
+const privateView = (view: string) => ({
+  path: view,
+  component: LatestScreen,
+  canActivate: [authenticatedGuard],
+  data: { view },
+});
+
+const detectedView = (path: string, view: 'cards' | 'subscriptions' | 'debts') => ({
+  path,
+  component: DetectedFinancesScreen,
+  canActivate: [authenticatedGuard],
+  data: { view },
+});
+
+export const APP_ROUTES: Routes = [
+  { path: '', pathMatch: 'full', redirectTo: 'acceso' },
+  { path: 'acceso', component: LatestAuthScreen },
+  { path: 'registro', component: ManualScreen, canActivate: [authenticatedGuard] },
+  { path: 'pendientes', component: ManualScreen, canActivate: [authenticatedGuard] },
+  { path: 'gmail', component: LatestGmailScreen, canActivate: [authenticatedGuard] },
+  detectedView('tarjetas', 'cards'),
+  detectedView('suscripciones', 'subscriptions'),
+  detectedView('deudas', 'debts'),
+  ...['inicio', 'movimientos', 'cuentas', 'presupuestos', 'configuracion', 'analisis', 'nuevo'].map(
+    privateView,
+  ),
+  { path: '**', redirectTo: 'acceso' },
 ];

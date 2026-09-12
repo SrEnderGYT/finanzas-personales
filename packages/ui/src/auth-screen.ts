@@ -1,10 +1,9 @@
 import { MfaEnrollment } from './mfa-enrollment';
-import { relayGoogleReturn } from './google-popup';
+import { googleReauthentication, relayGoogleReturn } from './google-popup';
 import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { NATIVE_GOOGLE_LOGIN } from './native-auth';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { AuthSession } from './auth-client';
 
 import { AUTH_CLIENT } from './auth-provider';
@@ -29,7 +28,7 @@ let pendingCallback = captureCallback();
 
 @Component({
   selector: 'fp-auth-screen',
-  imports: [FormsModule, RouterLink, DatePipe, MfaEnrollment],
+  imports: [FormsModule, DatePipe, MfaEnrollment],
   template: `
     <section class="auth-layout" aria-labelledby="auth-title">
       <div class="auth-story">
@@ -47,16 +46,25 @@ let pendingCallback = captureCallback();
           <span aria-hidden="true">✉</span>
           <div>
             <strong>Google sin acceso a tus correos</strong>
-            <p>Conectar Gmail requerirá un permiso diferente, en una fase posterior.</p>
+            <p>
+              Conectar Gmail usa una autorización separada de solo lectura después de iniciar
+              sesión.
+            </p>
           </div>
         </div>
-        <a routerLink="/inicio" class="auth-back">← Volver a la vista de muestra</a>
       </div>
       <div class="auth-panel">
-        @if (!client.enabled) {
+        @if (client.privateStaging) {
           <p class="auth-notice" role="note">
-            <strong>Vista previa</strong><br />El acceso real aún no está conectado aquí. Explora
-            los formularios sin introducir datos personales.
+            Acceso privado de pruebas. Utiliza la cuenta de revisión y la contraseña configurada en
+            Render. El registro público y el envío de correos están deshabilitados.
+          </p>
+        }
+        @if (!client.enabled) {
+          <p class="auth-notice" role="status">
+            <strong>Servidor de Finanzas no conectado</strong><br />
+            El inicio de sesión se habilitará cuando el API privado HTTPS esté disponible. Los
+            campos permanecen bloqueados para proteger tus credenciales.
           </p>
         }
         @if (enrolling()) {
@@ -89,9 +97,16 @@ let pendingCallback = captureCallback();
               </li>
             }
           </ul>
-          <button type="button" class="auth-secondary" [disabled]="busy()" (click)="google('link')">
-            Vincular Google
-          </button>
+          @if (!client.privateStaging) {
+            <button
+              type="button"
+              class="auth-secondary"
+              [disabled]="busy()"
+              (click)="google('link')"
+            >
+              Vincular Google
+            </button>
+          }
           <button type="button" class="auth-secondary" [disabled]="busy()" (click)="logout(false)">
             Cerrar sesión
           </button>
@@ -187,7 +202,7 @@ let pendingCallback = captureCallback();
               {{ mode() === 'mfa' ? 'Usar un código de recuperación' : 'Usar el autenticador' }}
             </button>
           }
-          @if (mode() === 'login') {
+          @if (mode() === 'login' && !client.privateStaging) {
             <button
               type="button"
               class="auth-secondary"
@@ -386,6 +401,15 @@ export class AuthScreen {
     return this.run(async () => {
       if (this.nativeLogin) {
         await this.nativeLogin(this.client, this.lifetime.signal, mode);
+        await this.afterPrimary();
+        return;
+      }
+      if (this.client.remoteApi) {
+        const result = await googleReauthentication(
+          () => this.client.startRemoteGoogle(mode),
+          this.lifetime.signal,
+        );
+        await this.client.completeRemoteGoogle(result.state, result.code);
         await this.afterPrimary();
         return;
       }

@@ -2,22 +2,24 @@ import { Component, isDevMode } from '@angular/core';
 import { bootstrapApplication } from '@angular/platform-browser';
 import { provideRouter, withHashLocation, withComponentInputBinding } from '@angular/router';
 import { provideServiceWorker } from '@angular/service-worker';
-import { Shell, DEMO_ROUTES, MOBILE_MODE } from '@finanzas/ui';
+import { Shell, APP_ROUTES, MOBILE_MODE } from '@finanzas/ui';
 import { provideIonicAngular, IonApp } from '@ionic/angular';
 import { nativeAuthConfig } from './native-auth.config';
 import { nativeAuthProviders } from './native-auth.providers';
+
 @Component({
   selector: 'app-root',
   imports: [Shell, IonApp],
   template: `<ion-app><fp-shell /></ion-app>`,
 })
 class App {}
+
 bootstrapApplication(App, {
   providers: [
     provideIonicAngular(),
     ...nativeAuthProviders(nativeAuthConfig),
     { provide: MOBILE_MODE, useValue: true },
-    provideRouter(DEMO_ROUTES, withHashLocation(), withComponentInputBinding()),
+    provideRouter(APP_ROUTES, withHashLocation(), withComponentInputBinding()),
     provideServiceWorker('ngsw-worker.js', {
       enabled: !isDevMode(),
       registrationStrategy: 'registerImmediately',
