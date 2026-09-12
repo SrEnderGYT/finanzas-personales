@@ -13,6 +13,18 @@ import {
 } from '../../shared/src/gmail-candidates';
 
 export type DetectedFinanceView = 'cards' | 'subscriptions' | 'debts';
+type CardKindFilter = 'all' | 'card_charge' | 'payment' | 'card_statement';
+
+function monthKey(value: Date) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Lima',
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(value);
+  const year = parts.find((part) => part.type === 'year')?.value ?? '1970';
+  const month = parts.find((part) => part.type === 'month')?.value ?? '01';
+  return `${year}-${month}`;
+}
 
 @Component({
   selector: 'fp-detected-finances-screen',
@@ -42,11 +54,54 @@ export type DetectedFinanceView = 'cards' | 'subscriptions' | 'debts';
           <strong>Conecta Gmail para encontrar {{ emptySubject() }}.</strong>
           <p>
             Finanzas no mostrará tarjetas, suscripciones o deudas inventadas. Esta pantalla se llena
-            únicamente con información detectada en el correo que autorices.
+            únicamente con información financiera detectada en el correo que autorices.
           </p>
           <a fpButton routerLink="/gmail">Conectar Gmail</a>
         </div>
       } @else {
+        <section class="detected-filters" aria-label="Filtros de información financiera">
+          <label>
+            <span>Periodo</span>
+            <input
+              type="month"
+              [value]="month()"
+              (change)="setMonth($any($event.target).value)"
+            />
+          </label>
+
+          @if (view() === 'cards' || view() === 'debts') {
+            <label>
+              <span>Tarjeta / entidad</span>
+              <select
+                [value]="institutionFilter()"
+                (change)="setInstitution($any($event.target).value)"
+              >
+                <option value="all">Todas</option>
+                @for (institution of institutionOptions(); track institution) {
+                  <option [value]="institution">{{ institution }}</option>
+                }
+              </select>
+            </label>
+          }
+
+          @if (view() === 'cards') {
+            <label>
+              <span>Tipo</span>
+              <select
+                [value]="cardKindFilter()"
+                (change)="setCardKind($any($event.target).value)"
+              >
+                <option value="all">Todos</option>
+                <option value="card_charge">Consumos</option>
+                <option value="payment">Pagos</option>
+                <option value="card_statement">Deuda / estado</option>
+              </select>
+            </label>
+          }
+
+          <p>Solo se muestran correos financieros con importe detectado.</p>
+        </section>
+
         <div class="detected-summary">
           <article>
             <span>Detectados</span>
@@ -73,7 +128,7 @@ export type DetectedFinanceView = 'cards' | 'subscriptions' | 'debts';
                 <p class="eyebrow">ENTIDADES DETECTADAS</p>
                 <h2>Mis tarjetas y bancos</h2>
               </div>
-              <span>Basado en avisos de tu correo</span>
+              <span>{{ periodLabel() }}</span>
             </div>
             <div class="institution-grid">
               @for (institution of institutions(); track institution.name) {
@@ -84,9 +139,7 @@ export type DetectedFinanceView = 'cards' | 'subscriptions' | 'debts';
                   <div>
                     <strong>{{ institution.name }}</strong>
                     <p>
-                      {{ institution.events }} evento{{
-                        institution.events === 1 ? '' : 's'
-                      }}
+                      {{ institution.events }} evento{{ institution.events === 1 ? '' : 's' }}
                       detectado{{ institution.events === 1 ? '' : 's' }}
                     </p>
                   </div>
@@ -107,15 +160,15 @@ export type DetectedFinanceView = 'cards' | 'subscriptions' | 'debts';
               <p class="eyebrow">INFORMACIÓN ENCONTRADA</p>
               <h2>{{ listTitle() }}</h2>
             </div>
-            <span>{{ connection()?.email }}</span>
+            <span>{{ periodLabel() }}</span>
           </div>
 
           @if (visible().length === 0) {
             <div class="detected-state compact">
-              <strong>No encontramos {{ emptySubject() }} en el rango sincronizado.</strong>
+              <strong>No encontramos {{ emptySubject() }} con importe en este periodo.</strong>
               <p>
-                Última cobertura: {{ coverage() }}. Puedes ampliar el rango o sincronizar nuevamente
-                desde Gmail.
+                Periodo seleccionado: {{ periodLabel() }}. La cobertura actual de Gmail es
+                {{ coverage() }}.
               </p>
             </div>
           } @else {
@@ -127,6 +180,9 @@ export type DetectedFinanceView = 'cards' | 'subscriptions' | 'debts';
                       <span>{{ kindLabel(item.kind) }}</span>
                       @if (item.institution) {
                         <span>{{ item.institution }}</span>
+                      }
+                      @if (item.merchant) {
+                        <span>{{ item.merchant }}</span>
                       }
                       <span [class.pending]="item.status === 'pending'">{{
                         statusLabel(item.status)
@@ -160,8 +216,11 @@ export class DetectedFinancesScreen implements OnInit {
   readonly candidates = signal<GmailFinancialCandidate[]>([]);
   readonly busy = signal(false);
   readonly error = signal('');
+  readonly month = signal(monthKey(new Date()));
+  readonly institutionFilter = signal('all');
+  readonly cardKindFilter = signal<CardKindFilter>('all');
 
-  readonly visible = computed(() => {
+  readonly periodRows = computed(() => {
     const allowed = new Set<GmailFinancialKind>(
       this.view() === 'cards'
         ? ['card_charge', 'card_statement', 'payment']
@@ -169,8 +228,37 @@ export class DetectedFinancesScreen implements OnInit {
           ? ['subscription']
           : ['debt', 'card_statement'],
     );
-    return this.candidates().filter((candidate) => allowed.has(candidate.kind));
+    return this.candidates().filter((candidate) => {
+      if (!allowed.has(candidate.kind) || !candidate.amountMinor || !candidate.currency) return false;
+      if (monthKey(new Date(candidate.occurredAt)) !== this.month()) return false;
+      if (this.view() === 'debts' && !candidate.institution) return false;
+      return true;
+    });
   });
+
+  readonly institutionOptions = computed(() =>
+    [...new Set(this.periodRows().flatMap((item) => (item.institution ? [item.institution] : [])))].sort(
+      (a, b) => a.localeCompare(b),
+    ),
+  );
+
+  readonly visible = computed(() =>
+    this.periodRows().filter((candidate) => {
+      if (
+        (this.view() === 'cards' || this.view() === 'debts') &&
+        this.institutionFilter() !== 'all' &&
+        candidate.institution !== this.institutionFilter()
+      )
+        return false;
+      if (
+        this.view() === 'cards' &&
+        this.cardKindFilter() !== 'all' &&
+        candidate.kind !== this.cardKindFilter()
+      )
+        return false;
+      return true;
+    }),
+  );
 
   readonly pendingCount = computed(
     () => this.visible().filter((item) => item.status === 'pending').length,
@@ -194,12 +282,25 @@ export class DetectedFinancesScreen implements OnInit {
     void this.load();
   }
 
+  setMonth(value: string) {
+    if (/^\d{4}-\d{2}$/.test(value)) this.month.set(value);
+  }
+
+  setInstitution(value: string) {
+    this.institutionFilter.set(value || 'all');
+  }
+
+  setCardKind(value: string) {
+    if (['all', 'card_charge', 'payment', 'card_statement'].includes(value))
+      this.cardKindFilter.set(value as CardKindFilter);
+  }
+
   title() {
     return this.view() === 'cards'
       ? 'Tarjetas'
       : this.view() === 'subscriptions'
         ? 'Suscripciones'
-        : 'Deudas';
+        : 'Deudas de tarjeta';
   }
 
   eyebrow() {
@@ -207,31 +308,31 @@ export class DetectedFinancesScreen implements OnInit {
       ? 'TARJETAS Y ESTADOS DE CUENTA'
       : this.view() === 'subscriptions'
         ? 'PAGOS RECURRENTES'
-        : 'OBLIGACIONES Y CUOTAS';
+        : 'ESTADOS DE CUENTA Y PAGOS';
   }
 
   description() {
     return this.view() === 'cards'
-      ? 'Cargos, pagos y estados de cuenta encontrados en tu Gmail autorizado.'
+      ? 'Consumos, pagos y deuda de tarjeta encontrados en tu Gmail autorizado.'
       : this.view() === 'subscriptions'
-        ? 'Servicios y renovaciones recurrentes detectados en los avisos de tu correo.'
-        : 'Préstamos, cuotas, saldos pendientes y vencimientos detectados en tu correo.';
+        ? 'Cobros recurrentes reales detectados por importe y proveedor, no promociones ni bajas.'
+        : 'Deuda de tarjeta detectada desde estados de cuenta, pagos totales, mínimos y cuotas con importe.';
   }
 
   listTitle() {
     return this.view() === 'cards'
       ? 'Actividad de tarjetas'
       : this.view() === 'subscriptions'
-        ? 'Suscripciones encontradas'
-        : 'Deudas y vencimientos encontrados';
+        ? 'Cobros recurrentes encontrados'
+        : 'Deudas de tarjeta encontradas';
   }
 
   emptySubject() {
     return this.view() === 'cards'
       ? 'actividad de tarjetas'
       : this.view() === 'subscriptions'
-        ? 'suscripciones'
-        : 'deudas';
+        ? 'cobros recurrentes'
+        : 'deuda de tarjeta';
   }
 
   coverage() {
@@ -239,6 +340,14 @@ export class DetectedFinancesScreen implements OnInit {
     return value?.coverageFrom && value.coverageTo
       ? `${value.coverageFrom} — ${value.coverageTo}`
       : 'aún no disponible';
+  }
+
+  periodLabel() {
+    const [year, month] = this.month().split('-').map(Number);
+    if (!year || !month) return this.month();
+    return new Intl.DateTimeFormat('es-PE', { month: 'long', year: 'numeric' }).format(
+      new Date(Date.UTC(year, month - 1, 15)),
+    );
   }
 
   total(currency: 'PEN' | 'USD') {
@@ -256,11 +365,11 @@ export class DetectedFinancesScreen implements OnInit {
       expense: 'Gasto',
       income: 'Ingreso',
       transfer: 'Transferencia',
-      card_charge: 'Cargo',
-      card_statement: 'Estado de cuenta',
+      card_charge: 'Consumo',
+      card_statement: 'Deuda de tarjeta',
       subscription: 'Suscripción',
-      debt: 'Deuda',
-      payment: 'Pago',
+      debt: 'Cuota / deuda',
+      payment: 'Pago de tarjeta',
       unknown: 'Por revisar',
     };
     return labels[kind];
@@ -275,11 +384,14 @@ export class DetectedFinancesScreen implements OnInit {
   }
 
   dateLabel(value: string) {
-    return new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium' }).format(new Date(value));
+    return new Intl.DateTimeFormat('es-PE', {
+      dateStyle: 'medium',
+      timeZone: 'America/Lima',
+    }).format(new Date(value));
   }
 
   amountLabel(item: GmailFinancialCandidate) {
-    if (!item.amountMinor || !item.currency) return 'Importe por revisar';
+    if (!item.amountMinor || !item.currency) return '—';
     const minor = BigInt(item.amountMinor);
     const whole = minor / 100n;
     const cents = (minor % 100n).toString().padStart(2, '0');
