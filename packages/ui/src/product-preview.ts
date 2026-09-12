@@ -152,7 +152,11 @@ interface PreviewCurrencySummary {
               </label>
               <label>
                 Estado visual
-                <select fpSelect [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event)">
+                <select
+                  fpSelect
+                  [ngModel]="statusFilter()"
+                  (ngModelChange)="statusFilter.set($event)"
+                >
                   <option value="all">Todos</option>
                   <option value="confirmed">Confirmados</option>
                   <option value="pending">Pendientes</option>
@@ -186,14 +190,14 @@ interface PreviewCurrencySummary {
               <p class="eyebrow">PEN</p>
               <h2>Cuenta diaria DEMO</h2>
               <p>Ahorros · Banco DEMO</p>
-              <strong>{{ exact(300000n, 'PEN') }}</strong>
+              <strong>{{ exact('300000', 'PEN') }}</strong>
               <p class="zone-note">Saldo ilustrativo para validar la interfaz.</p>
             </section>
             <section class="manual-card">
               <p class="eyebrow">USD</p>
               <h2>Cuenta USD DEMO</h2>
               <p>Ahorros · Banco DEMO</p>
-              <strong>{{ exact(150000n, 'USD') }}</strong>
+              <strong>{{ exact('150000', 'USD') }}</strong>
               <p class="zone-note">Las monedas permanecen separadas.</p>
             </section>
           </div>
@@ -304,7 +308,11 @@ export class ProductPreview {
 
   previewStateLabel(index: number) {
     const state = this.previewState(index);
-    return state === 'confirmed' ? 'Confirmado' : state === 'pending' ? 'Pendiente' : 'Requiere revisión';
+    return state === 'confirmed'
+      ? 'Confirmado'
+      : state === 'pending'
+        ? 'Pendiente'
+        : 'Requiere revisión';
   }
 
   label(row: DemoTransaction) {
