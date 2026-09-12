@@ -167,7 +167,11 @@ const INITIAL_CANDIDATES: readonly DemoMailCandidate[] = [
             </div>
             <label style="margin: 0; min-width: 190px">
               Mostrar
-              <select fpSelect [(ngModel)]="filter">
+              <select
+                fpSelect
+                [ngModel]="filter()"
+                (ngModelChange)="filter.set($event)"
+              >
                 <option value="all">Todos</option>
                 <option value="review">Por revisar</option>
                 <option value="processed">Procesados</option>
@@ -230,8 +234,11 @@ export class GmailPreview {
   readonly lastSync = signal('hace 2 min · DEMO');
   readonly message = signal('');
   readonly candidates = signal<DemoMailCandidate[]>(INITIAL_CANDIDATES.map((row) => ({ ...row })));
+  readonly filter = signal<'all' | 'review' | 'processed'>('all');
   readonly reviewCount = computed(
-    () => this.candidates().filter((row) => row.status === 'needs_review' || row.status === 'ready').length,
+    () =>
+      this.candidates().filter((row) => row.status === 'needs_review' || row.status === 'ready')
+        .length,
   );
   readonly confirmedCount = computed(
     () => this.candidates().filter((row) => row.status === 'confirmed').length,
@@ -240,15 +247,17 @@ export class GmailPreview {
     () => this.candidates().filter((row) => row.status === 'duplicate').length,
   );
   rangeDays = 30;
-  filter: 'all' | 'review' | 'processed' = 'all';
 
   readonly visibleCandidates = computed(() => {
-    if (this.filter === 'review')
+    if (this.filter() === 'review')
       return this.candidates().filter(
-        (row) => row.status === 'needs_review' || row.status === 'ready' || row.status === 'duplicate',
+        (row) =>
+          row.status === 'needs_review' || row.status === 'ready' || row.status === 'duplicate',
       );
-    if (this.filter === 'processed')
-      return this.candidates().filter((row) => row.status === 'confirmed' || row.status === 'rejected');
+    if (this.filter() === 'processed')
+      return this.candidates().filter(
+        (row) => row.status === 'confirmed' || row.status === 'rejected',
+      );
     return this.candidates();
   });
 
@@ -258,7 +267,9 @@ export class GmailPreview {
   }
 
   review(id: string, status: 'confirmed' | 'rejected') {
-    this.candidates.update((rows) => rows.map((row) => (row.id === id ? { ...row, status } : row)));
+    this.candidates.update((rows) =>
+      rows.map((row) => (row.id === id ? { ...row, status } : row)),
+    );
     this.message.set(
       status === 'confirmed'
         ? 'Candidato confirmado en la vista DEMO. No se creó un movimiento real.'
