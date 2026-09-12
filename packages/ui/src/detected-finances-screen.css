@@ -38,7 +38,8 @@
 
 .detected-state,
 .institution-section,
-.detected-list-section {
+.detected-list-section,
+.detected-filters {
   padding: 24px;
   border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
   border-radius: 20px;
@@ -63,6 +64,45 @@
 .detected-state.compact {
   margin-top: 18px;
   background: color-mix(in srgb, var(--surface, #fff) 94%, currentColor 6%);
+}
+
+.detected-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.detected-filters label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.detected-filters label > span {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--muted, currentColor);
+}
+
+.detected-filters input,
+.detected-filters select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface, #fff) 96%, currentColor 4%);
+  color: inherit;
+  font: inherit;
+}
+
+.detected-filters p {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted, currentColor);
 }
 
 .detected-summary {
@@ -206,6 +246,7 @@
 }
 
 @media (max-width: 860px) {
+  .detected-filters,
   .detected-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -229,6 +270,11 @@
 
   .detected-heading > a {
     width: 100%;
+  }
+
+  .detected-filters {
+    grid-template-columns: 1fr;
+    padding: 18px;
   }
 
   .detected-summary {
