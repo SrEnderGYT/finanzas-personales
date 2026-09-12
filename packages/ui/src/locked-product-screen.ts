@@ -1,5 +1,6 @@
-import { Component, computed, input } from '@angular/core';
+import { Component, computed, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { AUTH_CLIENT } from './auth-provider';
 import { UI_PRIMITIVES } from './primitives';
 
 @Component({
@@ -14,7 +15,11 @@ import { UI_PRIMITIVES } from './primitives';
           <h1>{{ title() }}</h1>
           <p>{{ subtitle() }}</p>
         </div>
-        <a fpButton routerLink="/acceso">Iniciar sesión</a>
+        @if (auth.signedIn) {
+          <a fpButton routerLink="/registrar">Abrir espacio cifrado</a>
+        } @else {
+          <a fpButton routerLink="/acceso">Iniciar sesión</a>
+        }
       </header>
 
       @if (view() === 'inicio') {
@@ -39,13 +44,25 @@ import { UI_PRIMITIVES } from './primitives';
         <section class="manual-card product-empty-state">
           <div class="product-section-heading">
             <div>
-              <h2>Inicia sesión para ver tus finanzas</h2>
-              <p>
-                Tus importes, cuentas y movimientos no se publican en esta web. Se cargan únicamente
-                cuando tu sesión y tu espacio cifrado están disponibles.
-              </p>
+              @if (auth.signedIn) {
+                <h2>Tu sesión está activa</h2>
+                <p>
+                  No necesitas volver a iniciar sesión. Tu espacio financiero local continúa cifrado
+                  y bloqueado hasta que lo abras en este dispositivo.
+                </p>
+              } @else {
+                <h2>Inicia sesión para ver tus finanzas</h2>
+                <p>
+                  Tus importes, cuentas y movimientos no se publican en esta web. Se cargan
+                  únicamente cuando tu sesión y tu espacio cifrado están disponibles.
+                </p>
+              }
             </div>
-            <a routerLink="/acceso">Ir a acceso</a>
+            @if (auth.signedIn) {
+              <a routerLink="/registrar">Abrir espacio</a>
+            } @else {
+              <a routerLink="/acceso">Ir a acceso</a>
+            }
           </div>
         </section>
 
@@ -58,7 +75,13 @@ import { UI_PRIMITIVES } from './primitives';
               </div>
               <a routerLink="/movimientos">Ver movimientos</a>
             </div>
-            <p class="empty-local">Tu actividad aparecerá aquí después de iniciar sesión.</p>
+            <p class="empty-local">
+              {{
+                auth.signedIn
+                  ? 'Abre tu espacio cifrado para cargar tu actividad financiera.'
+                  : 'Tu actividad aparecerá aquí después de iniciar sesión.'
+              }}
+            </p>
           </section>
           <section class="manual-card">
             <div class="product-section-heading">
@@ -70,13 +93,25 @@ import { UI_PRIMITIVES } from './primitives';
               </div>
               <a routerLink="/cuentas">Ver cuentas</a>
             </div>
-            <p class="empty-local">No se muestra ninguna cuenta sin una sesión autenticada.</p>
+            <p class="empty-local">
+              {{
+                auth.signedIn
+                  ? 'Tu sesión está activa; abre el espacio cifrado para cargar tus cuentas.'
+                  : 'No se muestra ninguna cuenta sin una sesión autenticada.'
+              }}
+            </p>
           </section>
         </div>
       } @else if (view() === 'movimientos') {
         <div class="local-toolbar">
-          <p role="status">Espacio bloqueado</p>
-          <a fpButton routerLink="/acceso">Iniciar sesión</a>
+          <p role="status">
+            {{ auth.signedIn ? 'Sesión activa · espacio cifrado bloqueado' : 'Sin sesión' }}
+          </p>
+          @if (auth.signedIn) {
+            <a fpButton routerLink="/registrar">Abrir espacio</a>
+          } @else {
+            <a fpButton routerLink="/acceso">Iniciar sesión</a>
+          }
           <span>Última sincronización: —</span>
         </div>
         <section class="manual-card movement-filter-card">
@@ -89,11 +124,19 @@ import { UI_PRIMITIVES } from './primitives';
         </section>
         <section class="manual-card product-empty-state">
           <h2>Tus movimientos aparecerán aquí</h2>
-          <p>
-            La aplicación no rellena esta lista con operaciones inventadas. Inicia sesión para
-            consultar tus movimientos reales y los pendientes cifrados de este dispositivo.
-          </p>
-          <a routerLink="/acceso">Abrir mi cuenta</a>
+          @if (auth.signedIn) {
+            <p>
+              Tu sesión ya está iniciada. Abre el espacio cifrado de este dispositivo para cargar y
+              sincronizar tus movimientos reales.
+            </p>
+            <a routerLink="/registrar">Abrir espacio cifrado</a>
+          } @else {
+            <p>
+              La aplicación no rellena esta lista con operaciones inventadas. Inicia sesión para
+              consultar tus movimientos reales y los pendientes cifrados de este dispositivo.
+            </p>
+            <a routerLink="/acceso">Abrir mi cuenta</a>
+          }
         </section>
       } @else if (view() === 'cuentas') {
         <div class="manual-grid">
@@ -102,12 +145,24 @@ import { UI_PRIMITIVES } from './primitives';
             <p>
               Cuentas bancarias, efectivo y otras fuentes aparecerán aquí con su moneda y estado.
             </p>
-            <p class="empty-local">Sin sesión no se carga información financiera.</p>
+            <p class="empty-local">
+              {{
+                auth.signedIn
+                  ? 'Abre tu espacio cifrado para cargar esta información.'
+                  : 'Sin sesión no se carga información financiera.'
+              }}
+            </p>
           </section>
           <section class="manual-card">
             <h2>Tus categorías</h2>
             <p>Clasifica gastos e ingresos sin mezclar monedas ni duplicar movimientos.</p>
-            <p class="empty-local">Inicia sesión para cargar tu catálogo personal.</p>
+            <p class="empty-local">
+              {{
+                auth.signedIn
+                  ? 'Abre tu espacio para cargar tu catálogo personal.'
+                  : 'Inicia sesión para cargar tu catálogo personal.'
+              }}
+            </p>
           </section>
         </div>
       } @else if (view() === 'tarjetas') {
@@ -115,7 +170,13 @@ import { UI_PRIMITIVES } from './primitives';
           <section class="manual-card">
             <h2>Tarjetas</h2>
             <p>Gestiona tarjetas, moneda, cierre, pago y movimientos relacionados.</p>
-            <p class="empty-local">No se muestra ninguna tarjeta sin tu sesión.</p>
+            <p class="empty-local">
+              {{
+                auth.signedIn
+                  ? 'Abre tu espacio cifrado para consultar tus tarjetas.'
+                  : 'No se muestra ninguna tarjeta sin tu sesión.'
+              }}
+            </p>
           </section>
           <section class="manual-card">
             <h2>Próximos pagos</h2>
@@ -143,7 +204,13 @@ import { UI_PRIMITIVES } from './primitives';
         </section>
         <section class="manual-card product-empty-state">
           <h2>Tus presupuestos aparecerán aquí</h2>
-          <p>Inicia sesión para consultar límites por categoría y seguimiento mensual.</p>
+          <p>
+            {{
+              auth.signedIn
+                ? 'Abre tu espacio cifrado para consultar límites por categoría y seguimiento mensual.'
+                : 'Inicia sesión para consultar límites por categoría y seguimiento mensual.'
+            }}
+          </p>
         </section>
       } @else if (view() === 'analisis') {
         <section class="product-status-grid">
@@ -186,14 +253,20 @@ import { UI_PRIMITIVES } from './primitives';
       } @else {
         <section class="manual-card product-empty-state">
           <h2>Tu espacio financiero</h2>
-          <p>Inicia sesión para continuar con esta función usando tu información privada.</p>
-          <a routerLink="/acceso">Iniciar sesión</a>
+          @if (auth.signedIn) {
+            <p>Tu sesión está activa. Abre el espacio cifrado para continuar.</p>
+            <a routerLink="/registrar">Abrir espacio</a>
+          } @else {
+            <p>Inicia sesión para continuar con esta función usando tu información privada.</p>
+            <a routerLink="/acceso">Iniciar sesión</a>
+          }
         </section>
       }
     </section>
   `,
 })
 export class LockedProductScreen {
+  readonly auth = inject(AUTH_CLIENT);
   readonly view = input('inicio');
 
   readonly title = computed(
