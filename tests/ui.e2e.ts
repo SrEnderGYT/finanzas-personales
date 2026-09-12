@@ -52,15 +52,24 @@ test('login-first surface is responsive and WCAG AA in both themes', async ({ pa
   }
 });
 
-test('PWA shell preserves the protected entry surface offline', async ({ page, context }) => {
+test('public web does not keep the legacy Angular service worker or finance caches', async ({
+  page,
+}) => {
   await page.goto('/');
-  await page.evaluate(async () => {
-    await navigator.serviceWorker.ready;
-  });
-  await page.reload();
   await expect(page.getByRole('heading', { name: 'Un lugar para tenerlo claro.' })).toBeVisible();
-  await context.setOffline(true);
-  await page.reload();
-  await expect(page.getByRole('heading', { name: 'Un lugar para tenerlo claro.' })).toBeVisible();
-  await context.setOffline(false);
+  await expect
+    .poll(async () =>
+      page.evaluate(async () => {
+        if (!('serviceWorker' in navigator)) return [];
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        return registrations.map((registration) => registration.scope);
+      }),
+    )
+    .toEqual([]);
+  expect(
+    await page.evaluate(async () => {
+      if (!('caches' in window)) return [];
+      return caches.keys();
+    }),
+  ).toEqual([]);
 });
