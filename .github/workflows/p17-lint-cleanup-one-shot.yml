@@ -1,4 +1,4 @@
-name: P17 Lint Cleanup One Shot Run
+name: P17 Lint Cleanup One Shot
 on:
   push:
     branches: ['feature/p17-real-app']
@@ -22,55 +22,25 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-
           p = Path('backend/api/src/gmail-service.ts')
           s = p.read_text()
-          old = """    const client = await this.pool.connect();
-    let id = '';
-    let rangeDays = 30;
-    try {
-"""
-          new = """    const client = await this.pool.connect();
-    let authorization: { id: string; rangeDays: number } | undefined;
-    try {
-"""
+          old = "    const client = await this.pool.connect();\n    let id = '';\n    let rangeDays = 30;\n    try {\n"
+          new = "    const client = await this.pool.connect();\n    let authorization: { id: string; rangeDays: number } | undefined;\n    try {\n"
           assert s.count(old) == 1
           s = s.replace(old, new, 1)
-          old = """      id = userId(String(flow.rows[0].user_id));
-      rangeDays = Number(flow.rows[0].range_days);
-      await client.query('UPDATE app.gmail_oauth_flows SET used_at=now() WHERE state_hash=$1', [sha256(state)]);
-      await client.query('COMMIT');
-"""
-          new = """      const id = userId(String(flow.rows[0].user_id));
-      const rangeDays = Number(flow.rows[0].range_days);
-      await client.query('UPDATE app.gmail_oauth_flows SET used_at=now() WHERE state_hash=$1', [sha256(state)]);
-      await client.query('COMMIT');
-      authorization = { id, rangeDays };
-"""
+          old = "      id = userId(String(flow.rows[0].user_id));\n      rangeDays = Number(flow.rows[0].range_days);\n      await client.query('UPDATE app.gmail_oauth_flows SET used_at=now() WHERE state_hash=$1', [sha256(state)]);\n      await client.query('COMMIT');\n"
+          new = "      const id = userId(String(flow.rows[0].user_id));\n      const rangeDays = Number(flow.rows[0].range_days);\n      await client.query('UPDATE app.gmail_oauth_flows SET used_at=now() WHERE state_hash=$1', [sha256(state)]);\n      await client.query('COMMIT');\n      authorization = { id, rangeDays };\n"
           assert s.count(old) == 1
           s = s.replace(old, new, 1)
-          old = """    const token = await this.exchangeCode(code);
-    const profile = await this.profile(token.accessToken);
-"""
-          new = """    if (!authorization) throw new Error('Gmail authorization expired');
-    const { id, rangeDays } = authorization;
-    const token = await this.exchangeCode(code);
-    const profile = await this.profile(token.accessToken);
-"""
+          old = "    const token = await this.exchangeCode(code);\n    const profile = await this.profile(token.accessToken);\n"
+          new = "    if (!authorization) throw new Error('Gmail authorization expired');\n    const { id, rangeDays } = authorization;\n    const token = await this.exchangeCode(code);\n    const profile = await this.profile(token.accessToken);\n"
           assert s.count(old) == 1
           s = s.replace(old, new, 1)
           p.write_text(s)
-
           p = Path('scripts/configure-web-origin.mjs')
           s = p.read_text()
-          old = """import { createHash } from 'node:crypto';
-import { readFile, writeFile } from 'node:fs/promises';
-"""
-          new = """import { createHash } from 'node:crypto';
-import { readFile, writeFile } from 'node:fs/promises';
-import process from 'node:process';
-import { URL } from 'node:url';
-"""
+          old = "import { createHash } from 'node:crypto';\nimport { readFile, writeFile } from 'node:fs/promises';\n"
+          new = "import { createHash } from 'node:crypto';\nimport { readFile, writeFile } from 'node:fs/promises';\nimport process from 'node:process';\nimport { URL } from 'node:url';\n"
           assert s.count(old) == 1
           s = s.replace(old, new, 1)
           p.write_text(s)
