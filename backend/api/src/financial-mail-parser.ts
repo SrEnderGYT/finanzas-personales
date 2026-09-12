@@ -76,7 +76,7 @@ const rejectedTransaction =
   /\b(saldo insuficiente|fondos insuficientes|compra rechazada|se rechaz[oó] tu compra|transacci[oó]n rechazada|operaci[oó]n rechazada|operaci[oó]n no realizada|transacci[oó]n denegada|compra denegada|no pudimos procesar|no se pudo procesar|declinad[oa])\b/i;
 
 const marketingOffer =
-  /\b(precalifica|precalificaci[oó]n|cr[eé]dito preaprobado|pr[eé]stamo preaprobado|pr[eé]stamo para ti|solicita tu pr[eé]stamo|obt[eé]n tu pr[eé]stamo|100% digital|preventa activa|te extrañamos|hace tiempo no nos visitas|aprovecha esta oferta|oferta exclusiva|promoci[oó]n exclusiva)\b/i;
+  /\b(precalifica|precalificaci[oó]n|cr[eé]dito preaprobado|pr[eé]stamo preaprobado|pr[eé]stamo para ti|solicita tu pr[eé]stamo|obt[eé]n tu pr[eé]stamo|100% digital|preventa activa|te extrañamos|hace tiempo no nos visitas|aprovecha esta oferta|oferta exclusiva|promoci[oó]n exclusiva|gana(?:r)?|puntos?|millas?|participa|sorteo|premio|descuentos?|beneficio(?:s)?|ll[eé]vate|regalo con tu compra|pr[oó]xima compra|compra favorita|escoge tu premio|cambia[^\n]{0,80}y gana|pasajes?[^\n]{0,80}desde|desde\s+(?:s\/?\.?|us\$|usd)|hasta\s+[0-9.,]+\s+(?:puntos?|millas?))\b/i;
 
 const subscriptionCancellation =
   /\b(cancelaci[oó]n de (?:tu )?(?:membres[ií]a|suscripci[oó]n)|membres[ií]a (?:ha )?termin[oó]|suscripci[oó]n (?:ha sido )?cancelada|te has desafiliado|desafiliaci[oó]n|dar de baja|dimos de baja|cancelaste (?:tu )?(?:membres[ií]a|suscripci[oó]n))\b/i;

@@ -224,7 +224,12 @@ export class DetectedFinancesScreen implements OnInit {
           : ['debt', 'card_statement'],
     );
     return this.candidates().filter((candidate) => {
-      if (!allowed.has(candidate.kind) || !candidate.amountMinor || !candidate.currency)
+      if (
+        candidate.status === 'discarded' ||
+        !allowed.has(candidate.kind) ||
+        !candidate.amountMinor ||
+        !candidate.currency
+      )
         return false;
       if (monthKey(new Date(candidate.occurredAt)) !== this.month()) return false;
       if (this.view() === 'debts' && !candidate.institution) return false;
@@ -232,10 +237,19 @@ export class DetectedFinancesScreen implements OnInit {
     });
   });
 
+  readonly allCardRows = computed(() =>
+    this.candidates().filter(
+      (item) =>
+        item.status !== 'discarded' &&
+        !!item.institution &&
+        ['card_charge', 'card_statement', 'payment'].includes(item.kind),
+    ),
+  );
+
   readonly institutionOptions = computed(() =>
-    [
-      ...new Set(this.periodRows().flatMap((item) => (item.institution ? [item.institution] : []))),
-    ].sort((a, b) => a.localeCompare(b)),
+    [...new Set(this.allCardRows().map((item) => item.institution!))].sort((a, b) =>
+      a.localeCompare(b),
+    ),
   );
 
   readonly visible = computed(() =>
@@ -262,7 +276,7 @@ export class DetectedFinancesScreen implements OnInit {
 
   readonly institutions = computed(() => {
     const grouped = new Map<string, { events: number; pending: number }>();
-    for (const item of this.visible()) {
+    for (const item of this.allCardRows()) {
       if (!item.institution) continue;
       const current = grouped.get(item.institution) ?? { events: 0, pending: 0 };
       current.events++;

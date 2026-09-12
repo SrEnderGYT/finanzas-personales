@@ -340,7 +340,14 @@ export class LiveGmailService implements GmailConnectionService {
       snippet,
       receivedAt: receivedAt.toISOString(),
     });
-    if (!candidate) return;
+    if (!candidate) {
+      await this.pool.query(
+        `DELETE FROM app.gmail_financial_candidates
+         WHERE user_id=$1 AND source_message_id=$2 AND status='pending'`,
+        [id, messageId],
+      );
+      return;
+    }
     await this.pool.query(
       `INSERT INTO app.gmail_financial_candidates(
          id,user_id,source_message_id,kind,institution,merchant,currency,amount_minor,

@@ -37,12 +37,9 @@ import {
         @if (view() === 'inicio') {
           @if (!workspace.unlocked()) {
             <section class="manual-card product-empty-state">
-              <h2>Abre tu espacio cifrado</h2>
-              <p>
-                Inicia sesión y desbloquea tu perfil local para ver información confirmada y
-                pendientes de este dispositivo.
-              </p>
-              <a routerLink="/registro">Abrir espacio cifrado</a>
+              <h2>Cargando tus finanzas…</h2>
+              <p>Estamos consultando tus movimientos, cuentas y confirmaciones de Gmail.</p>
+              <button fpButton type="button" (click)="workspace.openRemote()">Reintentar</button>
             </section>
           } @else {
             <section class="product-status-grid" aria-label="Estado de tus movimientos">
@@ -274,7 +271,7 @@ import {
                       : movementItems().length
                         ? 'No hay movimientos con estos filtros'
                         : 'Aún no hay movimientos'
-                    : 'Abre tu espacio cifrado'
+                    : 'Cargando movimientos'
                 }}
               </h2>
               <p>
@@ -283,14 +280,14 @@ import {
                     ? movementItems().length
                       ? 'Ajusta o limpia los filtros para volver a ver tu actividad.'
                       : 'Registra tu primer gasto o ingreso. Sin conexión quedará pendiente.'
-                    : 'Desbloquea tu perfil para consultar los movimientos guardados en este dispositivo.'
+                    : 'Estamos cargando los movimientos confirmados de tu cuenta.'
                 }}
               </p>
               @if (workspace.unlocked() && movementItems().length) {
                 <button fpButton type="button" (click)="clearFilters()">Limpiar filtros</button>
               } @else {
                 <a routerLink="/registro">{{
-                  workspace.unlocked() ? 'Registrar movimiento' : 'Abrir espacio cifrado'
+                  workspace.unlocked() ? 'Registrar movimiento' : 'Reintentar carga'
                 }}</a>
               }
             }
@@ -302,8 +299,8 @@ import {
           <section class="manual-card">
             <h2>Tus cuentas</h2>
             <p>
-              Catálogo local: {{ workspace.catalog()?.downloadedAt ?? 'sin descargar' }}. Los saldos
-              confirmados se consultan en el servidor; esta vista no calcula un saldo local.
+              Catálogo de tu cuenta: {{ workspace.catalog()?.downloadedAt ?? 'cargando' }}. Cuentas
+              y categorías se consultan con tu sesión activa.
             </p>
             @for (account of workspace.catalog()?.accounts ?? []; track account.id) {
               <article class="pending-row">
@@ -314,8 +311,8 @@ import {
                 >
               </article>
             } @empty {
-              <p>Abre tu espacio y descarga el catálogo de tu sesión para ver tus cuentas.</p>
-              <a routerLink="/registro">Abrir espacio</a>
+              <p>No encontramos cuentas todavía.</p>
+              <a routerLink="/registro">Preparar cuentas</a>
             }
           </section>
           @if (workspace.unlocked()) {
@@ -331,6 +328,76 @@ import {
               }
             </section>
           }
+        } @else if (view() === 'presupuestos') {
+          <section class="product-currency-grid">
+            @for (currency of monthlySummary().currencies; track currency.currency) {
+              <article class="manual-card currency-summary">
+                <p class="eyebrow">{{ currency.currency }}</p>
+                <h2>Gasto confirmado del mes</h2>
+                <strong>{{ exact(currency.currency, currency.expenseMinor) }}</strong>
+                <p>{{ currency.confirmedCount }} movimiento(s) confirmado(s) en el periodo.</p>
+              </article>
+            } @empty {
+              <article class="manual-card">
+                <h2>Sin gasto confirmado este mes</h2>
+                <p>Los consumos que confirmes aparecerán aquí automáticamente.</p>
+              </article>
+            }
+          </section>
+          <section class="manual-card">
+            <h2>Seguimiento por categoría</h2>
+            @for (row of monthlyCategories(); track row.currency + row.category) {
+              <article class="pending-row">
+                <strong>{{ row.category }}</strong
+                ><span>{{ exact(row.currency, row.minor) }}</span>
+              </article>
+            } @empty {
+              <p>Aún no hay categorías con consumo confirmado este mes.</p>
+            }
+            <p class="zone-note">
+              Esta vista usa gasto real confirmado. Los límites mensuales personalizados se
+              incorporarán sin inventar montos.
+            </p>
+          </section>
+        } @else if (view() === 'analisis') {
+          <section class="product-currency-grid">
+            @for (currency of summary().currencies; track currency.currency) {
+              <article class="manual-card currency-summary">
+                <p class="eyebrow">{{ currency.currency }}</p>
+                <h2>Resumen confirmado</h2>
+                <dl class="money-summary">
+                  <div>
+                    <dt>Ingresos</dt>
+                    <dd>{{ exact(currency.currency, currency.incomeMinor) }}</dd>
+                  </div>
+                  <div>
+                    <dt>Gastos</dt>
+                    <dd>{{ exact(currency.currency, currency.expenseMinor) }}</dd>
+                  </div>
+                  <div>
+                    <dt>Balance registrado</dt>
+                    <dd>{{ exact(currency.currency, currency.balanceMinor) }}</dd>
+                  </div>
+                </dl>
+              </article>
+            } @empty {
+              <article class="manual-card">
+                <h2>Aún no hay datos confirmados</h2>
+                <p>Confirma consumos o registra un movimiento para comenzar el análisis.</p>
+              </article>
+            }
+          </section>
+          <section class="manual-card">
+            <h2>Gasto del mes por categoría</h2>
+            @for (row of monthlyCategories(); track row.currency + row.category) {
+              <article class="pending-row">
+                <strong>{{ row.category }}</strong
+                ><span>{{ exact(row.currency, row.minor) }}</span>
+              </article>
+            } @empty {
+              <p>Sin gasto confirmado para analizar en el mes actual.</p>
+            }
+          </section>
         } @else if (view() === 'configuracion') {
           <section class="manual-card">
             <h2>Tu acceso</h2>
@@ -362,6 +429,10 @@ export class ProductScreen {
   readonly stateFilter = signal<ProductMovementFilters['state']>('all');
   readonly dateFrom = signal('');
   readonly dateTo = signal('');
+
+  constructor() {
+    if (this.workspace.auth.signedIn) void this.workspace.openRemote();
+  }
 
   readonly title = computed(
     () =>
@@ -416,18 +487,88 @@ export class ProductScreen {
     );
   });
 
-  readonly movementItems = computed<ProductMovementItem[]>(() =>
-    this.movements().map((row) => ({
+  readonly movementItems = computed<ProductMovementItem[]>(() => {
+    const rows: ProductMovementItem[] = this.movements().map((row) => ({
       id: row.id,
       payload: row.payload,
       state: row.state,
       account: this.accountName(row.payload.accountId),
       category: this.categoryName(row.payload.categoryId),
       ...(row.failure ? { failure: row.failure } : {}),
-    })),
-  );
+    }));
+    for (const item of this.workspace.gmailConfirmed()) {
+      if (!item.currency || !item.amountMinor) continue;
+      const kind =
+        item.kind === 'income'
+          ? 'income'
+          : ['expense', 'card_charge', 'subscription'].includes(item.kind)
+            ? 'expense'
+            : undefined;
+      if (!kind) continue;
+      const date = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Lima',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date(item.occurredAt));
+      rows.push({
+        id: `gmail:${item.id}`,
+        payload: {
+          kind,
+          accountId: '00000000-0000-4000-8000-000000000001',
+          categoryId: '00000000-0000-4000-8000-000000000002',
+          currency: item.currency,
+          amountMinor: item.amountMinor,
+          businessDate: date,
+          timezone: 'America/Lima',
+          occurredAt: item.occurredAt,
+          note: item.summary,
+        },
+        state: 'confirmed',
+        account: item.institution ?? item.merchant ?? 'Gmail',
+        category:
+          kind === 'income'
+            ? 'Ingreso detectado'
+            : item.kind === 'subscription'
+              ? 'Suscripción'
+              : 'Consumo detectado',
+      });
+    }
+    return rows.sort(
+      (a, b) =>
+        b.payload.businessDate.localeCompare(a.payload.businessDate) || a.id.localeCompare(b.id),
+    );
+  });
 
   readonly summary = computed(() => summarizeProductMovements(this.movementItems()));
+  readonly monthKey = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Lima',
+    year: 'numeric',
+    month: '2-digit',
+  }).format(new Date());
+  readonly monthlyItems = computed(() =>
+    this.movementItems().filter(
+      (row) => row.state === 'confirmed' && row.payload.businessDate.startsWith(this.monthKey),
+    ),
+  );
+  readonly monthlySummary = computed(() => summarizeProductMovements(this.monthlyItems()));
+  readonly monthlyCategories = computed(() => {
+    const values = new Map<string, { category: string; currency: string; minor: bigint }>();
+    for (const row of this.monthlyItems()) {
+      if (row.payload.kind !== 'expense') continue;
+      const key = `${row.payload.currency}:${row.category}`;
+      const current = values.get(key) ?? {
+        category: row.category,
+        currency: row.payload.currency,
+        minor: 0n,
+      };
+      current.minor += BigInt(row.payload.amountMinor);
+      values.set(key, current);
+    }
+    return [...values.values()].sort((a, b) =>
+      a.minor > b.minor ? -1 : a.minor < b.minor ? 1 : a.category.localeCompare(b.category),
+    );
+  });
 
   readonly filteredMovements = computed(() =>
     filterProductMovements(this.movementItems(), {

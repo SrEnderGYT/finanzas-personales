@@ -60,6 +60,67 @@ describe('financial Gmail ingestion', () => {
     ).toBeUndefined();
   });
 
+  it('ignores promotional amounts, prizes, miles, discounts and teaser prices', () => {
+    const promotional = [
+      [
+        '¡Gana hasta 3,000 Puntos BBVA!',
+        'Compra hoy y participa por S/ 50.00 en beneficios.',
+        'BBVA <beneficios@bbva.pe>',
+      ],
+      [
+        'Tu próxima compra para la casa está aquí',
+        'Encuentra productos desde S/ 406.00.',
+        'Tienda <promo@tienda.pe>',
+      ],
+      [
+        'German, llévate 1 camioneta o S/5,000 en efectivo',
+        'Participa en nuestro sorteo.',
+        'Interbank <beneficios@interbank.pe>',
+      ],
+      [
+        'German, participa por 1 Millón de Millas',
+        'Compra y participa. Premio referencial S/ 100.00.',
+        'BCP <beneficios@bcp.com.pe>',
+      ],
+      [
+        '¡Descuentos por todos lados!',
+        'Beneficios de hasta S/ 1,000.',
+        'Banco Ripley <promo@ripley.com.pe>',
+      ],
+      [
+        'Recibe un regalo con tu compra en tienda',
+        'Compra desde S/ 2,026.00 y participa.',
+        'Tienda <promo@tienda.pe>',
+      ],
+      [
+        'German, escoge tu premio: S/80 Cashback o sorteo S/2,000',
+        'Elige tu premio.',
+        'BCP <beneficios@bcp.com.pe>',
+      ],
+      [
+        'Cambia $150 y gana',
+        'Participa por premios cambiando US$ 150.00.',
+        'Interbank <beneficios@interbank.pe>',
+      ],
+      [
+        'Pasajes nacionales desde USD 35',
+        'Oferta válida por tiempo limitado.',
+        'Aerolínea <promo@example.com>',
+      ],
+    ] as const;
+    for (const [subject, snippet, sender] of promotional)
+      expect(mail(subject, snippet, sender)).toBeUndefined();
+  });
+
+  it('classifies a card-payment receipt as payment, never as income', () => {
+    expect(
+      mail(
+        'Constancia de Pago de Tarjeta de Crédito Propia - Servicio de Notificaciones BCP',
+        'Tu pago de tarjeta por S/ 100.00 fue procesado correctamente.',
+      ),
+    ).toMatchObject({ kind: 'payment', institution: 'BCP', currency: 'PEN', amountMinor: 10000 });
+  });
+
   it('keeps billed services with an amount without treating bank receipts as expenses', () => {
     expect(
       mail(
