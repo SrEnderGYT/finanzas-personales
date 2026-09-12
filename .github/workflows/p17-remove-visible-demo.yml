@@ -1,0 +1,65 @@
+name: P17 Remove Visible Synthetic Controls
+on:
+  push:
+    branches: ['feature/p17-real-app']
+permissions:
+  contents: write
+jobs:
+  cleanup:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: feature/p17-real-app
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm install --global npm@11.6.1
+      - run: npm ci
+      - name: Remove visible synthetic paths
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          manual = Path('packages/ui/src/manual-screen.ts')
+          text = manual.read_text()
+          text = text.replace(
+            "import { ManualSession, DEMO_PROFILE, demoManualCatalog } from '../../shared/src/manual-session';",
+            "import { ManualSession } from '../../shared/src/manual-session';",
+          )
+          old_banner = """    <p class=\"mode-banner\">\n      {{\n        workspace.product()\n          ? 'Perfil de producto · confirmación mediante sincronización'\n          : 'DEMO · Usa únicamente datos ficticios en esta vista'\n      }}\n    </p>\n"""
+          text = text.replace(old_banner, "    <p class=\"mode-banner\">Perfil conectado · confirmación mediante sincronización</p>\n")
+          old_actions = """        <div class=\"profile-actions\">\n          <button fpButton type=\"button\" [disabled]=\"busy()\" (click)=\"openDemo()\">\n            Probar con datos DEMO\n          </button>\n          @if (auth.enabled) {\n            <a routerLink=\"/acceso\">Iniciar sesión</a\n            ><button\n              fpButton\n              type=\"button\"\n              [disabled]=\"busy() || !auth.signedIn\"\n              (click)=\"onlineProfile()\"\n            >\n              Preparar perfil conectado\n            </button>\n          }\n        </div>\n"""
+          new_actions = """        <div class=\"profile-actions\">\n          <button\n            fpButton\n            type=\"button\"\n            [disabled]=\"busy() || !auth.signedIn\"\n            (click)=\"onlineProfile()\"\n          >\n            Preparar mi perfil conectado\n          </button>\n        </div>\n"""
+          if old_actions not in text:
+            raise SystemExit('Manual profile action block not found')
+          text = text.replace(old_actions, new_actions, 1)
+          old_method = """  async openDemo() {\n    this.workspace.enterDemo();\n    await this.openProfile(DEMO_PROFILE, demoManualCatalog());\n  }\n"""
+          if old_method not in text:
+            raise SystemExit('Manual openDemo method not found')
+          text = text.replace(old_method, '', 1)
+          manual.write_text(text)
+
+          product = Path('packages/ui/src/product-screen.ts')
+          text = product.read_text()
+          old_config = """            <h2>Vista de prueba separada</h2>\n            <p>Abre una vista con datos ficticios. Tu espacio privado quedará bloqueado.</p>\n            <button fpButton (click)=\"workspace.enterDemo()\">Abrir modo DEMO</button>\n"""
+          if old_config not in text:
+            raise SystemExit('Product synthetic config block not found')
+          text = text.replace(old_config, """            <h2>Privacidad local</h2>\n            <p>Bloquea el espacio cifrado cuando termines de usar este dispositivo.</p>\n""", 1)
+          product.write_text(text)
+          PY
+      - name: Format and validate
+        run: |
+          npm exec -- prettier --write packages/ui/src/manual-screen.ts packages/ui/src/product-screen.ts
+          npm run typecheck
+      - name: Remove one-shot workflow
+        run: rm .github/workflows/p17-remove-visible-demo.yml
+      - name: Commit cleanup
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/ui/src/manual-screen.ts packages/ui/src/product-screen.ts .github/workflows/p17-remove-visible-demo.yml
+          git commit -m "feat(p17): remove visible synthetic product controls"
+          git push origin HEAD:feature/p17-real-app
