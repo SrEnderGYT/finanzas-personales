@@ -24,8 +24,8 @@ jobs:
       - run: npm ci
       - name: Apply product repair
         run: python3 scripts/p17-product-fix-v2.py
-      - name: Normalize changed files
-        run: npm exec prettier -- --write backend/api/src/financial-mail-parser.ts backend/api/src/gmail-service.ts backend/api/migrations/024_gmail_marketing_cleanup.sql packages/ui/src/detected-finances-screen.ts packages/ui/src/product-workspace.ts packages/ui/src/latest-screen.ts packages/ui/src/manual-screen.ts packages/ui/src/product-screen.ts tests/gmail-ingestion.test.ts
+      - name: Normalize changed TypeScript
+        run: npm exec prettier -- --write backend/api/src/financial-mail-parser.ts backend/api/src/gmail-service.ts packages/ui/src/detected-finances-screen.ts packages/ui/src/product-workspace.ts packages/ui/src/latest-screen.ts packages/ui/src/manual-screen.ts packages/ui/src/product-screen.ts tests/gmail-ingestion.test.ts
       - name: Validate focused repair
         run: |
           npm run typecheck
