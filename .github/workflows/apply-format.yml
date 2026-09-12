@@ -1,0 +1,58 @@
+name: Apply verified formatting
+on:
+  push:
+    branches: ['fix/p15-format-diagnostic']
+permissions:
+  contents: write
+jobs:
+  p11:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: feature/p11-functional-dashboard
+          fetch-depth: 1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm install --global npm@11.6.1
+      - run: npm ci
+      - run: npx prettier --write packages/ui/src/product-screen.ts
+      - name: Commit formatting only
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/ui/src/product-screen.ts
+          git commit -m "style(product): apply Prettier formatting"
+          git push origin HEAD:feature/p11-functional-dashboard
+  p15:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: feature/p15-gmail-connection-ui
+          fetch-depth: 1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm install --global npm@11.6.1
+      - run: npm ci
+      - run: >-
+          npx prettier --write
+          packages/ui/src/auth-client.ts
+          packages/ui/src/gmail-screen.ts
+          packages/ui/src/product-screen.ts
+          backend/api/src/app.ts
+          backend/api/src/gmail-controller.ts
+          tests/gmail-controller.test.ts
+      - name: Commit formatting only
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/ui/src/auth-client.ts packages/ui/src/gmail-screen.ts packages/ui/src/product-screen.ts backend/api/src/app.ts backend/api/src/gmail-controller.ts tests/gmail-controller.test.ts
+          git commit -m "style(gmail): apply Prettier formatting"
+          git push origin HEAD:feature/p15-gmail-connection-ui
