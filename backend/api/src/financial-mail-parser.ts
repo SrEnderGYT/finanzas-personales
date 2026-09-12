@@ -45,6 +45,35 @@ const institutionRules: readonly [RegExp, string][] = [
   [/\bripley\b/i, 'Banco Ripley'],
 ];
 
+const subscriptionMerchants: readonly [RegExp, string][] = [
+  [/\bspotify\b/i, 'Spotify'],
+  [/\b(chatgpt|openai)\b/i, 'ChatGPT'],
+  [/\bnetflix\b/i, 'Netflix'],
+  [/\b(prime video|amazon prime)\b/i, 'Prime Video'],
+  [/\byoutube premium\b/i, 'YouTube Premium'],
+  [/\bdisney\+?|disney plus\b/i, 'Disney+'],
+  [/\b(hbo max|max\.com|\bmax\b)\b/i, 'Max'],
+  [/\bapple music\b/i, 'Apple Music'],
+  [/\bgoogle one\b/i, 'Google One'],
+  [/\bicloud\+?|icloud plus\b/i, 'iCloud+'],
+  [/\bmicrosoft 365\b/i, 'Microsoft 365'],
+  [/\bcanva\b/i, 'Canva'],
+  [/\badobe\b/i, 'Adobe'],
+  [/\bdropbox\b/i, 'Dropbox'],
+];
+
+const rejectedTransaction =
+  /\b(saldo insuficiente|fondos insuficientes|compra rechazada|se rechaz[oó] tu compra|transacci[oó]n rechazada|operaci[oó]n rechazada|operaci[oó]n no realizada|transacci[oó]n denegada|compra denegada|no pudimos procesar|no se pudo procesar|declinad[oa])\b/i;
+
+const marketingOffer =
+  /\b(precalifica|precalificaci[oó]n|cr[eé]dito preaprobado|pr[eé]stamo preaprobado|pr[eé]stamo para ti|solicita tu pr[eé]stamo|obt[eé]n tu pr[eé]stamo|100% digital|preventa activa|te extrañamos|hace tiempo no nos visitas|aprovecha esta oferta|oferta exclusiva|promoci[oó]n exclusiva)\b/i;
+
+const subscriptionCancellation =
+  /\b(cancelaci[oó]n de (?:tu )?(?:membres[ií]a|suscripci[oó]n)|membres[ií]a (?:ha )?termin[oó]|suscripci[oó]n (?:ha sido )?cancelada|te has desafiliado|desafiliaci[oó]n|dar de baja|dimos de baja|cancelaste (?:tu )?(?:membres[ií]a|suscripci[oó]n))\b/i;
+
+const documentOnly =
+  /\b(nuevo comprobante electr[oó]nico|te enviamos tu nuevo comprobante|comprobante electr[oó]nico|boleta electr[oó]nica|documento electr[oó]nico)\b/i;
+
 function compact(value: string, max = 512) {
   return value.replace(/\s+/g, ' ').trim().slice(0, max);
 }
@@ -66,61 +95,110 @@ function amountToMinor(raw: string): number | undefined {
   }
   if (!/^\d+(?:\.\d{1,2})?$/.test(value)) return undefined;
   const number = Number(value);
-  if (!Number.isFinite(number) || number < 0 || number > 100_000_000) return undefined;
+  if (!Number.isFinite(number) || number <= 0 || number > 100_000_000) return undefined;
   return Math.round(number * 100);
 }
 
-function money(text: string) {
-  // The amount must end in a digit so sentence punctuation is never interpreted as part of it.
-  const pattern = /(S\/?\.?|PEN|US\$|USD|\$)\s*([0-9](?:[0-9.,]*[0-9])?)/gi;
-  for (const match of text.matchAll(pattern)) {
-    const amountMinor = amountToMinor(match[2]!);
-    if (amountMinor === undefined) continue;
-    const token = match[1]!.toUpperCase();
-    const currency: 'PEN' | 'USD' =
-      token.includes('US') || token === 'USD' || token === '$' ? 'USD' : 'PEN';
-    return { amountMinor, currency };
-  }
-  return {};
+function parseMoneyToken(token: string, raw: string) {
+  const amountMinor = amountToMinor(raw);
+  if (amountMinor === undefined) return undefined;
+  const upper = token.toUpperCase();
+  const currency: 'PEN' | 'USD' =
+    upper.includes('US') || upper === 'USD' || upper === '$' ? 'USD' : 'PEN';
+  return { amountMinor, currency };
 }
 
-function classify(text: string): { kind: FinancialMailKind; confidence: number } | undefined {
-  if (/estado de cuenta|fecha de corte|pago m[ií]nimo|l[ií]nea de cr[eé]dito/i.test(text))
-    return { kind: 'card_statement', confidence: 90 };
-  if (
-    /suscripci[oó]n|membres[ií]a|renovaci[oó]n autom[aá]tica|pago recurrente|pr[oó]ximo cobro/i.test(
-      text,
-    )
-  )
-    return { kind: 'subscription', confidence: 88 };
-  if (
-    /pr[eé]stamo|deuda|cuota (?:mensual|pendiente|por pagar)|saldo pendiente|vencimiento de (?:cuota|cr[eé]dito)/i.test(
-      text,
-    )
-  )
-    return { kind: 'debt', confidence: 86 };
-  if (
-    /compra (?:con|realizada).*tarjeta|consumo.*tarjeta|operaci[oó]n.*tarjeta|cargo.*tarjeta/i.test(
-      text,
-    )
-  )
-    return { kind: 'card_charge', confidence: 89 };
-  if (
-    /abono|dep[oó]sito|transferencia recibida|ingreso|pago recibido|sueldo|remuneraci[oó]n/i.test(
-      text,
-    )
-  )
-    return { kind: 'income', confidence: 82 };
-  if (/transferencia|yape|plin/i.test(text)) return { kind: 'transfer', confidence: 74 };
-  if (/pago realizado|pagaste|pago procesado|pago de tarjeta/i.test(text))
-    return { kind: 'payment', confidence: 78 };
-  if (/compra|consumo|cargo|retiro|d[eé]bito|recibo|factura|pago/i.test(text))
-    return { kind: 'expense', confidence: 72 };
+function money(text: string) {
+  const pattern = /(S\/?\.?|PEN|US\$|USD|\$)\s*([0-9](?:[0-9.,]*[0-9])?)/gi;
+  for (const match of text.matchAll(pattern)) {
+    const parsed = parseMoneyToken(match[1]!, match[2]!);
+    if (parsed) return parsed;
+  }
   return undefined;
+}
+
+function statementMoney(text: string) {
+  const labels =
+    /(pago total|total a pagar|monto total|saldo total|pago m[ií]nimo|monto m[ií]nimo|cuota del mes|monto de la cuota)/gi;
+  for (const label of text.matchAll(labels)) {
+    const start = label.index ?? 0;
+    const window = text.slice(start, start + 120);
+    const detected = money(window);
+    if (detected) return detected;
+  }
+  return money(text);
 }
 
 function institution(text: string) {
   for (const [pattern, name] of institutionRules) if (pattern.test(text)) return name;
+  return undefined;
+}
+
+function subscriptionMerchant(text: string) {
+  for (const [pattern, name] of subscriptionMerchants) if (pattern.test(text)) return name;
+  return undefined;
+}
+
+function classify(
+  text: string,
+  hasAmount: boolean,
+  recurringMerchant?: string,
+): { kind: FinancialMailKind; confidence: number } | undefined {
+  if (!hasAmount) return undefined;
+
+  if (
+    /\b(estado de cuenta|fecha de corte|pago m[ií]nimo|pago total|total a pagar|saldo (?:de|en) (?:tu )?tarjeta|monto total a pagar)\b/i.test(
+      text,
+    )
+  )
+    return { kind: 'card_statement', confidence: 94 };
+
+  const recurringLanguage =
+    /\b(cobro recurrente|cargo recurrente|pago recurrente|renovaci[oó]n autom[aá]tica|renovaci[oó]n cobrada|pr[oó]ximo cobro|membres[ií]a mensual|suscripci[oó]n mensual|plan mensual)\b/i.test(
+      text,
+    );
+  if (recurringMerchant && (recurringLanguage || /\b(cargo|cobro|pago|compra)\b/i.test(text)))
+    return { kind: 'subscription', confidence: 94 };
+  if (recurringLanguage) return { kind: 'subscription', confidence: 89 };
+
+  if (
+    /\b(constancia de pago de tarjeta|pago de (?:tu )?tarjeta|pago realizado|pago procesado|pagaste (?:tu )?tarjeta|abonaste (?:a )?(?:tu )?tarjeta)\b/i.test(
+      text,
+    )
+  )
+    return { kind: 'payment', confidence: 91 };
+
+  if (
+    /\b(compra (?:realizada|aprobada)(?: con (?:tu )?tarjeta)?|consumo (?:realizado|aprobado).*tarjeta|operaci[oó]n.*tarjeta|cargo (?:realizado|procesado).*tarjeta|compra con (?:tu )?tarjeta)\b/i.test(
+      text,
+    )
+  )
+    return { kind: 'card_charge', confidence: 92 };
+
+  if (
+    /\b(transferencia recibida|dep[oó]sito recibido|abono recibido|pago recibido|sueldo|remuneraci[oó]n|abono en (?:tu )?cuenta)\b/i.test(
+      text,
+    )
+  )
+    return { kind: 'income', confidence: 90 };
+
+  if (/\b(transferencia realizada|transferencia enviada|yape|plin)\b/i.test(text))
+    return { kind: 'transfer', confidence: 82 };
+
+  if (
+    /\b(cuota vencida|cuota por pagar|saldo pendiente|deuda pendiente|vencimiento de cuota|monto de la cuota)\b/i.test(
+      text,
+    )
+  )
+    return { kind: 'debt', confidence: 88 };
+
+  if (
+    /\b(compra realizada|consumo realizado|cargo realizado|cargo procesado|retiro realizado|d[eé]bito realizado|pago realizado)\b/i.test(
+      text,
+    )
+  )
+    return { kind: 'expense', confidence: 83 };
+
   return undefined;
 }
 
@@ -130,14 +208,25 @@ export function parseFinancialMail(input: FinancialMailInput): ParsedFinancialMa
   const subject = compact(input.subject, 1024);
   const snippet = compact(input.snippet, 2048);
   const text = `${sender}\n${subject}\n${snippet}`;
-  const category = classify(text);
-  if (!category) return undefined;
-  const detectedMoney = money(text);
+
+  if (rejectedTransaction.test(text) || marketingOffer.test(text) || subscriptionCancellation.test(text))
+    return undefined;
+
+  const recurringMerchant = subscriptionMerchant(text);
+  const statementContext =
+    /\b(estado de cuenta|pago m[ií]nimo|pago total|total a pagar|saldo (?:de|en) (?:tu )?tarjeta)\b/i.test(
+      text,
+    );
+  const detectedMoney = statementContext ? statementMoney(text) : money(text);
+
+  if (documentOnly.test(text) && !/\b(pago|cargo|compra|consumo|d[eé]bito) (?:realizado|procesado|aprobado)\b/i.test(text))
+    return undefined;
+
+  const category = classify(text, Boolean(detectedMoney), recurringMerchant);
+  if (!category || !detectedMoney) return undefined;
+
   const bank = institution(text);
-  const confidence = Math.min(
-    99,
-    category.confidence + (detectedMoney.amountMinor !== undefined ? 5 : 0) + (bank ? 3 : 0),
-  );
+  const confidence = Math.min(99, category.confidence + (bank ? 3 : 0));
   const summary = compact(subject || snippet || `${category.kind} detectado`, 512);
   const fingerprint = createHash('sha256')
     .update(
@@ -145,16 +234,18 @@ export function parseFinancialMail(input: FinancialMailInput): ParsedFinancialMa
         input.messageId,
         category.kind,
         bank ?? '',
-        detectedMoney.currency ?? '',
-        detectedMoney.amountMinor?.toString() ?? '',
+        recurringMerchant ?? '',
+        detectedMoney.currency,
+        detectedMoney.amountMinor.toString(),
       ].join('|'),
     )
     .digest('hex');
   return {
     kind: category.kind,
     ...(bank ? { institution: bank } : {}),
-    ...(detectedMoney.currency ? { currency: detectedMoney.currency } : {}),
-    ...(detectedMoney.amountMinor !== undefined ? { amountMinor: detectedMoney.amountMinor } : {}),
+    ...(recurringMerchant ? { merchant: recurringMerchant } : {}),
+    currency: detectedMoney.currency,
+    amountMinor: detectedMoney.amountMinor,
     occurredAt: new Date(input.receivedAt).toISOString(),
     confidence,
     fingerprint,
