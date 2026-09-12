@@ -1,0 +1,89 @@
+name: P17 Lint Cleanup One Shot
+on:
+  push:
+    branches: ['feature/p17-real-app']
+    paths: ['.github/workflows/p17-lint-cleanup-one-shot.yml']
+permissions:
+  contents: write
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: feature/p17-real-app
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm install --global npm@11.6.1
+      - run: npm ci
+      - name: Apply exact lint fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('backend/api/src/gmail-service.ts')
+          s = p.read_text()
+          old = """    const client = await this.pool.connect();
+    let id = '';
+    let rangeDays = 30;
+    try {
+"""
+          new = """    const client = await this.pool.connect();
+    let authorization: { id: string; rangeDays: number } | undefined;
+    try {
+"""
+          assert s.count(old) == 1
+          s = s.replace(old, new, 1)
+          old = """      id = userId(String(flow.rows[0].user_id));
+      rangeDays = Number(flow.rows[0].range_days);
+      await client.query('UPDATE app.gmail_oauth_flows SET used_at=now() WHERE state_hash=$1', [sha256(state)]);
+      await client.query('COMMIT');
+"""
+          new = """      const id = userId(String(flow.rows[0].user_id));
+      const rangeDays = Number(flow.rows[0].range_days);
+      await client.query('UPDATE app.gmail_oauth_flows SET used_at=now() WHERE state_hash=$1', [sha256(state)]);
+      await client.query('COMMIT');
+      authorization = { id, rangeDays };
+"""
+          assert s.count(old) == 1
+          s = s.replace(old, new, 1)
+          old = """    const token = await this.exchangeCode(code);
+    const profile = await this.profile(token.accessToken);
+"""
+          new = """    if (!authorization) throw new Error('Gmail authorization expired');
+    const { id, rangeDays } = authorization;
+    const token = await this.exchangeCode(code);
+    const profile = await this.profile(token.accessToken);
+"""
+          assert s.count(old) == 1
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          p = Path('scripts/configure-web-origin.mjs')
+          s = p.read_text()
+          old = """import { createHash } from 'node:crypto';
+import { readFile, writeFile } from 'node:fs/promises';
+"""
+          new = """import { createHash } from 'node:crypto';
+import { readFile, writeFile } from 'node:fs/promises';
+import process from 'node:process';
+import { URL } from 'node:url';
+"""
+          assert s.count(old) == 1
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+      - run: npx prettier --write backend/api/src/gmail-service.ts scripts/configure-web-origin.mjs
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run typecheck
+      - name: Commit validated cleanup
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add backend/api/src/gmail-service.ts scripts/configure-web-origin.mjs
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(p17): close lint regressions'
+          git push origin HEAD:feature/p17-real-app
