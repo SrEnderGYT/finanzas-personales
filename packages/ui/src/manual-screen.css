@@ -23,6 +23,96 @@
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 24px;
 }
+.product-status-grid,
+.product-currency-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 18px 0;
+}
+.product-currency-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.product-stat-card {
+  border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+  border-radius: 18px;
+  padding: 18px;
+  background: var(--surface, #fff);
+}
+.product-stat-card > span,
+.product-stat-card > small {
+  display: block;
+}
+.product-stat-card > span {
+  font-weight: 700;
+}
+.product-stat-card > strong {
+  display: block;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  margin: 6px 0;
+}
+.product-stat-card > small,
+.currency-summary header > span {
+  opacity: 0.7;
+}
+.product-stat-card.needs-attention {
+  border-color: #f59e0b;
+}
+.currency-summary header,
+.product-section-heading,
+.movement-search-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.currency-summary header h2,
+.product-section-heading h2 {
+  margin-bottom: 4px;
+}
+.product-section-heading p {
+  margin: 0;
+  opacity: 0.75;
+}
+.money-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 18px 0 0;
+}
+.money-summary div {
+  padding: 14px;
+  border-radius: 12px;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+}
+.money-summary dt {
+  font-size: 0.78rem;
+  opacity: 0.72;
+}
+.money-summary dd {
+  margin: 6px 0 0;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+.product-empty-state {
+  margin-top: 18px;
+}
+.movement-filter-card {
+  margin-bottom: 18px;
+}
+.movement-search-row label {
+  flex: 1;
+}
+.movement-search-row > span {
+  padding-top: 34px;
+  white-space: nowrap;
+  opacity: 0.75;
+}
+.movement-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
 .correction-comparison {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -160,6 +250,16 @@
   outline: 3px solid #14b8a6;
   outline-offset: 2px;
 }
+@media (max-width: 900px) {
+  .product-status-grid,
+  .product-currency-grid,
+  .money-summary {
+    grid-template-columns: 1fr;
+  }
+  .movement-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 @media (max-width: 760px) {
   .correction-comparison {
     grid-template-columns: 1fr;
@@ -170,14 +270,21 @@
   .manual-card {
     padding: 18px;
   }
-  .field-pair {
+  .field-pair,
+  .movement-filter-grid {
     grid-template-columns: 1fr;
   }
   .manual-page {
     padding-bottom: 90px;
   }
-  .pending-row {
+  .pending-row,
+  .currency-summary header,
+  .product-section-heading,
+  .movement-search-row {
     flex-direction: column;
+  }
+  .movement-search-row > span {
+    padding-top: 0;
   }
   .save-manual {
     position: sticky;
