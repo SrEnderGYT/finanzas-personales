@@ -1,4 +1,4 @@
-name: P17 Lint Cleanup One Shot
+name: P17 Lint Cleanup One Shot Run
 on:
   push:
     branches: ['feature/p17-real-app']
