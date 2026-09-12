@@ -336,9 +336,8 @@ import {
             <h2>Tu acceso</h2>
             <a routerLink="/acceso">Administrar sesión</a>
             <button fpButton (click)="workspace.lock()">Bloquear espacio local</button>
-            <h2>Vista de prueba separada</h2>
-            <p>Abre una vista con datos ficticios. Tu espacio privado quedará bloqueado.</p>
-            <button fpButton (click)="workspace.enterDemo()">Abrir modo DEMO</button>
+            <h2>Privacidad local</h2>
+            <p>Bloquea el espacio cifrado cuando termines de usar este dispositivo.</p>
           </section>
         } @else {
           <section class="manual-card">
