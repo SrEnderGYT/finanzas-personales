@@ -296,7 +296,8 @@ export class AuthClient {
     });
     if (token !== this.token) throw new SyncHttpError(401, 'SESSION_CHANGED');
     if (response.status === 401) this.token = undefined;
-    const data: unknown = response.status === 204 ? undefined : await response.json().catch(() => null);
+    const data: unknown =
+      response.status === 204 ? undefined : await response.json().catch(() => null);
     if (!response.ok) {
       const code =
         data &&
