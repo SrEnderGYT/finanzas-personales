@@ -92,6 +92,8 @@ export class Shell {
     { path: '/cuentas', label: 'Cuentas', icon: '▣' },
     { path: '/gmail', label: 'Gmail', icon: '✉' },
     { path: '/tarjetas', label: 'Tarjetas', icon: '▤' },
+    { path: '/suscripciones', label: 'Suscripciones', icon: '↻' },
+    { path: '/deudas', label: 'Deudas', icon: '◫' },
     { path: '/presupuestos', label: 'Presupuestos', icon: '◴' },
     { path: '/analisis', label: 'Análisis', icon: '▥' },
     { path: '/configuracion', label: 'Configuración', icon: '⚙' },
