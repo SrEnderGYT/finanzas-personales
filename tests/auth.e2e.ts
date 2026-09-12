@@ -1,37 +1,28 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
-test('public auth preview is disabled, accessible and responsive in both themes', async ({
-  page,
-}) => {
+test('public entry never exposes a fake login or private navigation without an API', async ({ page }) => {
   let requests = 0;
   page.on('request', (request) => {
     if (request.url().includes('/v1/auth/')) requests++;
   });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto('/#/acceso');
-  await expect(page.getByRole('heading', { name: 'Bienvenido de nuevo' })).toBeVisible();
-  await expect(page.getByLabel('Correo electrónico')).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Entrar', exact: true })).toBeDisabled();
-  await page.screenshot({ path: 'docs/evidence/P05/desktop.png', fullPage: true });
+  await expect(page.getByRole('heading', { name: 'Tu información empieza con tu cuenta.' })).toBeVisible();
+  await expect(page.getByText('Servidor de Finanzas no configurado')).toBeVisible();
+  await expect(page.getByLabel('Correo electrónico')).toHaveCount(0);
+  await expect(page.locator('.sidebar')).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 });
   for (const theme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme: theme });
     await page.goto('http://127.0.0.1:4174/#/acceso');
-    await expect(page.getByRole('heading', { name: 'Bienvenido de nuevo' })).toBeVisible();
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
-      true,
-    );
+    await expect(page.getByRole('heading', { name: 'Tu información empieza con tu cuenta.' })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     const audit = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
       .analyze();
     expect(audit.violations.map((entry) => entry.id)).toEqual([]);
-    await page.screenshot({ path: `docs/evidence/P05/mobile-${theme}.png`, fullPage: true });
   }
-  await page.getByRole('button', { name: 'Crear una cuenta' }).click();
-  await expect(page.getByRole('heading', { name: 'Crea tu cuenta' })).toBeVisible();
-  await page.getByRole('button', { name: 'Ya tengo el código' }).click();
-  await expect(page.getByLabel('Código del correo')).toBeDisabled();
   expect(requests).toBe(0);
 });
 
@@ -47,18 +38,13 @@ test.describe('auth contract without service worker interception', () => {
       });
     });
   });
-  test('enabled forms call auth API, clear passwords and recover from revoked sessions', async ({
-    page,
-  }) => {
+  test('enabled forms call auth API, clear passwords and recover from revoked sessions', async ({ page }) => {
     const calls: string[] = [];
     await page.route('**/v1/auth/**', async (route) => {
       const path = new URL(route.request().url()).pathname;
       calls.push(path);
       const body = path.endsWith('/login') ? { token: `fp_${'a'.repeat(43)}` } : [];
-      if (
-        path.endsWith('/sessions') &&
-        calls.filter((entry) => entry.endsWith('/sessions')).length > 1
-      ) {
+      if (path.endsWith('/sessions') && calls.filter((entry) => entry.endsWith('/sessions')).length > 1) {
         await route.fulfill({ status: 401, json: {} });
       } else await route.fulfill({ status: 200, json: body });
     });
@@ -67,18 +53,14 @@ test.describe('auth contract without service worker interception', () => {
     await page.getByLabel('Contraseña', { exact: true }).fill('Synthetic phrase for tests');
     await page.getByRole('button', { name: 'Entrar', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Tu sesión', exact: true })).toBeVisible();
-    expect(
-      await page.evaluate(() => JSON.stringify(localStorage) + JSON.stringify(sessionStorage)),
-    ).not.toContain('fp_');
+    expect(await page.evaluate(() => JSON.stringify(localStorage) + JSON.stringify(sessionStorage))).not.toContain('fp_');
     await page.getByRole('button', { name: 'Actualizar sesiones' }).click();
     await expect(page.getByRole('heading', { name: 'Bienvenido de nuevo' })).toBeVisible();
     await expect(page.getByLabel('Contraseña', { exact: true })).toHaveValue('');
     await expect(page.getByRole('status').filter({ hasText: 'sesión ha caducado' })).toBeVisible();
     expect(calls).toEqual(['/v1/auth/login', '/v1/auth/sessions', '/v1/auth/sessions']);
   });
-  test('verification and recovery choose passwords only after receiving a code', async ({
-    page,
-  }) => {
+  test('verification and recovery choose passwords only after receiving a code', async ({ page }) => {
     const calls: string[] = [];
     await page.route('**/v1/auth/**', async (route) => {
       calls.push(new URL(route.request().url()).pathname);
@@ -86,9 +68,7 @@ test.describe('auth contract without service worker interception', () => {
     });
     await page.goto('/#/acceso');
     for (const recovery of [false, true]) {
-      await page
-        .getByRole('button', { name: recovery ? 'Olvidé mi contraseña' : 'Crear una cuenta' })
-        .click();
+      await page.getByRole('button', { name: recovery ? 'Olvidé mi contraseña' : 'Crear una cuenta' }).click();
       await expect(page.locator('#auth-password')).toHaveCount(0);
       await page.getByLabel('Correo electrónico').fill('synthetic@example.test');
       await page
@@ -113,9 +93,7 @@ test.describe('auth contract without service worker interception', () => {
       '/v1/auth/reset-password',
     ]);
   });
-  test('Google callback removes code and state from the URL before completing access', async ({
-    page,
-  }) => {
+  test('Google callback removes code and state from the URL before completing access', async ({ page }) => {
     let completed = false;
     await page.route('**/v1/auth/**', async (route) => {
       if (route.request().url().endsWith('/google/complete')) {
