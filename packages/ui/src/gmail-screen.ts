@@ -20,6 +20,17 @@ import { SyncHttpError } from '../../shared/src/sync-engine';
 
 type CandidateView = GmailCandidateStatus | 'all';
 
+function limaMonth(value: Date) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Lima',
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(value);
+  const year = parts.find((part) => part.type === 'year')?.value ?? '1970';
+  const month = parts.find((part) => part.type === 'month')?.value ?? '01';
+  return `${year}-${month}`;
+}
+
 @Component({
   selector: 'fp-gmail-screen',
   imports: [FormsModule, RouterLink, ...UI_PRIMITIVES],
@@ -154,22 +165,36 @@ type CandidateView = GmailCandidateStatus | 'all';
             <div>
               <p class="eyebrow">DETECTADO EN TU CORREO</p>
               <h2 id="gmail-inbox-title">Bandeja financiera</h2>
-              <p>Revisa cada hallazgo antes de incorporarlo a tus finanzas.</p>
+              <p>
+                Revisa cada hallazgo antes de incorporarlo a tus finanzas. Solo aparecen señales
+                con importe detectado en el mes seleccionado.
+              </p>
             </div>
-            <label>
-              Estado
-              <select fpSelect [(ngModel)]="candidateView" (ngModelChange)="loadCandidates()">
-                <option value="pending">Pendientes</option>
-                <option value="confirmed">Confirmados</option>
-                <option value="discarded">Descartados</option>
-                <option value="all">Todos</option>
-              </select>
-            </label>
+            <div class="gmail-inbox-filters">
+              <label>
+                Mes
+                <input
+                  type="month"
+                  [ngModel]="candidateMonth()"
+                  (ngModelChange)="candidateMonth.set($event)"
+                />
+              </label>
+              <label>
+                Estado
+                <select fpSelect [(ngModel)]="candidateView" (ngModelChange)="loadCandidates()">
+                  <option value="pending">Pendientes</option>
+                  <option value="confirmed">Confirmados</option>
+                  <option value="discarded">Descartados</option>
+                  <option value="all">Todos</option>
+                </select>
+              </label>
+            </div>
           </div>
 
           <div class="gmail-detection-summary">
             <strong>{{ candidates().length }}</strong>
             <span>{{ candidateViewLabel() }}</span>
+            <span>{{ candidateMonthLabel() }}</span>
             @if (candidateTotals().pen) {
               <span>PEN {{ candidateTotals().pen }}</span>
             }
@@ -182,10 +207,10 @@ type CandidateView = GmailCandidateStatus | 'all';
             <p class="gmail-empty" role="status">Cargando detecciones…</p>
           } @else if (candidates().length === 0) {
             <div class="gmail-empty">
-              <strong>No hay elementos en esta vista.</strong>
+              <strong>No hay elementos con importe en este mes.</strong>
               <p>
                 Sincroniza Gmail para buscar avisos financieros dentro del rango autorizado. Un
-                correo que no pueda clasificarse con suficiente evidencia no se mostrará como gasto.
+                correo promocional, rechazado o sin importe útil no ocupará esta bandeja.
               </p>
             </div>
           } @else {
@@ -292,7 +317,15 @@ type CandidateView = GmailCandidateStatus | 'all';
 export class GmailScreen implements OnInit {
   readonly auth = inject(AUTH_CLIENT);
   readonly snapshot = signal<GmailConnectionSnapshot | undefined>(undefined);
-  readonly candidates = signal<GmailFinancialCandidate[]>([]);
+  readonly allCandidates = signal<GmailFinancialCandidate[]>([]);
+  readonly candidateMonth = signal(limaMonth(new Date()));
+  readonly candidates = computed(() =>
+    this.allCandidates().filter(
+      (candidate) =>
+        Boolean(candidate.amountMinor && candidate.currency) &&
+        limaMonth(new Date(candidate.occurredAt)) === this.candidateMonth(),
+    ),
+  );
   readonly busy = signal(false);
   readonly candidateBusy = signal(false);
   readonly unavailable = signal(false);
@@ -331,10 +364,20 @@ export class GmailScreen implements OnInit {
   lastSyncLabel() {
     const value = this.snapshot()?.lastSyncAt;
     return value
-      ? new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium', timeStyle: 'short' }).format(
-          new Date(value),
-        )
+      ? new Intl.DateTimeFormat('es-PE', {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+          timeZone: 'America/Lima',
+        }).format(new Date(value))
       : 'Aún no realizada';
+  }
+
+  candidateMonthLabel() {
+    const [year, month] = this.candidateMonth().split('-').map(Number);
+    if (!year || !month) return this.candidateMonth();
+    return new Intl.DateTimeFormat('es-PE', { month: 'long', year: 'numeric' }).format(
+      new Date(Date.UTC(year, month - 1, 15)),
+    );
   }
 
   candidateViewLabel() {
@@ -352,11 +395,11 @@ export class GmailScreen implements OnInit {
       expense: 'Gasto',
       income: 'Ingreso',
       transfer: 'Transferencia',
-      card_charge: 'Cargo de tarjeta',
-      card_statement: 'Estado de cuenta',
+      card_charge: 'Consumo de tarjeta',
+      card_statement: 'Deuda de tarjeta',
       subscription: 'Suscripción',
-      debt: 'Deuda / cuota',
-      payment: 'Pago',
+      debt: 'Cuota / deuda',
+      payment: 'Pago de tarjeta',
       unknown: 'Por revisar',
     };
     return labels[kind];
@@ -371,13 +414,15 @@ export class GmailScreen implements OnInit {
   }
 
   dateLabel(value: string) {
-    return new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium', timeStyle: 'short' }).format(
-      new Date(value),
-    );
+    return new Intl.DateTimeFormat('es-PE', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZone: 'America/Lima',
+    }).format(new Date(value));
   }
 
   amountLabel(candidate: GmailFinancialCandidate) {
-    if (!candidate.amountMinor || !candidate.currency) return 'Importe por revisar';
+    if (!candidate.amountMinor || !candidate.currency) return '—';
     return `${candidate.currency === 'PEN' ? 'S/' : 'US$'} ${this.money(BigInt(candidate.amountMinor))}`;
   }
 
@@ -396,7 +441,7 @@ export class GmailScreen implements OnInit {
       this.unavailable.set(false);
       this.disconnectArmed.set(false);
       if (value.state === 'connected') await this.loadCandidates();
-      else this.candidates.set([]);
+      else this.allCandidates.set([]);
     });
   }
 
@@ -405,7 +450,7 @@ export class GmailScreen implements OnInit {
     this.candidateBusy.set(true);
     try {
       const value = await this.auth.gmail(`candidates?status=${this.candidateView}`, 'GET');
-      this.candidates.set(normalizeGmailCandidates(value));
+      this.allCandidates.set(normalizeGmailCandidates(value));
     } catch (error) {
       if (error instanceof SyncHttpError && error.status === 401) {
         this.error.set('Tu sesión terminó. Vuelve a iniciar sesión.');
@@ -451,7 +496,7 @@ export class GmailScreen implements OnInit {
       );
       this.message.set(status === 'confirmed' ? 'Hallazgo confirmado.' : 'Hallazgo descartado.');
       const value = await this.auth.gmail(`candidates?status=${this.candidateView}`, 'GET');
-      this.candidates.set(normalizeGmailCandidates(value));
+      this.allCandidates.set(normalizeGmailCandidates(value));
     } catch {
       this.error.set('No se pudo actualizar este hallazgo. Vuelve a intentarlo.');
     } finally {
@@ -468,7 +513,7 @@ export class GmailScreen implements OnInit {
         scope: GMAIL_READONLY_SCOPE,
         rangeDays: this.rangeDays,
       });
-      this.candidates.set([]);
+      this.allCandidates.set([]);
       this.disconnectArmed.set(false);
       this.message.set('Gmail quedó desconectado de Finanzas.');
     });
