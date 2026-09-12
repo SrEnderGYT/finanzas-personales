@@ -1,15 +1,15 @@
 import { Routes } from '@angular/router';
 import { LatestScreen } from './latest-screen';
+import { LatestGmailScreen } from './latest-gmail-screen';
 import { AuthScreen } from './auth-screen';
 import { ManualScreen } from './manual-screen';
-import { GmailScreen } from './gmail-screen';
 
 export const DEMO_ROUTES: Routes = [
   { path: '', pathMatch: 'full', redirectTo: () => (location.search ? 'acceso' : 'inicio') },
   { path: 'acceso', component: AuthScreen },
   { path: 'registro', component: ManualScreen },
   { path: 'pendientes', component: ManualScreen },
-  { path: 'gmail', component: GmailScreen },
+  { path: 'gmail', component: LatestGmailScreen },
   ...[
     'inicio',
     'movimientos',
