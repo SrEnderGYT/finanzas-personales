@@ -58,6 +58,21 @@ describe('financial Gmail ingestion', () => {
     ).toBeUndefined();
   });
 
+  it('keeps billed services with an amount without treating bank receipts as expenses', () => {
+    expect(
+      mail(
+        'Recibo Claro - Setiembre 998270930',
+        'Tu recibo Claro del mes tiene un importe de S/ 29.90.',
+        'Claro <recibos@claro.com.pe>',
+      ),
+    ).toMatchObject({
+      kind: 'expense',
+      merchant: 'Claro',
+      currency: 'PEN',
+      amountMinor: 2990,
+    });
+  });
+
   it('detects recurring services from real recurring-charge language and known merchants', () => {
     expect(
       mail(
