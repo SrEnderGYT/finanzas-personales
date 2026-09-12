@@ -71,7 +71,8 @@ function amountToMinor(raw: string): number | undefined {
 }
 
 function money(text: string) {
-  const pattern = /(S\/?\.?|PEN|US\$|USD|\$)\s*([0-9][0-9.,]*)/gi;
+  // The amount must end in a digit so sentence punctuation is never interpreted as part of it.
+  const pattern = /(S\/?\.?|PEN|US\$|USD|\$)\s*([0-9](?:[0-9.,]*[0-9])?)/gi;
   for (const match of text.matchAll(pattern)) {
     const amountMinor = amountToMinor(match[2]!);
     if (amountMinor === undefined) continue;
