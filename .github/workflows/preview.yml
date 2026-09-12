@@ -15,7 +15,15 @@ on:
         'feature/p17-real-app',
       ]
   pull_request:
-    paths: ['apps/**', 'packages/**', 'tests/**', 'scripts/**', 'backend/**', '.github/workflows/preview.yml']
+    paths:
+      [
+        'apps/**',
+        'packages/**',
+        'tests/**',
+        'scripts/**',
+        'backend/**',
+        '.github/workflows/preview.yml',
+      ]
 permissions:
   contents: read
 concurrency:
