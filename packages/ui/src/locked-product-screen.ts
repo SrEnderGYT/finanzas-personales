@@ -64,7 +64,9 @@ import { UI_PRIMITIVES } from './primitives';
             <div class="product-section-heading">
               <div>
                 <h2>Cuentas</h2>
-                <p>Organiza soles y dólares por separado y conserva el origen de cada movimiento.</p>
+                <p>
+                  Organiza soles y dólares por separado y conserva el origen de cada movimiento.
+                </p>
               </div>
               <a routerLink="/cuentas">Ver cuentas</a>
             </div>

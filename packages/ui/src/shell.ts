@@ -21,7 +21,8 @@ export const MOBILE_MODE = new InjectionToken<boolean>('MOBILE_MODE', { factory:
         <nav>
           @for (item of menu; track item.path) {
             <a [routerLink]="item.path" routerLinkActive="active">
-              <span aria-hidden="true">{{ item.icon }}</span>{{ item.label }}
+              <span aria-hidden="true">{{ item.icon }}</span
+              >{{ item.label }}
             </a>
           }
         </nav>
@@ -62,7 +63,9 @@ export const MOBILE_MODE = new InjectionToken<boolean>('MOBILE_MODE', { factory:
       </div>
 
       <nav class="bottom-nav" aria-label="Navegación móvil">
-        <a routerLink="/inicio" routerLinkActive="active"><span aria-hidden="true">⌂</span>Inicio</a>
+        <a routerLink="/inicio" routerLinkActive="active"
+          ><span aria-hidden="true">⌂</span>Inicio</a
+        >
         <a routerLink="/movimientos" routerLinkActive="active">
           <span aria-hidden="true">⇅</span>Movimientos
         </a>

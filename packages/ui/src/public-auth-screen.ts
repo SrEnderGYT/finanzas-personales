@@ -61,7 +61,7 @@ import { UI_PRIMITIVES } from './primitives';
                 fpInput
                 type="email"
                 placeholder="tu@correo.com"
-                readonly
+                disabled
                 aria-describedby="public-login-note"
               />
             </label>
@@ -71,7 +71,7 @@ import { UI_PRIMITIVES } from './primitives';
                 fpInput
                 type="password"
                 value="finanzas-seguras"
-                readonly
+                disabled
                 aria-describedby="public-login-note"
               />
             </label>

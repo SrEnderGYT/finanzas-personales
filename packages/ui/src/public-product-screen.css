@@ -245,7 +245,7 @@
 }
 .panel-heading > a,
 .settings-link {
-  color: var(--primary);
+  color: var(--text);
   font-weight: 700;
   font-size: 0.86rem;
 }
@@ -329,7 +329,7 @@
 .budget-panel > a {
   display: inline-block;
   margin-top: 13px;
-  color: var(--primary);
+  color: var(--text);
   font-weight: 700;
   font-size: 0.86rem;
 }
