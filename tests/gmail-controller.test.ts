@@ -1,9 +1,6 @@
 import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import {
-  GmailController,
-  type GmailConnectionService,
-} from '../backend/api/src/gmail-controller';
+import { GmailController, type GmailConnectionService } from '../backend/api/src/gmail-controller';
 import { GMAIL_READONLY_SCOPE } from '../packages/shared/src/gmail-connection';
 import type { IdentityVerifier } from '../backend/api/src/auth';
 
