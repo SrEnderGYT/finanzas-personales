@@ -22,11 +22,11 @@ describe('browser auth transport', () => {
       code: '123456',
     });
   });
-  it('public preview never sends credentials and sessions are instance-only', async () => {
+  it('disabled clients never send credentials and sessions are instance-only', async () => {
     const transport = vi.fn<typeof fetch>();
     await expect(
       new AuthClient(false, transport).login('synthetic@example.test', 'synthetic'),
-    ).rejects.toThrow('no está habilitado');
+    ).rejects.toThrow('no está configurado');
     expect(transport).not.toHaveBeenCalled();
     transport.mockResolvedValueOnce(Response.json({ token }));
     const client = new AuthClient(true, transport);

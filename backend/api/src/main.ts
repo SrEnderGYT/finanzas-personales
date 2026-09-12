@@ -10,6 +10,9 @@ import { LiveGoogleProvider } from './google-provider';
 import { MfaLogin } from './mfa-login';
 import { MfaStore } from './mfa-store';
 import { MfaSecrets } from './mfa-secrets';
+import { GmailSecrets } from './gmail-secrets';
+import { LiveGmailService } from './gmail-service';
+
 export async function startApi(
   port = Number(process.env['PORT'] ?? 3000),
   host = process.env['HOST'] ?? '127.0.0.1',
@@ -37,7 +40,6 @@ export async function startApi(
   try {
     const database = new UserDatabase(pool);
     await database.assertRuntimeRole();
-    // Legacy JWT exchange is disabled in the real server. Email/Google login issue sessions internally.
     const sessions = new SessionAuthority(database, denyIdentity);
     const emailAuth = new EmailAuth(
       authPool,
@@ -70,6 +72,23 @@ export async function startApi(
           new URL(required('NATIVE_GOOGLE_REDIRECT_URI')).origin,
         )
       : undefined;
+    const gmail = process.env['GMAIL_CLIENT_ID']
+      ? new LiveGmailService(
+          authPool,
+          new GmailSecrets(Buffer.from(required('GMAIL_TOKEN_KEY'), 'base64')),
+          {
+            clientId: required('GMAIL_CLIENT_ID'),
+            clientSecret: required('GMAIL_CLIENT_SECRET'),
+            redirectUri: required('GMAIL_REDIRECT_URI'),
+            appReturnUrl: required('GMAIL_APP_RETURN_URL'),
+            maxMessages: Number(process.env['GMAIL_MAX_MESSAGES'] ?? 1500),
+          },
+        )
+      : undefined;
+    const webCorsOrigins = (process.env['WEB_ALLOWED_ORIGINS'] ?? '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean);
     const app = await createApp({
       database,
       identity: sessions,
@@ -77,7 +96,9 @@ export async function startApi(
       emailAuth,
       googleAuth,
       nativeGoogleAuth,
+      gmail,
       nativeAuthCors: process.env['NATIVE_AUTH_CORS'] === 'enabled',
+      webCorsOrigins,
       mfaLogin: process.env['MFA_ENCRYPTION_KEY']
         ? new MfaLogin(
             authPool,

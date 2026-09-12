@@ -6,7 +6,7 @@ import { App } from '@capacitor/app';
 import { AUTH_CLIENT } from './auth-provider';
 import { ProductWorkspace } from './product-workspace';
 import { UI_PRIMITIVES } from './primitives';
-import { ManualSession, DEMO_PROFILE, demoManualCatalog } from '../../shared/src/manual-session';
+import { ManualSession } from '../../shared/src/manual-session';
 import { type OutboxRecord } from '../../shared/src/manual-outbox';
 import { type LocalProfile } from '../../shared/src/product-vault';
 import {
@@ -30,32 +30,20 @@ import {
       <h1>Tu movimiento, guardado.</h1>
       <p>Gastos e ingresos con fecha explícita. Primero se guardan en tu espacio cifrado.</p>
     </header>
-    <p class="mode-banner">
-      {{
-        workspace.product()
-          ? 'Perfil de producto · confirmación mediante sincronización'
-          : 'DEMO · Usa únicamente datos ficticios en esta vista'
-      }}
-    </p>
+    <p class="mode-banner">Perfil conectado · confirmación mediante sincronización</p>
     @if (!unlocked()) {
       <div class="manual-card">
         <h2>Abre tu espacio cifrado</h2>
         <p>La clave local protege tus pendientes. No es una contraseña bancaria.</p>
         <div class="profile-actions">
-          <button fpButton type="button" [disabled]="busy()" (click)="openDemo()">
-            Probar con datos DEMO
+          <button
+            fpButton
+            type="button"
+            [disabled]="busy() || !auth.signedIn"
+            (click)="onlineProfile()"
+          >
+            Preparar mi perfil conectado
           </button>
-          @if (auth.enabled) {
-            <a routerLink="/acceso">Iniciar sesión</a
-            ><button
-              fpButton
-              type="button"
-              [disabled]="busy() || !auth.signedIn"
-              (click)="onlineProfile()"
-            >
-              Preparar perfil conectado
-            </button>
-          }
         </div>
         @for (profile of profiles; track profile.ownerId + profile.environment) {
           @if (profile.mode === 'product') {
@@ -297,10 +285,6 @@ export class ManualScreen implements OnDestroy {
     const m = Money.fromJSON(row.command.payload),
       abs = m.minorUnits.toString();
     return `${m.currency} ${abs.length > 2 ? abs.slice(0, -2) : '0'}.${abs.slice(-2).padStart(2, '0')}`;
-  }
-  async openDemo() {
-    this.workspace.enterDemo();
-    await this.openProfile(DEMO_PROFILE, demoManualCatalog());
   }
   async onlineProfile() {
     await this.action(async () => {
