@@ -1,6 +1,6 @@
 # Finanzas personales
 
-Aplicación de finanzas personales Web, PWA, Android e iOS en desarrollo activo. El producto ya incluye base financiera, cuentas, categorías, movimientos, trabajo offline, sincronización, resolución de conflictos, dashboard, autenticación y una primera capa de automatización con Gmail.
+Aplicación de finanzas personales Web, PWA, Android e iOS en desarrollo activo. El producto incluye base financiera, cuentas, categorías, movimientos, trabajo offline, sincronización, resolución de conflictos, dashboard, autenticación y automatización financiera con Gmail.
 
 - [Aplicación Web](https://srendergyt.github.io/finanzas-personales/)
 - [Experiencia móvil](https://srendergyt.github.io/finanzas-personales/mobile/)
@@ -8,22 +8,25 @@ Aplicación de finanzas personales Web, PWA, Android e iOS en desarrollo activo.
 - [P11 — dashboard funcional](https://github.com/SrEnderGYT/finanzas-personales/pull/12)
 - [P15 — conexión Gmail](https://github.com/SrEnderGYT/finanzas-personales/pull/13)
 - [P16 — aplicación pública y revisión financiera](https://github.com/SrEnderGYT/finanzas-personales/pull/14)
+- [P17 — login obligatorio, Gmail y finanzas detectadas](https://github.com/SrEnderGYT/finanzas-personales/pull/15)
 
-La publicación de GitHub Pages permite recorrer la aplicación completa con datos de ejemplo y sin credenciales reales. El entorno privado conserva la autenticación, PostgreSQL, RLS, almacenamiento cifrado y contratos reales del producto. Ningún dato financiero personal, token de Gmail o secreto se publica en GitHub Pages.
+## Aplicación Web
 
-## Qué puedes recorrer ahora
+La publicación Web es **login-first**: la entrada pública es Acceso y las rutas financieras permanecen protegidas hasta que exista una sesión válida. No se publican saldos, tarjetas, movimientos, suscripciones ni deudas ficticias como sustituto de información personal.
 
-- **Mis finanzas:** patrimonio visible, ingresos, gastos, balance, presupuesto, próximos pagos y cuentas.
-- **Movimientos:** búsqueda, moneda, rango de fechas y registro temporal para revisar el flujo de captura.
-- **Cuentas:** cuentas PEN/USD, efectivo y categorías financieras.
-- **Tarjetas:** línea, consumo, disponible, fechas y actividad de tarjeta.
-- **Presupuestos:** límites por categoría y avance del mes.
-- **Análisis:** balance, distribución de gastos y categorías principales.
-- **Gmail:** experiencia de conexión separada del login y bandeja de revisión financiera.
-- **Configuración:** temas, privacidad, almacenamiento local cifrado e integraciones.
-- **Acceso:** pantalla de login pública segura; el formulario real sólo se habilita cuando el backend privado está configurado.
+Cuando el API privado todavía no está conectado, el login permanece visible pero bloquea el ingreso de credenciales y muestra el estado del servicio. Al habilitar el API HTTPS, el mismo cliente utiliza autenticación real, PostgreSQL, RLS, almacenamiento cifrado y los contratos privados del producto.
 
-Los importes visibles en la publicación pública son de ejemplo. Sirven para validar navegación, diseño y comportamiento; no representan información bancaria real.
+## Finanzas y automatización
+
+- **Inicio y movimientos:** resumen por moneda y actividad confirmada/pendiente del usuario autenticado.
+- **Cuentas y categorías:** catálogo privado asociado al usuario.
+- **Gmail:** autorización separada con `gmail.readonly`, sincronización por rango y bandeja de hallazgos financieros.
+- **Tarjetas:** actividad e instituciones detectadas desde correos autorizados; sin correo conectado no se inventan valores.
+- **Suscripciones:** cargos recurrentes detectados para revisión.
+- **Deudas:** avisos de deuda, cuotas, vencimientos o pagos detectados para revisión.
+- **Registro:** confirmación manual mediante el ledger y outbox idempotente; una detección no altera saldos automáticamente.
+
+La conexión Gmail utiliza un consentimiento independiente del login. El refresh token se mantiene en servidor cifrado y no se almacena en el navegador. Las detecciones se revisan antes de convertirse en movimientos financieros.
 
 ## Base técnica implementada
 
@@ -43,9 +46,9 @@ El core financiero usa importes exactos, separación PEN/USD, asientos consisten
 
 ## Calidad y seguridad
 
-El repositorio ejecuta lint, Prettier, TypeScript, pruebas unitarias, integración API, PostgreSQL, navegador, builds Web/backend/Android/iOS, auditoría de dependencias y secret scanning. La publicación pública no inicia OAuth real ni contiene contraseñas, refresh tokens o datos personales.
+El repositorio ejecuta lint, Prettier, TypeScript, pruebas unitarias, integración API, PostgreSQL, navegador, builds Web/backend/Android/iOS, auditoría de dependencias y secret scanning. GitHub Pages no contiene contraseñas, refresh tokens, correos personales ni información financiera real en el repositorio.
 
-La aplicación privada todavía requiere completar el staging Web/API y sus credenciales externas antes de aceptar información financiera real. Android se compila en CI; iOS se valida en simulador sin firma mientras no exista provisioning/TestFlight.
+Para activar login y Gmail con datos reales se requiere desplegar el API privado HTTPS y configurar sus variables externas de forma segura; esas credenciales nunca deben almacenarse en GitHub.
 
 ## Desarrollo local
 
@@ -67,6 +70,6 @@ npm run security
 
 ## Estado del roadmap
 
-La infraestructura y el core avanzan desde P01 hasta P10. La capa funcional continúa con P11 y la automatización financiera con P15/P16. El siguiente objetivo es cerrar la publicación actual, completar staging privado y continuar con exportación, tarjetas, presupuestos e importación Gmail/BCP sin degradar las garantías ya construidas.
+La infraestructura y el core avanzan desde P01 hasta P10. P11 consolidó la capa funcional; P15/P16 prepararon Gmail y la revisión financiera; P17 sustituye la experiencia pública sintética por una aplicación login-first conectable al API privado y a Gmail real.
 
 [Arquitectura](ARCHITECTURE.md) · [Roadmap](ROADMAP.md) · [Seguridad](SECURITY.md) · [Trazabilidad](docs/08-trazabilidad.md)
