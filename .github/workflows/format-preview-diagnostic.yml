@@ -9,13 +9,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - uses: actions/setup-node@49933ea5288ca8642d1e84afbd3f7d6820020
-        with:
-          node-version-file: .nvmrc
-          cache: npm
       - run: npm install --global npm@11.6.1
       - run: npm ci
-      - name: Formatted product preview
-        run: npm exec prettier -- packages/ui/src/product-preview.ts
-      - name: Formatted Gmail preview
-        run: npm exec prettier -- packages/ui/src/gmail-preview.ts
+      - name: Print exact Prettier diff
+        run: |
+          npm exec prettier --write packages/ui/src/product-preview.ts packages/ui/src/gmail-preview.ts
+          git diff -- packages/ui/src/product-preview.ts packages/ui/src/gmail-preview.ts
