@@ -58,8 +58,8 @@ import { SyncHttpError } from '../../shared/src/sync-engine';
         <section class="gmail-card gmail-callout">
           <h2>La interfaz está lista; falta habilitar Gmail en el servidor</h2>
           <p>
-            Tu sesión funciona, pero este entorno todavía no publica el contrato de Gmail. No se
-            ha leído ningún correo ni se ha concedido permiso silenciosamente.
+            Tu sesión funciona, pero este entorno todavía no publica el contrato de Gmail. No se ha
+            leído ningún correo ni se ha concedido permiso silenciosamente.
           </p>
           <button fpButton type="button" [disabled]="busy()" (click)="load()">
             Comprobar de nuevo
@@ -112,8 +112,8 @@ import { SyncHttpError } from '../../shared/src/sync-engine';
             @if (disconnectArmed()) {
               <div class="gmail-danger" role="alert">
                 <p>
-                  Desconectar revoca esta conexión dentro de Finanzas y detiene nuevas lecturas.
-                  Tus movimientos ya confirmados no se eliminan automáticamente.
+                  Desconectar revoca esta conexión dentro de Finanzas y detiene nuevas lecturas. Tus
+                  movimientos ya confirmados no se eliminan automáticamente.
                 </p>
                 <div class="gmail-actions">
                   <button fpButton type="button" [disabled]="busy()" (click)="disconnect()">
