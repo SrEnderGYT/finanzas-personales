@@ -28,11 +28,7 @@ import { type GoogleAuth } from './google-auth';
 import { MfaController, MFA_LOGIN } from './mfa-controller';
 import { AccountsController, CategoriesController } from './catalog/controller';
 import { type MfaLogin } from './mfa-login';
-import {
-  GMAIL_CONNECTION,
-  GmailController,
-  type GmailConnectionService,
-} from './gmail-controller';
+import { GMAIL_CONNECTION, GmailController, type GmailConnectionService } from './gmail-controller';
 
 @Controller()
 class HealthController {
