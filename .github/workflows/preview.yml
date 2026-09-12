@@ -46,7 +46,7 @@ jobs:
             test-results/
       - name: Build authenticated web application
         env:
-          FINANZAS_API_ORIGIN: ${{ vars.FINANZAS_API_ORIGIN }}
+          FINANZAS_API_ORIGIN: ${{ vars.FINANZAS_API_ORIGIN || 'https://finanzas-personales-staging.onrender.com' }}
         run: |
           npm exec ng -- build web --base-href /finanzas-personales/
           node scripts/configure-web-origin.mjs
