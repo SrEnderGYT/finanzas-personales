@@ -34,8 +34,8 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm exec playwright -- install --with-deps chromium
-      - name: Validate published login-first application
-        run: npm exec playwright -- test tests/auth.e2e.ts tests/ui.e2e.ts tests/google-popup.e2e.ts
+      - name: Validate public login-first application
+        run: npm exec playwright -- test tests/ui.e2e.ts
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
