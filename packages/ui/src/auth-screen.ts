@@ -1,5 +1,5 @@
 import { MfaEnrollment } from './mfa-enrollment';
-import { relayGoogleReturn } from './google-popup';
+import { googleReauthentication, relayGoogleReturn } from './google-popup';
 import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { NATIVE_GOOGLE_LOGIN } from './native-auth';
 import { DatePipe } from '@angular/common';
@@ -401,6 +401,15 @@ export class AuthScreen {
     return this.run(async () => {
       if (this.nativeLogin) {
         await this.nativeLogin(this.client, this.lifetime.signal, mode);
+        await this.afterPrimary();
+        return;
+      }
+      if (this.client.remoteApi) {
+        const result = await googleReauthentication(
+          () => this.client.startRemoteGoogle(mode),
+          this.lifetime.signal,
+        );
+        await this.client.completeRemoteGoogle(result.state, result.code);
         await this.afterPrimary();
         return;
       }

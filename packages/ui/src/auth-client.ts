@@ -1,5 +1,6 @@
 import type { CorrectionApi } from '../../shared/src/correction-queue';
 import { nativeGoogleFlow } from '../../shared/src/native-google-flow';
+import { createNativeProof } from '../../shared/src/native-pkce';
 import { nativeAuthHttp } from '../../shared/src/native-auth-http';
 import { SyncHttpError, validatePage, type SyncApi } from '../../shared/src/sync-engine';
 import type { ManualReceipt } from '../../shared/src/manual-outbox';
@@ -256,6 +257,14 @@ export class AuthClient {
       catalog: { accounts, categories, downloadedAt: instant(new Date().toISOString()) },
     };
   }
+  private webGoogleProof:
+    | {
+        state: string;
+        verifier: string;
+        mode: 'login' | 'link' | 'reauthenticate';
+        originalToken: string | undefined;
+      }
+    | undefined;
   private challenge: string | undefined;
   get mfaPending() {
     return this.challenge !== undefined;
@@ -271,6 +280,9 @@ export class AuthClient {
   ) {}
   get signedIn() {
     return this.token !== undefined;
+  }
+  get remoteApi() {
+    return this.catalogEnvironment !== 'same-origin';
   }
   async gmail(
     path: string,
@@ -500,6 +512,79 @@ export class AuthClient {
     // On network failure keep the token so remote revocation can be retried.
     await this.request(all ? 'sessions' : 'logout', all ? 'DELETE' : 'POST');
     this.token = undefined;
+  }
+  async startRemoteGoogle(mode: 'login' | 'link' | 'reauthenticate'): Promise<string> {
+    if (!this.remoteApi) throw new Error('El flujo remoto de Google no está disponible.');
+    if (mode !== 'login' && !this.token)
+      throw new Error('Vuelve a entrar antes de continuar con Google.');
+    const proof = await createNativeProof();
+    const originalToken = this.token;
+    const value = await this.request('google/pkce/start', 'POST', {
+      mode,
+      state: proof.state,
+      challenge: proof.challenge,
+      method: proof.method,
+    });
+    if (
+      !value ||
+      typeof value !== 'object' ||
+      !('authorizationUrl' in value) ||
+      typeof value.authorizationUrl !== 'string'
+    )
+      throw new Error('No se pudo iniciar Google.');
+    const url = new URL(value.authorizationUrl);
+    if (
+      url.origin !== 'https://accounts.google.com' ||
+      url.pathname !== '/o/oauth2/v2/auth' ||
+      url.username ||
+      url.password ||
+      url.searchParams.get('state') !== proof.state
+    )
+      throw new Error('La dirección de acceso no es válida.');
+    this.webGoogleProof = {
+      state: proof.state,
+      verifier: proof.verifier,
+      mode,
+      originalToken,
+    };
+    return url.href;
+  }
+  async completeRemoteGoogle(state: string, code: string): Promise<unknown> {
+    const flow = this.webGoogleProof;
+    this.webGoogleProof = undefined;
+    if (
+      !flow ||
+      flow.state !== state ||
+      !/^[A-Za-z0-9_-]{43}$/.test(state) ||
+      !code ||
+      code.length > 4096
+    )
+      throw new Error('El retorno de Google no es válido.');
+    const verifier = flow.verifier;
+    flow.verifier = '';
+    const value = await this.request('google/pkce/complete', 'POST', { state, code, verifier });
+    if (flow.mode === 'login') {
+      this.acceptSession(value);
+      return undefined;
+    }
+    if (!flow.originalToken || this.token !== flow.originalToken)
+      throw new Error('La sesión cambió durante la verificación.');
+    if (flow.mode === 'link') {
+      if (!value || typeof value !== 'object' || !('linked' in value) || value.linked !== true)
+        throw new Error('No se pudo vincular Google.');
+      return undefined;
+    }
+    if (
+      !value ||
+      typeof value !== 'object' ||
+      !('reauthenticated' in value) ||
+      value.reauthenticated !== true
+    )
+      throw new Error('No se pudo verificar tu identidad.');
+    return value;
+  }
+  async beginMfaRemoteGoogle(state: string, code: string): Promise<string> {
+    return this.beginMfaWithProof(await this.completeRemoteGoogle(state, code));
   }
   async google(mode: 'login' | 'link' | 'reauthenticate'): Promise<string> {
     if (mode === 'reauthenticate' && !this.token)
