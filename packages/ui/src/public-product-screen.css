@@ -540,7 +540,11 @@
   margin-bottom: 18px;
 }
 .analysis-highlight {
-  background: linear-gradient(145deg, color-mix(in srgb, var(--primary) 12%, var(--surface)), var(--surface));
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--primary) 12%, var(--surface)),
+    var(--surface)
+  );
 }
 .analysis-highlight > strong,
 .analysis-value {

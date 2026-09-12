@@ -85,11 +85,7 @@ import { StorageLab } from './storage-lab';
             </label>
             <label>
               Hasta
-              <input
-                fpDatePicker
-                [ngModel]="state.end()"
-                (ngModelChange)="state.end.set($event)"
-              />
+              <input fpDatePicker [ngModel]="state.end()" (ngModelChange)="state.end.set($event)" />
             </label>
           </div>
         }
@@ -167,9 +163,8 @@ import { StorageLab } from './storage-lab';
                   <span>{{ row.category }} · {{ row.date }}</span>
                 </div>
                 <strong [class.positive]="row.kind === 'income'">
-                  {{ row.kind === 'income' ? '+' : row.kind === 'expense' ? '−' : '' }}{{
-                    money(row.minor)
-                  }}
+                  {{ row.kind === 'income' ? '+' : row.kind === 'expense' ? '−' : ''
+                  }}{{ money(row.minor) }}
                 </strong>
               </article>
             } @empty {
@@ -237,7 +232,10 @@ import { StorageLab } from './storage-lab';
             @for (account of visibleAccounts(); track account.name) {
               <article>
                 <span class="account-symbol" aria-hidden="true">{{ account.icon }}</span>
-                <div><strong>{{ account.name }}</strong><span>{{ account.detail }}</span></div>
+                <div>
+                  <strong>{{ account.name }}</strong
+                  ><span>{{ account.detail }}</span>
+                </div>
                 <strong>{{ money(account.minor) }}</strong>
               </article>
             }
@@ -274,9 +272,8 @@ import { StorageLab } from './storage-lab';
                 </div>
                 <span class="movement-account">{{ clean(row.bank) }}</span>
                 <strong [class.positive]="row.kind === 'income'">
-                  {{ row.kind === 'income' ? '+' : row.kind === 'expense' ? '−' : '' }}{{
-                    money(row.minor)
-                  }}
+                  {{ row.kind === 'income' ? '+' : row.kind === 'expense' ? '−' : ''
+                  }}{{ money(row.minor) }}
                 </strong>
               </article>
             } @empty {
@@ -294,7 +291,10 @@ import { StorageLab } from './storage-lab';
 
       @if (view() === 'cuentas') {
         <div class="section-intro">
-          <div><span>CUENTAS Y EFECTIVO</span><h2>Organiza dónde está tu dinero</h2></div>
+          <div>
+            <span>CUENTAS Y EFECTIVO</span>
+            <h2>Organiza dónde está tu dinero</h2>
+          </div>
           <button fpButton type="button">+ Nueva cuenta</button>
         </div>
         <div class="account-card-grid">
@@ -306,14 +306,21 @@ import { StorageLab } from './storage-lab';
               </div>
               <h2>{{ account.name }}</h2>
               <p>{{ account.detail }}</p>
-              <strong>{{ state.hidden() ? '••••' : formatMinor(account.minor, account.currency) }}</strong>
-              <div class="account-card-foot"><span>Activa</span><button type="button">•••</button></div>
+              <strong>{{
+                state.hidden() ? '••••' : formatExact(account.minor, account.currency)
+              }}</strong>
+              <div class="account-card-foot">
+                <span>Activa</span><button type="button">•••</button>
+              </div>
             </article>
           }
         </div>
         <section class="product-panel category-panel">
           <header class="panel-heading">
-            <div><span class="panel-eyebrow">CATEGORÍAS</span><h2>Clasificación personal</h2></div>
+            <div>
+              <span class="panel-eyebrow">CATEGORÍAS</span>
+              <h2>Clasificación personal</h2>
+            </div>
             <span>{{ categories.length }} disponibles</span>
           </header>
           <div class="category-cloud">
@@ -345,12 +352,21 @@ import { StorageLab } from './storage-lab';
           </section>
         </div>
         <section class="product-panel">
-          <header class="panel-heading"><div><span class="panel-eyebrow">CONSUMOS</span><h2>Actividad de tarjeta</h2></div><a routerLink="/movimientos">Ver historial</a></header>
+          <header class="panel-heading">
+            <div>
+              <span class="panel-eyebrow">CONSUMOS</span>
+              <h2>Actividad de tarjeta</h2>
+            </div>
+            <a routerLink="/movimientos">Ver historial</a>
+          </header>
           @for (row of cardRows(); track row.id) {
             <article class="movement-row">
               <span class="movement-icon" aria-hidden="true">{{ row.icon }}</span>
-              <div class="movement-main"><strong>{{ clean(row.merchant) }}</strong><span>{{ row.category }} · {{ row.date }}</span></div>
-              <strong>−{{ formatMinor(row.minor, row.currency) }}</strong>
+              <div class="movement-main">
+                <strong>{{ clean(row.merchant) }}</strong
+                ><span>{{ row.category }} · {{ row.date }}</span>
+              </div>
+              <strong>−{{ formatExact(row.minor, row.currency) }}</strong>
             </article>
           }
         </section>
@@ -358,16 +374,33 @@ import { StorageLab } from './storage-lab';
 
       @if (view() === 'presupuestos') {
         <section class="budget-summary-strip">
-          <div><span>Presupuesto mensual</span><strong>{{ money(budgetLimit()) }}</strong></div>
-          <div><span>Consumido</span><strong>{{ money(monthExpense()) }}</strong></div>
-          <div><span>Disponible</span><strong>{{ money(budgetRemaining()) }}</strong></div>
-          <div><span>Avance</span><strong>{{ budgetPercent() }}%</strong></div>
+          <div>
+            <span>Presupuesto mensual</span><strong>{{ money(budgetLimit()) }}</strong>
+          </div>
+          <div>
+            <span>Consumido</span><strong>{{ money(monthExpense()) }}</strong>
+          </div>
+          <div>
+            <span>Disponible</span><strong>{{ money(budgetRemaining()) }}</strong>
+          </div>
+          <div>
+            <span>Avance</span><strong>{{ budgetPercent() }}%</strong>
+          </div>
         </section>
         <div class="budget-card-grid">
           @for (budget of budgets(); track budget.name) {
             <article class="product-panel budget-category-card">
-              <header><div><span>{{ budget.icon }}</span><strong>{{ budget.name }}</strong></div><strong>{{ budget.percent }}%</strong></header>
-              <div class="budget-numbers"><strong>{{ money(budget.used) }}</strong><span>de {{ money(budget.limit) }}</span></div>
+              <header>
+                <div>
+                  <span>{{ budget.icon }}</span
+                  ><strong>{{ budget.name }}</strong>
+                </div>
+                <strong>{{ budget.percent }}%</strong>
+              </header>
+              <div class="budget-numbers">
+                <strong>{{ money(budget.used) }}</strong
+                ><span>de {{ money(budget.limit) }}</span>
+              </div>
               <div class="progress-track"><span [style.width.%]="budget.percent"></span></div>
               <p>{{ money(budget.limit - budget.used) }} disponibles</p>
             </article>
@@ -380,7 +413,13 @@ import { StorageLab } from './storage-lab';
           <article class="product-panel analysis-highlight">
             <span class="panel-eyebrow">BALANCE DEL PERIODO</span>
             <strong>{{ money(state.totals().balance) }}</strong>
-            <p>{{ state.totals().balance >= 0n ? 'Tus ingresos superan tus gastos en el periodo.' : 'Tus gastos superan tus ingresos en el periodo.' }}</p>
+            <p>
+              {{
+                balancePositive()
+                  ? 'Tus ingresos superan tus gastos en el periodo.'
+                  : 'Tus gastos superan tus ingresos en el periodo.'
+              }}
+            </p>
           </article>
           <article class="product-panel">
             <span class="panel-eyebrow">MAYOR CATEGORÍA</span>
@@ -394,10 +433,19 @@ import { StorageLab } from './storage-lab';
           </article>
         </section>
         <section class="product-panel">
-          <header class="panel-heading"><div><span class="panel-eyebrow">DISTRIBUCIÓN</span><h2>Gastos por categoría</h2></div></header>
+          <header class="panel-heading">
+            <div>
+              <span class="panel-eyebrow">DISTRIBUCIÓN</span>
+              <h2>Gastos por categoría</h2>
+            </div>
+          </header>
           <div class="analysis-bars">
             @for (budget of budgets().slice(0, 6); track budget.name) {
-              <div><span>{{ budget.name }}</span><div class="analysis-track"><span [style.width.%]="budget.share"></span></div><strong>{{ money(budget.used) }}</strong></div>
+              <div>
+                <span>{{ budget.name }}</span>
+                <div class="analysis-track"><span [style.width.%]="budget.share"></span></div>
+                <strong>{{ money(budget.used) }}</strong>
+              </div>
             }
           </div>
         </section>
@@ -405,7 +453,11 @@ import { StorageLab } from './storage-lab';
 
       @if (view() === 'configuracion') {
         <div class="settings-header">
-          <div><span>CONFIGURACIÓN</span><h2>Tu espacio, a tu manera</h2><p>Apariencia, privacidad, almacenamiento local e integraciones.</p></div>
+          <div>
+            <span>CONFIGURACIÓN</span>
+            <h2>Tu espacio, a tu manera</h2>
+            <p>Apariencia, privacidad, almacenamiento local e integraciones.</p>
+          </div>
           <a fpButton routerLink="/acceso">Administrar acceso</a>
         </div>
         <div class="settings-grid-public">
@@ -414,8 +466,13 @@ import { StorageLab } from './storage-lab';
             <h2>Tema</h2>
             <div class="theme-selector">
               @for (theme of themes; track theme.value) {
-                <button type="button" [class.active]="state.theme() === theme.value" (click)="state.setTheme(theme.value)">
-                  <span aria-hidden="true">{{ theme.icon }}</span>{{ theme.label }}
+                <button
+                  type="button"
+                  [class.active]="state.theme() === theme.value"
+                  (click)="state.setTheme(theme.value)"
+                >
+                  <span aria-hidden="true">{{ theme.icon }}</span
+                  >{{ theme.label }}
                 </button>
               }
             </div>
@@ -424,7 +481,14 @@ import { StorageLab } from './storage-lab';
             <span class="panel-eyebrow">PRIVACIDAD</span>
             <h2>Importes visibles</h2>
             <p>Oculta importes cuando uses la aplicación frente a otras personas.</p>
-            <button fpButton class="secondary" type="button" (click)="state.hidden.set(!state.hidden())">{{ state.hidden() ? 'Mostrar importes' : 'Ocultar importes' }}</button>
+            <button
+              fpButton
+              class="secondary"
+              type="button"
+              (click)="state.hidden.set(!state.hidden())"
+            >
+              {{ state.hidden() ? 'Mostrar importes' : 'Ocultar importes' }}
+            </button>
           </section>
           <section class="product-panel">
             <span class="panel-eyebrow">GMAIL</span>
@@ -447,22 +511,80 @@ import { StorageLab } from './storage-lab';
 
       @if (showNew()) {
         <div class="composer-backdrop" (click)="showNew.set(false)">
-          <section class="movement-composer" role="dialog" aria-modal="true" aria-labelledby="composer-title" (click)="$event.stopPropagation()">
+          <section
+            class="movement-composer"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="composer-title"
+            (click)="$event.stopPropagation()"
+          >
             <header>
-              <div><span class="panel-eyebrow">NUEVO MOVIMIENTO</span><h2 id="composer-title">Registrar operación</h2></div>
-              <button type="button" class="close-composer" aria-label="Cerrar" (click)="showNew.set(false)">×</button>
+              <div>
+                <span class="panel-eyebrow">NUEVO MOVIMIENTO</span>
+                <h2 id="composer-title">Registrar operación</h2>
+              </div>
+              <button
+                type="button"
+                class="close-composer"
+                aria-label="Cerrar"
+                (click)="showNew.set(false)"
+              >
+                ×
+              </button>
             </header>
-            <p class="composer-note">En esta publicación se conserva solamente durante la sesión actual.</p>
+            <p class="composer-note">
+              En esta publicación se conserva solamente durante la sesión actual.
+            </p>
             <form (ngSubmit)="saveExample()">
               <div class="form-row">
-                <label>Tipo<select fpSelect name="kind" [(ngModel)]="form.kind"><option value="expense">Gasto</option><option value="income">Ingreso</option><option value="transfer">Transferencia</option><option value="payment">Pago</option></select></label>
-                <label>Moneda<select fpSelect name="currency" [(ngModel)]="form.currency"><option>PEN</option><option>USD</option></select></label>
+                <label
+                  >Tipo<select fpSelect name="kind" [(ngModel)]="form.kind">
+                    <option value="expense">Gasto</option>
+                    <option value="income">Ingreso</option>
+                    <option value="transfer">Transferencia</option>
+                    <option value="payment">Pago</option>
+                  </select></label
+                >
+                <label
+                  >Moneda<select fpSelect name="currency" [(ngModel)]="form.currency">
+                    <option>PEN</option>
+                    <option>USD</option>
+                  </select></label
+                >
               </div>
-              <label>Importe<input fpInput name="amount" [(ngModel)]="form.amount" inputmode="decimal" placeholder="0.00" required /></label>
-              <label>Comercio o concepto<input fpInput name="merchant" [(ngModel)]="form.merchant" maxlength="60" placeholder="Ej. supermercado" required /></label>
-              <label>Categoría<select fpSelect name="category" [(ngModel)]="form.category">@for (category of categories; track category) {<option>{{ category }}</option>}</select></label>
-              @if (formError()) { <fp-alert>{{ formError() }}</fp-alert> }
-              <div class="composer-actions"><button type="button" class="quiet-action" (click)="showNew.set(false)">Cancelar</button><button fpButton type="submit">Guardar en esta sesión</button></div>
+              <label
+                >Importe<input
+                  fpInput
+                  name="amount"
+                  [(ngModel)]="form.amount"
+                  inputmode="decimal"
+                  placeholder="0.00"
+                  required
+              /></label>
+              <label
+                >Comercio o concepto<input
+                  fpInput
+                  name="merchant"
+                  [(ngModel)]="form.merchant"
+                  maxlength="60"
+                  placeholder="Ej. supermercado"
+                  required
+              /></label>
+              <label
+                >Categoría<select fpSelect name="category" [(ngModel)]="form.category">
+                  @for (category of categories; track category) {
+                    <option>{{ category }}</option>
+                  }
+                </select></label
+              >
+              @if (formError()) {
+                <fp-alert>{{ formError() }}</fp-alert>
+              }
+              <div class="composer-actions">
+                <button type="button" class="quiet-action" (click)="showNew.set(false)">
+                  Cancelar</button
+                ><button fpButton type="submit">Guardar en esta sesión</button>
+              </div>
             </form>
           </section>
         </div>
@@ -506,7 +628,9 @@ export class PublicProductScreen {
   };
 
   readonly title = computed(() => this.titles[this.view()] ?? 'Mis finanzas');
-  readonly subtitle = computed(() => this.subtitles[this.view()] ?? 'Tu espacio financiero personal.');
+  readonly subtitle = computed(
+    () => this.subtitles[this.view()] ?? 'Tu espacio financiero personal.',
+  );
 
   readonly themes = [
     { value: 'light' as const, label: 'Claro', icon: '☀' },
@@ -541,6 +665,7 @@ export class PublicProductScreen {
   readonly budgetPercent = computed(() =>
     Math.min(100, Number((this.monthExpense() * 100n) / this.budgetLimit())),
   );
+  readonly balancePositive = computed(() => this.state.totals().balance >= 0n);
 
   readonly recentRows = computed(() => this.state.filtered().slice(0, 5));
   readonly cardRows = computed(() =>
@@ -551,10 +676,28 @@ export class PublicProductScreen {
   );
 
   readonly allAccounts = computed(() => [
-    { name: 'Cuenta diaria', detail: 'Ahorros · Principal', currency: 'PEN' as const, minor: '300000', icon: '▣' },
-    { name: 'Ahorro', detail: 'Ahorros · Meta principal', currency: 'PEN' as const, minor: '250000', icon: '◇' },
+    {
+      name: 'Cuenta diaria',
+      detail: 'Ahorros · Principal',
+      currency: 'PEN' as const,
+      minor: '300000',
+      icon: '▣',
+    },
+    {
+      name: 'Ahorro',
+      detail: 'Ahorros · Meta principal',
+      currency: 'PEN' as const,
+      minor: '250000',
+      icon: '◇',
+    },
     { name: 'Efectivo', detail: 'Billetera', currency: 'PEN' as const, minor: '12000', icon: '▱' },
-    { name: 'Cuenta USD', detail: 'Ahorros · Dólares', currency: 'USD' as const, minor: '150000', icon: '$' },
+    {
+      name: 'Cuenta USD',
+      detail: 'Ahorros · Dólares',
+      currency: 'USD' as const,
+      minor: '150000',
+      icon: '$',
+    },
   ]);
 
   readonly visibleAccounts = computed(() =>
@@ -598,10 +741,10 @@ export class PublicProductScreen {
   });
 
   readonly topCategory = computed(() => {
-    const top = this.budgets().reduce(
-      (best, item) => (item.used > best.used ? item : best),
-      { name: 'Sin gastos', used: 0n },
-    );
+    const top = this.budgets().reduce((best, item) => (item.used > best.used ? item : best), {
+      name: 'Sin gastos',
+      used: 0n,
+    });
     return { name: top.name, amount: top.used };
   });
 
@@ -609,8 +752,15 @@ export class PublicProductScreen {
     return this.state.hidden() ? '••••' : formatMinor(value, this.state.currency());
   }
 
+  formatExact(value: string | bigint, currency: 'PEN' | 'USD') {
+    return formatMinor(value, currency);
+  }
+
   clean(value: string) {
-    return value.replace(/\s*DEMO\b/gi, '').replace(/\s{2,}/g, ' ').trim();
+    return value
+      .replace(/\s*DEMO\b/gi, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
   }
 
   setRange(value: RangeLabel) {

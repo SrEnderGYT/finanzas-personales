@@ -22,9 +22,27 @@ import { UI_PRIMITIVES } from './primitives';
           </p>
         </div>
         <div class="auth-benefits">
-          <article><span>✓</span><div><strong>Privacidad por diseño</strong><p>Tu espacio real se abre únicamente con una sesión autenticada.</p></div></article>
-          <article><span>✓</span><div><strong>Web y móvil</strong><p>La misma información disponible en tus dispositivos.</p></div></article>
-          <article><span>✓</span><div><strong>Automatización consciente</strong><p>Gmail usa un permiso separado y de solo lectura.</p></div></article>
+          <article>
+            <span>✓</span>
+            <div>
+              <strong>Privacidad por diseño</strong>
+              <p>Tu espacio real se abre únicamente con una sesión autenticada.</p>
+            </div>
+          </article>
+          <article>
+            <span>✓</span>
+            <div>
+              <strong>Web y móvil</strong>
+              <p>La misma información disponible en tus dispositivos.</p>
+            </div>
+          </article>
+          <article>
+            <span>✓</span>
+            <div>
+              <strong>Automatización consciente</strong>
+              <p>Gmail usa un permiso separado y de solo lectura.</p>
+            </div>
+          </article>
         </div>
       </div>
 
@@ -39,11 +57,23 @@ import { UI_PRIMITIVES } from './primitives';
           <form aria-label="Inicio de sesión">
             <label>
               Correo electrónico
-              <input fpInput type="email" placeholder="tu@correo.com" readonly aria-describedby="public-login-note" />
+              <input
+                fpInput
+                type="email"
+                placeholder="tu@correo.com"
+                readonly
+                aria-describedby="public-login-note"
+              />
             </label>
             <label>
               Contraseña
-              <input fpInput type="password" value="finanzas-seguras" readonly aria-describedby="public-login-note" />
+              <input
+                fpInput
+                type="password"
+                value="finanzas-seguras"
+                readonly
+                aria-describedby="public-login-note"
+              />
             </label>
             <div class="login-options">
               <label class="remember"><input type="checkbox" disabled /> Recordarme</label>

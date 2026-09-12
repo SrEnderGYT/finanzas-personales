@@ -50,7 +50,9 @@ test('mobile has its own navigation, both themes and no horizontal overflow', as
   await page.screenshot({ path: 'docs/evidence/P02/mobile-dark.png', fullPage: true });
 });
 
-test('visible finance workspace meets automated WCAG AA checks in both themes', async ({ page }) => {
+test('visible finance workspace meets automated WCAG AA checks in both themes', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 390, height: 844 });
   for (const theme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme: theme });
