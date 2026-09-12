@@ -13,13 +13,22 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { type IdentityVerifier } from './auth';
 import { IDENTITY } from './users';
-import {
-  gmailRangeDays,
-  normalizeGmailConnection,
-  normalizeGmailOAuthStart,
-  type GmailConnectionSnapshot,
-  type GmailOAuthStart,
-} from '../../../packages/shared/src/gmail-connection';
+
+export const GMAIL_READONLY_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly' as const;
+
+export interface GmailConnectionSnapshot {
+  state: 'disconnected' | 'connected' | 'reauthorization_required';
+  email?: string;
+  scope: typeof GMAIL_READONLY_SCOPE;
+  rangeDays: number;
+  lastSyncAt?: string;
+  coverageFrom?: string;
+  coverageTo?: string;
+}
+
+export interface GmailOAuthStart {
+  authorizationUrl: string;
+}
 
 export interface GmailConnectionService {
   connection(userId: string): Promise<unknown>;
@@ -30,17 +39,113 @@ export interface GmailConnectionService {
 
 export const GMAIL_CONNECTION = Symbol('GMAIL_CONNECTION');
 
+function record(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new ServiceUnavailableException();
+  return value as Record<string, unknown>;
+}
+
+function exactKeys(value: Record<string, unknown>, allowed: readonly string[]) {
+  if (Object.keys(value).some((key) => !allowed.includes(key)))
+    throw new ServiceUnavailableException();
+}
+
+function rangeDays(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1 || value > 365)
+    throw new BadRequestException();
+  return value;
+}
+
+function optionalInstant(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || !Number.isFinite(Date.parse(value)))
+    throw new ServiceUnavailableException();
+  return value;
+}
+
+function coverageDate(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value))
+    throw new ServiceUnavailableException();
+  return value;
+}
+
+function normalizeConnection(value: unknown): GmailConnectionSnapshot {
+  const input = record(value);
+  exactKeys(input, [
+    'state',
+    'email',
+    'scope',
+    'rangeDays',
+    'lastSyncAt',
+    'coverageFrom',
+    'coverageTo',
+  ]);
+  if (
+    input['state'] !== 'disconnected' &&
+    input['state'] !== 'connected' &&
+    input['state'] !== 'reauthorization_required'
+  )
+    throw new ServiceUnavailableException();
+  if (input['scope'] !== GMAIL_READONLY_SCOPE) throw new ServiceUnavailableException();
+  const selectedRange = rangeDays(input['rangeDays']);
+  const lastSyncAt = optionalInstant(input['lastSyncAt']);
+  const coverageFrom = coverageDate(input['coverageFrom']);
+  const coverageTo = coverageDate(input['coverageTo']);
+  if ((coverageFrom && !coverageTo) || (!coverageFrom && coverageTo))
+    throw new ServiceUnavailableException();
+  if (coverageFrom && coverageTo && coverageFrom > coverageTo)
+    throw new ServiceUnavailableException();
+  if (input['state'] === 'connected') {
+    if (
+      typeof input['email'] !== 'string' ||
+      input['email'].length > 254 ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input['email'])
+    )
+      throw new ServiceUnavailableException();
+  } else if (input['email'] !== undefined && typeof input['email'] !== 'string') {
+    throw new ServiceUnavailableException();
+  }
+  return {
+    state: input['state'],
+    scope: GMAIL_READONLY_SCOPE,
+    rangeDays: selectedRange,
+    ...(typeof input['email'] === 'string' ? { email: input['email'] } : {}),
+    ...(lastSyncAt ? { lastSyncAt } : {}),
+    ...(coverageFrom ? { coverageFrom } : {}),
+    ...(coverageTo ? { coverageTo } : {}),
+  };
+}
+
+function normalizeStart(value: unknown): GmailOAuthStart {
+  const input = record(value);
+  exactKeys(input, ['authorizationUrl']);
+  if (typeof input['authorizationUrl'] !== 'string') throw new ServiceUnavailableException();
+  let url: URL;
+  try {
+    url = new URL(input['authorizationUrl']);
+  } catch {
+    throw new ServiceUnavailableException();
+  }
+  if (
+    url.origin !== 'https://accounts.google.com' ||
+    url.pathname !== '/o/oauth2/v2/auth' ||
+    url.username ||
+    url.password
+  )
+    throw new ServiceUnavailableException();
+  const scopes = new Set((url.searchParams.get('scope') ?? '').split(/\s+/).filter(Boolean));
+  if (!scopes.has(GMAIL_READONLY_SCOPE)) throw new ServiceUnavailableException();
+  return { authorizationUrl: url.href };
+}
+
 function startInput(value: unknown): number {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new BadRequestException();
   const input = value as Record<string, unknown>;
   if (Object.keys(input).length !== 1 || !Object.hasOwn(input, 'rangeDays'))
     throw new BadRequestException();
-  try {
-    return gmailRangeDays(input['rangeDays']);
-  } catch {
-    throw new BadRequestException();
-  }
+  return rangeDays(input['rangeDays']);
 }
 
 @ApiTags('Gmail')
@@ -69,7 +174,7 @@ export class GmailController {
     @Headers('authorization') token: string | undefined,
   ): Promise<GmailConnectionSnapshot> {
     const userId = await this.user(token);
-    return normalizeGmailConnection(await this.service().connection(userId));
+    return normalizeConnection(await this.service().connection(userId));
   }
 
   @Post('oauth/start')
@@ -79,7 +184,7 @@ export class GmailController {
     @Body() body: unknown,
   ): Promise<GmailOAuthStart> {
     const userId = await this.user(token);
-    return normalizeGmailOAuthStart(await this.service().start(userId, startInput(body)));
+    return normalizeStart(await this.service().start(userId, startInput(body)));
   }
 
   @Post('sync')
