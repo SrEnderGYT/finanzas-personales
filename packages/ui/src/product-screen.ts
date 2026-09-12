@@ -1,4 +1,5 @@
-import { Component, computed, inject, input } from '@angular/core';
+import { Component, computed, inject, input, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ProductWorkspace } from './product-workspace';
 import { Screen } from './screen';
@@ -7,10 +8,24 @@ import { Money, type ManualPayload, type MovementVersion } from '../../domain/sr
 import { CorrectionEditor } from './correction-editor';
 import { movementVersion } from '../../shared/src/sync-engine';
 import { CatalogCreator } from './catalog-creator';
+import {
+  filterProductMovements,
+  formatMinorExact,
+  summarizeProductMovements,
+  type ProductMovementFilters,
+  type ProductMovementItem,
+} from './product-insights';
 
 @Component({
   selector: 'fp-product-screen',
-  imports: [RouterLink, Screen, CorrectionEditor, CatalogCreator, ...UI_PRIMITIVES],
+  imports: [
+    FormsModule,
+    RouterLink,
+    Screen,
+    CorrectionEditor,
+    CatalogCreator,
+    ...UI_PRIMITIVES,
+  ],
   styleUrl: './manual-screen.css',
   template: `
     @if (!workspace.product()) {
@@ -21,11 +36,109 @@ import { CatalogCreator } from './catalog-creator';
           <div>
             <p class="eyebrow">MI ESPACIO</p>
             <h1>{{ title() }}</h1>
-            <p>Tu información financiera, separada por moneda.</p>
+            <p>Tu información financiera, separada por moneda y sin cifras ficticias.</p>
           </div>
           <a fpButton routerLink="/registro">Registrar movimiento</a>
         </header>
-        @if (view() === 'movimientos') {
+
+        @if (view() === 'inicio') {
+          @if (!workspace.unlocked()) {
+            <section class="manual-card product-empty-state">
+              <h2>Abre tu espacio cifrado</h2>
+              <p>
+                Inicia sesión y desbloquea tu perfil local para ver información confirmada y
+                pendientes de este dispositivo.
+              </p>
+              <a routerLink="/registro">Abrir espacio cifrado</a>
+            </section>
+          } @else {
+            <section class="product-status-grid" aria-label="Estado de tus movimientos">
+              <article class="product-stat-card">
+                <span>Confirmados</span>
+                <strong>{{ summary().confirmedCount }}</strong>
+                <small>Incluidos en los totales</small>
+              </article>
+              <article class="product-stat-card">
+                <span>Pendientes</span>
+                <strong>{{ summary().pendingCount }}</strong>
+                <small>No alteran los totales confirmados</small>
+              </article>
+              <article class="product-stat-card" [class.needs-attention]="summary().attentionCount > 0">
+                <span>Requieren atención</span>
+                <strong>{{ summary().attentionCount }}</strong>
+                <small>Reintentos o rechazos conservados</small>
+              </article>
+            </section>
+
+            @if (summary().currencies.length) {
+              <div class="product-currency-grid">
+                @for (currency of summary().currencies; track currency.currency) {
+                  <section class="manual-card currency-summary" [attr.aria-label]="currency.currency">
+                    <header>
+                      <div>
+                        <p class="eyebrow">{{ currency.currency }}</p>
+                        <h2>Movimientos confirmados</h2>
+                      </div>
+                      <span>{{ currency.confirmedCount }} operación(es)</span>
+                    </header>
+                    <dl class="money-summary">
+                      <div>
+                        <dt>Ingresos</dt>
+                        <dd>{{ exact(currency.currency, currency.incomeMinor) }}</dd>
+                      </div>
+                      <div>
+                        <dt>Gastos</dt>
+                        <dd>{{ exact(currency.currency, currency.expenseMinor) }}</dd>
+                      </div>
+                      <div>
+                        <dt>Balance registrado</dt>
+                        <dd>{{ exact(currency.currency, currency.balanceMinor) }}</dd>
+                      </div>
+                    </dl>
+                    <p class="zone-note">
+                      Este balance resume movimientos confirmados. No representa el saldo bancario
+                      de tus cuentas.
+                    </p>
+                  </section>
+                }
+              </div>
+            } @else {
+              <section class="manual-card product-empty-state">
+                <h2>Aún no hay movimientos confirmados</h2>
+                <p>
+                  No mostramos cero como si fuera un saldo confirmado. Registra un movimiento y
+                  espera su confirmación para ver el resumen.
+                </p>
+                <a routerLink="/registro">Registrar movimiento</a>
+              </section>
+            }
+
+            <section class="manual-card">
+              <header class="product-section-heading">
+                <div>
+                  <h2>Actividad reciente</h2>
+                  <p>Confirmados y pendientes permanecen claramente diferenciados.</p>
+                </div>
+                <a routerLink="/movimientos">Ver todos</a>
+              </header>
+              @for (row of movementItems().slice(0, 5); track row.id) {
+                <article class="pending-row" [attr.data-state]="row.state">
+                  <div>
+                    <strong
+                      >{{ row.payload.kind === 'expense' ? 'Gasto' : 'Ingreso' }} ·
+                      {{ money(row.payload) }}</strong
+                    >
+                    <span>{{ row.account }} · {{ row.category }}</span>
+                    <span>{{ row.payload.businessDate }} · {{ row.payload.timezone }}</span>
+                  </div>
+                  <span class="pending-badge">{{ status(row.state) }}</span>
+                </article>
+              } @empty {
+                <p class="empty-local">Todavía no existe actividad para mostrar.</p>
+              }
+            </section>
+          }
+        } @else if (view() === 'movimientos') {
           <div class="local-toolbar">
             <p role="status">{{ stateLabel() }}</p>
             <button
@@ -51,8 +164,86 @@ import { CatalogCreator } from './catalog-creator';
               <button fpButton (click)="workspace.recoverCheckpoint()">Recuperar descarga</button>
             </section>
           }
+
+          <section class="manual-card movement-filter-card" aria-label="Filtrar movimientos">
+            <div class="movement-search-row">
+              <label>
+                Buscar
+                <input
+                  fpInput
+                  type="search"
+                  placeholder="Cuenta, categoría, nota o importe"
+                  [ngModel]="query()"
+                  (ngModelChange)="query.set($event)"
+                />
+              </label>
+              <span>{{ filteredMovements().length }} de {{ movementItems().length }}</span>
+            </div>
+            <div class="movement-filter-grid">
+              <label>
+                Moneda
+                <select
+                  fpSelect
+                  [ngModel]="currencyFilter()"
+                  (ngModelChange)="currencyFilter.set($event)"
+                >
+                  <option value="ALL">Todas</option>
+                  <option value="PEN">PEN</option>
+                  <option value="USD">USD</option>
+                </select>
+              </label>
+              <label>
+                Tipo
+                <select fpSelect [ngModel]="kindFilter()" (ngModelChange)="kindFilter.set($event)">
+                  <option value="all">Todos</option>
+                  <option value="expense">Gastos</option>
+                  <option value="income">Ingresos</option>
+                </select>
+              </label>
+              <label>
+                Estado
+                <select
+                  fpSelect
+                  [ngModel]="stateFilter()"
+                  (ngModelChange)="stateFilter.set($event)"
+                >
+                  <option value="all">Todos</option>
+                  <option value="confirmed">Confirmados</option>
+                  <option value="pending">Pendientes</option>
+                  <option value="attention">Requieren atención</option>
+                </select>
+              </label>
+              <label>
+                Desde
+                <input
+                  fpInput
+                  type="date"
+                  [ngModel]="dateFrom()"
+                  (ngModelChange)="dateFrom.set($event)"
+                />
+              </label>
+              <label>
+                Hasta
+                <input
+                  fpInput
+                  type="date"
+                  [ngModel]="dateTo()"
+                  (ngModelChange)="dateTo.set($event)"
+                />
+              </label>
+            </div>
+            @if (rangeInvalid()) {
+              <p role="alert" class="field-error">
+                La fecha inicial no puede ser posterior a la fecha final.
+              </p>
+            }
+            <button fpButton class="secondary" type="button" (click)="clearFilters()">
+              Limpiar filtros
+            </button>
+          </section>
+
           <section class="manual-card" aria-label="Lista de movimientos">
-            @for (row of movements(); track row.id) {
+            @for (row of filteredMovements(); track row.id) {
               <article class="pending-row" [attr.data-state]="row.state">
                 <div>
                   <strong
@@ -60,10 +251,7 @@ import { CatalogCreator } from './catalog-creator';
                     {{ money(row.payload) }}</strong
                   >
                   <span>{{ row.payload.businessDate }} · {{ row.payload.timezone }}</span>
-                  <span
-                    >{{ accountName(row.payload.accountId) }} ·
-                    {{ categoryName(row.payload.categoryId) }}</span
-                  >
+                  <span>{{ row.account }} · {{ row.category }}</span>
                   @if (row.payload.note) {
                     <p>{{ row.payload.note }}</p>
                   }
@@ -72,26 +260,40 @@ import { CatalogCreator } from './catalog-creator';
                       {{ row.failure }}. El registro se conserva y no se reintenta automáticamente.
                     </p>
                   }
-                  @if (row.head) {
-                    <fp-correction-editor [movement]="row.head" />
+                  @if (movementHead(row.id); as head) {
+                    <fp-correction-editor [movement]="head" />
                   }
                 </div>
                 <span class="pending-badge">{{ status(row.state) }}</span>
               </article>
             } @empty {
               <h2>
-                {{ workspace.unlocked() ? 'Aún no hay movimientos' : 'Abre tu espacio cifrado' }}
+                {{
+                  workspace.unlocked()
+                    ? rangeInvalid()
+                      ? 'Revisa el rango de fechas'
+                      : movementItems().length
+                        ? 'No hay movimientos con estos filtros'
+                        : 'Aún no hay movimientos'
+                    : 'Abre tu espacio cifrado'
+                }}
               </h2>
               <p>
                 {{
                   workspace.unlocked()
-                    ? 'Registra tu primer gasto o ingreso. Sin conexión quedará pendiente.'
+                    ? movementItems().length
+                      ? 'Ajusta o limpia los filtros para volver a ver tu actividad.'
+                      : 'Registra tu primer gasto o ingreso. Sin conexión quedará pendiente.'
                     : 'Desbloquea tu perfil para consultar los movimientos guardados en este dispositivo.'
                 }}
               </p>
-              <a routerLink="/registro">{{
-                workspace.unlocked() ? 'Registrar movimiento' : 'Abrir espacio cifrado'
-              }}</a>
+              @if (workspace.unlocked() && movementItems().length) {
+                <button fpButton type="button" (click)="clearFilters()">Limpiar filtros</button>
+              } @else {
+                <a routerLink="/registro">{{
+                  workspace.unlocked() ? 'Registrar movimiento' : 'Abrir espacio cifrado'
+                }}</a>
+              }
             }
           </section>
         } @else if (view() === 'cuentas') {
@@ -141,16 +343,10 @@ import { CatalogCreator } from './catalog-creator';
           </section>
         } @else {
           <section class="manual-card">
-            <h2>
-              {{
-                view() === 'inicio'
-                  ? 'Empieza con tus movimientos'
-                  : 'Esta función llegará más adelante'
-              }}
-            </h2>
+            <h2>Esta función llegará más adelante</h2>
             <p>
-              Ya puedes registrar gastos e ingresos y revisar su confirmación. La analítica de
-              Inicio estará disponible en una fase posterior.
+              No mostramos información ficticia dentro del producto. Esta sección se habilitará
+              cuando su dominio financiero y persistencia estén implementados.
             </p>
             <a routerLink="/movimientos">Ver movimientos</a>
           </section>
@@ -162,6 +358,13 @@ import { CatalogCreator } from './catalog-creator';
 export class ProductScreen {
   readonly workspace = inject(ProductWorkspace);
   readonly view = input('inicio');
+  readonly query = signal('');
+  readonly currencyFilter = signal<ProductMovementFilters['currency']>('ALL');
+  readonly kindFilter = signal<ProductMovementFilters['kind']>('all');
+  readonly stateFilter = signal<ProductMovementFilters['state']>('all');
+  readonly dateFrom = signal('');
+  readonly dateTo = signal('');
+
   readonly title = computed(
     () =>
       ({
@@ -174,6 +377,7 @@ export class ProductScreen {
         analisis: 'Análisis',
       })[this.view()] ?? 'Mi espacio',
   );
+
   readonly movements = computed(() => {
     const items = new Map<
       string,
@@ -213,6 +417,48 @@ export class ProductScreen {
         b.payload.businessDate.localeCompare(a.payload.businessDate) || a.id.localeCompare(b.id),
     );
   });
+
+  readonly movementItems = computed<ProductMovementItem[]>(() =>
+    this.movements().map((row) => ({
+      id: row.id,
+      payload: row.payload,
+      state: row.state,
+      account: this.accountName(row.payload.accountId),
+      category: this.categoryName(row.payload.categoryId),
+      ...(row.failure ? { failure: row.failure } : {}),
+    })),
+  );
+
+  readonly summary = computed(() => summarizeProductMovements(this.movementItems()));
+
+  readonly filteredMovements = computed(() =>
+    filterProductMovements(this.movementItems(), {
+      query: this.query(),
+      currency: this.currencyFilter(),
+      kind: this.kindFilter(),
+      state: this.stateFilter(),
+      from: this.dateFrom(),
+      to: this.dateTo(),
+    }),
+  );
+
+  readonly rangeInvalid = computed(
+    () => !!this.dateFrom() && !!this.dateTo() && this.dateFrom() > this.dateTo(),
+  );
+
+  clearFilters() {
+    this.query.set('');
+    this.currencyFilter.set('ALL');
+    this.kindFilter.set('all');
+    this.stateFilter.set('all');
+    this.dateFrom.set('');
+    this.dateTo.set('');
+  }
+
+  movementHead(id: string) {
+    return this.movements().find((row) => row.id === id)?.head;
+  }
+
   status(state: string) {
     return (
       (
@@ -226,6 +472,7 @@ export class ProductScreen {
       )[state] ?? state
     );
   }
+
   stateLabel() {
     return (
       {
@@ -240,13 +487,20 @@ export class ProductScreen {
       } as Record<string, string>
     )[this.workspace.state()];
   }
+
+  exact(currency: string, minor: bigint) {
+    return formatMinorExact(currency, minor);
+  }
+
   money(payload: ManualPayload) {
     const value = Money.fromJSON(payload).minorUnits.toString();
     return `${payload.currency} ${value.length > 2 ? value.slice(0, -2) : '0'}.${value.slice(-2).padStart(2, '0')}`;
   }
+
   accountName(id: string) {
     return this.workspace.catalog()?.accounts.find((a) => a.id === id)?.name ?? 'Cuenta';
   }
+
   categoryName(id: string) {
     return this.workspace.catalog()?.categories.find((c) => c.id === id)?.name ?? 'Categoría';
   }
