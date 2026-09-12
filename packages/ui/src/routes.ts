@@ -24,6 +24,7 @@ export const APP_ROUTES: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'acceso' },
   { path: 'acceso', component: LatestAuthScreen },
   { path: 'registro', component: ManualScreen, canActivate: [authenticatedGuard] },
+  { path: 'registrar', pathMatch: 'full', redirectTo: 'registro' },
   { path: 'pendientes', component: ManualScreen, canActivate: [authenticatedGuard] },
   { path: 'gmail', component: LatestGmailScreen, canActivate: [authenticatedGuard] },
   detectedView('tarjetas', 'cards'),
