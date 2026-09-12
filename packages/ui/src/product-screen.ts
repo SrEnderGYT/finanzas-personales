@@ -18,14 +18,7 @@ import {
 
 @Component({
   selector: 'fp-product-screen',
-  imports: [
-    FormsModule,
-    RouterLink,
-    Screen,
-    CorrectionEditor,
-    CatalogCreator,
-    ...UI_PRIMITIVES,
-  ],
+  imports: [FormsModule, RouterLink, Screen, CorrectionEditor, CatalogCreator, ...UI_PRIMITIVES],
   styleUrl: './manual-screen.css',
   template: `
     @if (!workspace.product()) {
@@ -63,7 +56,10 @@ import {
                 <strong>{{ summary().pendingCount }}</strong>
                 <small>No alteran los totales confirmados</small>
               </article>
-              <article class="product-stat-card" [class.needs-attention]="summary().attentionCount > 0">
+              <article
+                class="product-stat-card"
+                [class.needs-attention]="summary().attentionCount > 0"
+              >
                 <span>Requieren atención</span>
                 <strong>{{ summary().attentionCount }}</strong>
                 <small>Reintentos o rechazos conservados</small>
@@ -73,7 +69,10 @@ import {
             @if (summary().currencies.length) {
               <div class="product-currency-grid">
                 @for (currency of summary().currencies; track currency.currency) {
-                  <section class="manual-card currency-summary" [attr.aria-label]="currency.currency">
+                  <section
+                    class="manual-card currency-summary"
+                    [attr.aria-label]="currency.currency"
+                  >
                     <header>
                       <div>
                         <p class="eyebrow">{{ currency.currency }}</p>
