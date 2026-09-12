@@ -1,3 +1,4 @@
+/* global window, navigator, caches, sessionStorage, location */
 (() => {
   const resetKey = 'finanzas-p17-cache-reset-v1';
   if (sessionStorage.getItem(resetKey) === 'done') return;
