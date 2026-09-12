@@ -15,7 +15,30 @@ jobs:
           cache: npm
       - run: npm install --global npm@11.6.1
       - run: npm ci
-      - name: Print exact Prettier diff
+      - name: Format changed UI files
         run: |
-          npm exec -- prettier --write packages/ui/src/product-preview.ts packages/ui/src/gmail-preview.ts
-          git diff -- packages/ui/src/product-preview.ts packages/ui/src/gmail-preview.ts
+          npm exec -- prettier --write \
+            packages/ui/src/product-preview.ts \
+            packages/ui/src/public-product-screen.ts \
+            packages/ui/src/public-product-screen.css \
+            packages/ui/src/public-auth-screen.ts \
+            packages/ui/src/public-auth-screen.css \
+            packages/ui/src/latest-screen.ts \
+            packages/ui/src/latest-auth-screen.ts \
+            packages/ui/src/routes.ts \
+            tests/ui.e2e.ts
+          git diff --check
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: prettier-formatted-${{ github.sha }}
+          path: |
+            packages/ui/src/product-preview.ts
+            packages/ui/src/public-product-screen.ts
+            packages/ui/src/public-product-screen.css
+            packages/ui/src/public-auth-screen.ts
+            packages/ui/src/public-auth-screen.css
+            packages/ui/src/latest-screen.ts
+            packages/ui/src/latest-auth-screen.ts
+            packages/ui/src/routes.ts
+            tests/ui.e2e.ts
+          retention-days: 1
