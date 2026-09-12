@@ -1,19 +1,9 @@
-import { Component, inject } from '@angular/core';
-import { AUTH_CLIENT } from './auth-provider';
-import { GmailPreview } from './gmail-preview';
+import { Component } from '@angular/core';
 import { GmailScreen } from './gmail-screen';
 
 @Component({
   selector: 'fp-latest-gmail-screen',
-  imports: [GmailPreview, GmailScreen],
-  template: `
-    @if (auth.enabled) {
-      <fp-gmail-screen />
-    } @else {
-      <fp-gmail-preview />
-    }
-  `,
+  imports: [GmailScreen],
+  template: `<fp-gmail-screen />`,
 })
-export class LatestGmailScreen {
-  readonly auth = inject(AUTH_CLIENT);
-}
+export class LatestGmailScreen {}
