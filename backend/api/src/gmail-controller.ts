@@ -140,8 +140,7 @@ function normalizeStart(value: unknown): GmailOAuthStart {
 }
 
 function startInput(value: unknown): number {
-  if (!value || typeof value !== 'object' || Array.isArray(value))
-    throw new BadRequestException();
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new BadRequestException();
   const input = value as Record<string, unknown>;
   if (Object.keys(input).length !== 1 || !Object.hasOwn(input, 'rangeDays'))
     throw new BadRequestException();
