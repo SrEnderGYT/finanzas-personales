@@ -10,6 +10,7 @@ import { LiveGoogleProvider } from './google-provider';
 import { MfaLogin } from './mfa-login';
 import { MfaStore } from './mfa-store';
 import { MfaSecrets } from './mfa-secrets';
+
 export async function startApi(
   port = Number(process.env['PORT'] ?? 3000),
   host = process.env['HOST'] ?? '127.0.0.1',
@@ -37,7 +38,6 @@ export async function startApi(
   try {
     const database = new UserDatabase(pool);
     await database.assertRuntimeRole();
-    // Legacy JWT exchange is disabled in the real server. Email/Google login issue sessions internally.
     const sessions = new SessionAuthority(database, denyIdentity);
     const emailAuth = new EmailAuth(
       authPool,
@@ -70,6 +70,10 @@ export async function startApi(
           new URL(required('NATIVE_GOOGLE_REDIRECT_URI')).origin,
         )
       : undefined;
+    const webCorsOrigins = (process.env['WEB_ALLOWED_ORIGINS'] ?? '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean);
     const app = await createApp({
       database,
       identity: sessions,
@@ -78,6 +82,7 @@ export async function startApi(
       googleAuth,
       nativeGoogleAuth,
       nativeAuthCors: process.env['NATIVE_AUTH_CORS'] === 'enabled',
+      webCorsOrigins,
       mfaLogin: process.env['MFA_ENCRYPTION_KEY']
         ? new MfaLogin(
             authPool,
