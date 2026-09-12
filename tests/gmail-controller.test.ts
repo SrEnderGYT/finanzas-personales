@@ -26,9 +26,13 @@ function service(): GmailConnectionService {
       scope: GMAIL_READONLY_SCOPE,
       rangeDays: 30,
     })),
-    start: vi.fn(async (_userId: string, _rangeDays: number) => ({
-      authorizationUrl: `https://accounts.google.com/o/oauth2/v2/auth?scope=${encodeURIComponent(GMAIL_READONLY_SCOPE)}`,
-    })),
+    start: vi.fn(async (userId: string, rangeDays: number) => {
+      void userId;
+      void rangeDays;
+      return {
+        authorizationUrl: `https://accounts.google.com/o/oauth2/v2/auth?scope=${encodeURIComponent(GMAIL_READONLY_SCOPE)}`,
+      };
+    }),
     sync: vi.fn(async () => undefined),
     disconnect: vi.fn(async () => undefined),
   };
@@ -64,7 +68,7 @@ describe('GmailController', () => {
     }));
     await expect(
       new GmailController(identity(), unsafe).start('Bearer session', { rangeDays: 30 }),
-    ).rejects.toThrow('GMAIL_INVALID_AUTHORIZATION_URL');
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 
   it('returns unavailable until the server implementation is explicitly supplied', async () => {
