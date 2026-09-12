@@ -1,0 +1,58 @@
+name: P17 finance formatting
+
+on:
+  push:
+    branches: ['feature/p17-real-app']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: p17-finance-format
+  cancel-in-progress: true
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: feature/p17-real-app
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Format touched finance files
+        run: |
+          npm exec prettier -- --write \
+            backend/api/src/financial-mail-parser.ts \
+            tests/gmail-ingestion.test.ts \
+            packages/ui/src/detected-finances-screen.ts \
+            packages/ui/src/detected-finances-screen.css \
+            packages/ui/src/locked-product-screen.ts \
+            packages/ui/src/routes.ts \
+            packages/ui/src/shell.ts \
+            packages/ui/src/gmail-screen.ts \
+            packages/ui/src/gmail-screen.css
+      - name: Commit normalized files
+        run: |
+          if git diff --quiet; then
+            echo "No formatting changes needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            backend/api/src/financial-mail-parser.ts \
+            tests/gmail-ingestion.test.ts \
+            packages/ui/src/detected-finances-screen.ts \
+            packages/ui/src/detected-finances-screen.css \
+            packages/ui/src/locked-product-screen.ts \
+            packages/ui/src/routes.ts \
+            packages/ui/src/shell.ts \
+            packages/ui/src/gmail-screen.ts \
+            packages/ui/src/gmail-screen.css
+          git commit -m "style: normalize finance review changes"
+          git push origin HEAD:feature/p17-real-app
