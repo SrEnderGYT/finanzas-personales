@@ -5,7 +5,7 @@ import { UI_PRIMITIVES } from './primitives';
 @Component({
   selector: 'fp-public-auth-screen',
   imports: [RouterLink, ...UI_PRIMITIVES],
-  styleUrl: './public-auth-screen.css',
+  styleUrls: ['./public-auth-screen.css', './public-auth-accessibility.css'],
   template: `
     <section class="public-auth" aria-labelledby="public-auth-title">
       <div class="auth-brand-panel">
