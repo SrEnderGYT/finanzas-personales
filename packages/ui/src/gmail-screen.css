@@ -67,8 +67,19 @@
 }
 
 .gmail-card select,
-.gmail-inbox select {
+.gmail-inbox select,
+.gmail-inbox input[type='month'] {
   min-height: 46px;
+}
+
+.gmail-inbox input[type='month'] {
+  min-width: 170px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface, #fff) 96%, currentColor 4%);
+  color: inherit;
+  font: inherit;
 }
 
 .gmail-card-heading,
@@ -176,11 +187,18 @@
 }
 
 .gmail-inbox-heading > div:first-child {
-  max-width: 720px;
+  max-width: 650px;
 }
 
-.gmail-inbox-heading > label {
-  min-width: 180px;
+.gmail-inbox-filters {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.gmail-inbox-filters > label {
+  min-width: 170px;
 }
 
 .gmail-detection-summary {
@@ -306,8 +324,17 @@
     flex: 1 1 100%;
   }
 
-  .gmail-inbox-heading > label {
+  .gmail-inbox-heading,
+  .gmail-inbox-filters {
+    display: grid;
+    grid-template-columns: 1fr;
     width: 100%;
+  }
+
+  .gmail-inbox-filters > label,
+  .gmail-inbox input[type='month'] {
+    width: 100%;
+    min-width: 0;
   }
 
   .candidate-side {
