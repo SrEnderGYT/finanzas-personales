@@ -4,7 +4,7 @@ import { LatestGmailScreen } from './latest-gmail-screen';
 import { AuthScreen } from './auth-screen';
 import { ManualScreen } from './manual-screen';
 
-export const DEMO_ROUTES: Routes = [
+export const APP_ROUTES: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'acceso' },
   { path: 'acceso', component: AuthScreen },
   { path: 'registro', component: ManualScreen },
