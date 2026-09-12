@@ -19,14 +19,23 @@ if (
 
 const indexPath = 'dist/web/browser/index.html';
 const original = await readFile(indexPath, 'utf8');
-if (
-  !original.includes('name="finanzas-auth" content="disabled"') ||
-  !original.includes('name="finanzas-api-origin" content=""')
-)
-  throw new Error('Unexpected web authentication metadata.');
-const index = original
-  .replace('name="finanzas-auth" content="disabled"', 'name="finanzas-auth" content="remote"')
-  .replace('name="finanzas-api-origin" content=""', `name="finanzas-api-origin" content="${parsed.origin}"`);
+
+function setMetaContent(html, name, value) {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const tagPattern = new RegExp(`<meta\\b[^>]*\\bname=["']${escaped}["'][^>]*>`, 'i');
+  const match = html.match(tagPattern);
+  if (!match) throw new Error(`Missing ${name} metadata.`);
+
+  const tag = match[0];
+  const contentPattern = /\bcontent=(['"])[^'"]*\1/i;
+  const updatedTag = contentPattern.test(tag)
+    ? tag.replace(contentPattern, `content="${value}"`)
+    : tag.replace(/\s*\/?\s*>$/, ` content="${value}">`);
+  return html.replace(tag, updatedTag);
+}
+
+let index = setMetaContent(original, 'finanzas-auth', 'remote');
+index = setMetaContent(index, 'finanzas-api-origin', parsed.origin);
 await writeFile(indexPath, index);
 
 try {
