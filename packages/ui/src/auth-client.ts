@@ -273,11 +273,18 @@ export class AuthClient {
     return this.token !== undefined;
   }
   async gmail(
-    path: 'connection' | 'oauth/start' | 'sync',
+    path: string,
     method: 'GET' | 'POST' | 'DELETE',
     body?: unknown,
     signal?: AbortSignal,
   ): Promise<unknown> {
+    const safePath =
+      path === 'connection' ||
+      path === 'oauth/start' ||
+      path === 'sync' ||
+      /^candidates(?:\?status=(?:pending|confirmed|discarded|all))?$/.test(path) ||
+      /^candidates\/[0-9a-f-]{36}\/(?:confirm|discard)$/.test(path);
+    if (!safePath) throw new Error('Ruta Gmail no permitida.');
     if (!this.enabled || !this.token) throw new SyncHttpError(401, 'SESSION_REQUIRED');
     const token = this.token;
     const response = await this.transport(`/v1/gmail/${path}`, {
@@ -318,7 +325,7 @@ export class AuthClient {
     signal?: AbortSignal,
   ): Promise<unknown> {
     if (!this.enabled)
-      throw new Error('El acceso aún no está habilitado en esta vista de muestra.');
+      throw new Error('El servidor de acceso no está configurado en este cliente.');
     let response: Response;
     try {
       response = await this.transport(`/v1/auth/${path}`, {
