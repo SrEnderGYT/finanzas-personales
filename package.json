@@ -25,7 +25,7 @@
     "typecheck": "npm run build:domain && tsc --noEmit -p tsconfig.check.json && ngc --noEmit -p apps/web/tsconfig.app.json && ngc --noEmit -p apps/mobile/tsconfig.app.json",
     "lint": "eslint apps packages backend tests scripts --no-warn-ignored",
     "format": "prettier --write .",
-    "format:check": "prettier --check apps packages backend tests scripts *.json *.mjs .github/workflows",
+    "format:check": "prettier --write apps packages backend tests scripts *.json *.mjs .github/workflows && git diff --no-ext-diff --unified=3 --exit-code",
     "test": "vitest run --exclude \"**/*.integration.test.ts\"",
     "test:integration": "vitest run tests/api.integration.test.ts",
     "test:postgres": "node scripts/test-postgres.mjs",
