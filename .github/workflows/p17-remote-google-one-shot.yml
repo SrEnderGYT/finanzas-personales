@@ -1,0 +1,79 @@
+name: P17 Remote Google One Shot
+on:
+  push:
+    branches: ['feature/p17-real-app']
+    paths: ['.github/workflows/p17-remote-google-one-shot.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: feature/p17-real-app
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm install --global npm@11.6.1
+      - run: npm ci
+      - name: Patch remote web Google PKCE flow
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('packages/ui/src/auth-client.ts')
+          s = p.read_text()
+          old = "import { nativeGoogleFlow } from '../../shared/src/native-google-flow';\n"
+          new = old + "import { createNativeProof } from '../../shared/src/native-pkce';\n"
+          assert s.count(old) == 1
+          s = s.replace(old, new, 1)
+
+          old = "  private challenge: string | undefined;\n"
+          new = """  private webGoogleProof:\n    | {\n        state: string;\n        verifier: string;\n        mode: 'login' | 'link' | 'reauthenticate';\n        originalToken: string | undefined;\n      }\n    | undefined;\n  private challenge: string | undefined;\n"""
+          assert s.count(old) == 1
+          s = s.replace(old, new, 1)
+
+          old = """  get signedIn() {\n    return this.token !== undefined;\n  }\n"""
+          new = """  get signedIn() {\n    return this.token !== undefined;\n  }\n  get remoteApi() {\n    return this.catalogEnvironment !== 'same-origin';\n  }\n"""
+          assert s.count(old) == 1
+          s = s.replace(old, new, 1)
+
+          marker = """  async google(mode: 'login' | 'link' | 'reauthenticate'): Promise<string> {\n"""
+          assert s.count(marker) == 1
+          methods = """  async startRemoteGoogle(mode: 'login' | 'link' | 'reauthenticate'): Promise<string> {\n    if (!this.remoteApi) throw new Error('El flujo remoto de Google no está disponible.');\n    if (mode !== 'login' && !this.token)\n      throw new Error('Vuelve a entrar antes de continuar con Google.');\n    const proof = await createNativeProof();\n    const originalToken = this.token;\n    const value = await this.request('google/pkce/start', 'POST', {\n      mode,\n      state: proof.state,\n      challenge: proof.challenge,\n      method: proof.method,\n    });\n    if (\n      !value ||\n      typeof value !== 'object' ||\n      !('authorizationUrl' in value) ||\n      typeof value.authorizationUrl !== 'string'\n    )\n      throw new Error('No se pudo iniciar Google.');\n    const url = new URL(value.authorizationUrl);\n    if (\n      url.origin !== 'https://accounts.google.com' ||\n      url.pathname !== '/o/oauth2/v2/auth' ||\n      url.username ||\n      url.password ||\n      url.searchParams.get('state') !== proof.state\n    )\n      throw new Error('La dirección de acceso no es válida.');\n    this.webGoogleProof = {\n      state: proof.state,\n      verifier: proof.verifier,\n      mode,\n      originalToken,\n    };\n    return url.href;\n  }\n  async completeRemoteGoogle(state: string, code: string): Promise<unknown> {\n    const flow = this.webGoogleProof;\n    this.webGoogleProof = undefined;\n    if (\n      !flow ||\n      flow.state !== state ||\n      !/^[A-Za-z0-9_-]{43}$/.test(state) ||\n      !code ||\n      code.length > 4096\n    )\n      throw new Error('El retorno de Google no es válido.');\n    const verifier = flow.verifier;\n    flow.verifier = '';\n    const value = await this.request('google/pkce/complete', 'POST', { state, code, verifier });\n    if (flow.mode === 'login') {\n      this.acceptSession(value);\n      return undefined;\n    }\n    if (!flow.originalToken || this.token !== flow.originalToken)\n      throw new Error('La sesión cambió durante la verificación.');\n    if (flow.mode === 'link') {\n      if (\n        !value ||\n        typeof value !== 'object' ||\n        !('linked' in value) ||\n        value.linked !== true\n      )\n        throw new Error('No se pudo vincular Google.');\n      return undefined;\n    }\n    if (\n      !value ||\n      typeof value !== 'object' ||\n      !('reauthenticated' in value) ||\n      value.reauthenticated !== true\n    )\n      throw new Error('No se pudo verificar tu identidad.');\n    return value;\n  }\n  async beginMfaRemoteGoogle(state: string, code: string): Promise<string> {\n    return this.beginMfaWithProof(await this.completeRemoteGoogle(state, code));\n  }\n"""
+          s = s.replace(marker, methods + marker, 1)
+          p.write_text(s)
+
+          p = Path('packages/ui/src/auth-screen.ts')
+          s = p.read_text()
+          old = "import { relayGoogleReturn } from './google-popup';"
+          new = "import { googleReauthentication, relayGoogleReturn } from './google-popup';"
+          assert s.count(old) == 1
+          s = s.replace(old, new, 1)
+          old = """      location.assign(await this.client.google(mode));\n"""
+          new = """      if (this.client.remoteApi) {\n        const result = await googleReauthentication(\n          () => this.client.startRemoteGoogle(mode),\n          this.lifetime.signal,\n        );\n        await this.client.completeRemoteGoogle(result.state, result.code);\n        await this.afterPrimary();\n        return;\n      }\n      location.assign(await this.client.google(mode));\n"""
+          assert s.count(old) == 1
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          p = Path('packages/ui/src/mfa-enrollment.ts')
+          s = p.read_text()
+          old = """      const result = await googleReauthentication(\n        () => this.client().google('reauthenticate'),\n        this.lifetime.signal,\n      );\n      this.secret.set(await this.client().beginMfaGoogle(result.state, result.code));\n"""
+          new = """      const remote = this.client().remoteApi;\n      const result = await googleReauthentication(\n        () =>\n          remote\n            ? this.client().startRemoteGoogle('reauthenticate')\n            : this.client().google('reauthenticate'),\n        this.lifetime.signal,\n      );\n      this.secret.set(\n        remote\n          ? await this.client().beginMfaRemoteGoogle(result.state, result.code)\n          : await this.client().beginMfaGoogle(result.state, result.code),\n      );\n"""
+          assert s.count(old) == 1
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+      - run: npx prettier --write packages/ui/src/auth-client.ts packages/ui/src/auth-screen.ts packages/ui/src/mfa-enrollment.ts backend/api/src/google-controller.ts
+      - run: npm run typecheck
+      - run: npm run build
+      - name: Commit validated client flow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add packages/ui/src/auth-client.ts packages/ui/src/auth-screen.ts packages/ui/src/mfa-enrollment.ts backend/api/src/google-controller.ts
+          git diff --cached --quiet && exit 0
+          git commit -m 'feat(auth): use PKCE for remote web Google login'
+          git push origin HEAD:feature/p17-real-app
