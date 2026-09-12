@@ -1,8 +1,9 @@
-name: Preview DEMO
+name: Aplicación Web
 on:
   push:
     branches:
       [
+        'main',
         'feature/p02-*',
         'feature/p03-*',
         'feature/p05-auth',
@@ -42,14 +43,14 @@ jobs:
             docs/evidence/
             playwright-report/
             test-results/
-      - name: Build public static preview
+      - name: Build public application
         run: |
           npm exec ng -- build web --base-href /finanzas-personales/
           npm exec ng -- build mobile --base-href /finanzas-personales/mobile/
           mkdir -p dist/pages/mobile
           cp -R dist/web/browser/. dist/pages/
           cp -R dist/mobile/browser/. dist/pages/mobile/
-          printf '{"commit":"%s","environment":"synthetic-demo"}\n' "$GITHUB_SHA" > dist/pages/build-info.json
+          printf '{"commit":"%s","environment":"public-application"}\n' "$GITHUB_SHA" > dist/pages/build-info.json
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa02
         with:
           path: dist/pages
@@ -64,6 +65,6 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Deploy DEMO only
+      - name: Deploy application
         id: deployment
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e
