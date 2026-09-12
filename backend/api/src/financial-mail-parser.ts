@@ -221,7 +221,11 @@ export function parseFinancialMail(input: FinancialMailInput): ParsedFinancialMa
   const snippet = compact(input.snippet, 2048);
   const text = `${sender}\n${subject}\n${snippet}`;
 
-  if (rejectedTransaction.test(text) || marketingOffer.test(text) || subscriptionCancellation.test(text))
+  if (
+    rejectedTransaction.test(text) ||
+    marketingOffer.test(text) ||
+    subscriptionCancellation.test(text)
+  )
     return undefined;
 
   const bank = namedMatch(text, institutionRules);
@@ -239,12 +243,7 @@ export function parseFinancialMail(input: FinancialMailInput): ParsedFinancialMa
   )
     return undefined;
 
-  const category = classify(
-    text,
-    Boolean(detectedMoney),
-    recurringMerchant,
-    billedServiceMerchant,
-  );
+  const category = classify(text, Boolean(detectedMoney), recurringMerchant, billedServiceMerchant);
   if (!category || !detectedMoney) return undefined;
 
   const merchant = recurringMerchant ?? billedServiceMerchant;

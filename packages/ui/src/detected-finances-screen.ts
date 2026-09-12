@@ -62,11 +62,7 @@ function monthKey(value: Date) {
         <section class="detected-filters" aria-label="Filtros de información financiera">
           <label>
             <span>Periodo</span>
-            <input
-              type="month"
-              [value]="month()"
-              (change)="setMonth($any($event.target).value)"
-            />
+            <input type="month" [value]="month()" (change)="setMonth($any($event.target).value)" />
           </label>
 
           @if (view() === 'cards' || view() === 'debts') {
@@ -87,10 +83,7 @@ function monthKey(value: Date) {
           @if (view() === 'cards') {
             <label>
               <span>Tipo</span>
-              <select
-                [value]="cardKindFilter()"
-                (change)="setCardKind($any($event.target).value)"
-              >
+              <select [value]="cardKindFilter()" (change)="setCardKind($any($event.target).value)">
                 <option value="all">Todos</option>
                 <option value="card_charge">Consumos</option>
                 <option value="payment">Pagos</option>
@@ -139,7 +132,9 @@ function monthKey(value: Date) {
                   <div>
                     <strong>{{ institution.name }}</strong>
                     <p>
-                      {{ institution.events }} evento{{ institution.events === 1 ? '' : 's' }}
+                      {{ institution.events }} evento{{
+                        institution.events === 1 ? '' : 's'
+                      }}
                       detectado{{ institution.events === 1 ? '' : 's' }}
                     </p>
                   </div>
@@ -229,7 +224,8 @@ export class DetectedFinancesScreen implements OnInit {
           : ['debt', 'card_statement'],
     );
     return this.candidates().filter((candidate) => {
-      if (!allowed.has(candidate.kind) || !candidate.amountMinor || !candidate.currency) return false;
+      if (!allowed.has(candidate.kind) || !candidate.amountMinor || !candidate.currency)
+        return false;
       if (monthKey(new Date(candidate.occurredAt)) !== this.month()) return false;
       if (this.view() === 'debts' && !candidate.institution) return false;
       return true;
@@ -237,9 +233,9 @@ export class DetectedFinancesScreen implements OnInit {
   });
 
   readonly institutionOptions = computed(() =>
-    [...new Set(this.periodRows().flatMap((item) => (item.institution ? [item.institution] : [])))].sort(
-      (a, b) => a.localeCompare(b),
-    ),
+    [
+      ...new Set(this.periodRows().flatMap((item) => (item.institution ? [item.institution] : []))),
+    ].sort((a, b) => a.localeCompare(b)),
   );
 
   readonly visible = computed(() =>

@@ -166,8 +166,8 @@ function limaMonth(value: Date) {
               <p class="eyebrow">DETECTADO EN TU CORREO</p>
               <h2 id="gmail-inbox-title">Bandeja financiera</h2>
               <p>
-                Revisa cada hallazgo antes de incorporarlo a tus finanzas. Solo aparecen señales
-                con importe detectado en el mes seleccionado.
+                Revisa cada hallazgo antes de incorporarlo a tus finanzas. Solo aparecen señales con
+                importe detectado en el mes seleccionado.
               </p>
             </div>
             <div class="gmail-inbox-filters">

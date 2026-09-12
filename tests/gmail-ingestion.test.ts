@@ -49,7 +49,9 @@ describe('financial Gmail ingestion', () => {
       ),
     ).toBeUndefined();
     expect(mail('🚨 Preventa activa: Duna Parte 3 🎟️', 'Compra tus entradas hoy.')).toBeUndefined();
-    expect(mail('Hace tiempo no nos visitas 🥺 ¡Te extrañamos!', 'Tenemos ofertas para ti.')).toBeUndefined();
+    expect(
+      mail('Hace tiempo no nos visitas 🥺 ¡Te extrañamos!', 'Tenemos ofertas para ti.'),
+    ).toBeUndefined();
     expect(
       mail(
         'BCP - ¡Te enviamos tu nuevo comprobante electrónico! - BA04-78012010',
@@ -110,7 +112,9 @@ describe('financial Gmail ingestion', () => {
       ),
     ).toBeUndefined();
     expect(mail('Tu membresía de Prime terminó', 'Puedes volver cuando quieras.')).toBeUndefined();
-    expect(mail('Te has desafiliado con éxito de YANGO', 'La afiliación fue cancelada.')).toBeUndefined();
+    expect(
+      mail('Te has desafiliado con éxito de YANGO', 'La afiliación fue cancelada.'),
+    ).toBeUndefined();
   });
 
   it('uses card statements as card debt and prefers the total payable amount', () => {
@@ -128,8 +132,12 @@ describe('financial Gmail ingestion', () => {
   });
 
   it('requires a detected amount for financial candidates', () => {
-    expect(mail('Compra realizada con tu tarjeta', 'Tu compra fue realizada correctamente.')).toBeUndefined();
-    expect(mail('Estado de cuenta disponible', 'Revisa el detalle de tu estado de cuenta.')).toBeUndefined();
+    expect(
+      mail('Compra realizada con tu tarjeta', 'Tu compra fue realizada correctamente.'),
+    ).toBeUndefined();
+    expect(
+      mail('Estado de cuenta disponible', 'Revisa el detalle de tu estado de cuenta.'),
+    ).toBeUndefined();
   });
 
   it('encrypts refresh tokens with user-bound authenticated encryption', () => {
