@@ -65,11 +65,13 @@ jobs:
       - run: npm run lint
       - run: npm run format:check
       - run: npm run typecheck
-      - name: Commit validated cleanup
+      - name: Show formatted preview workflow
+        run: cat .github/workflows/preview.yml
+      - name: Commit validated code cleanup
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add packages/shared/src/gmail-candidates.ts packages/ui/src/backend-required-screen.ts packages/ui/src/detected-finances-screen.ts packages/ui/src/gmail-screen.ts packages/ui/src/public-auth-screen.ts packages/ui/src/shell.ts backend/api/src/financial-mail-parser.ts backend/api/src/gmail-controller.ts backend/api/src/gmail-import-service.ts backend/api/src/gmail-service.ts backend/api/src/web-cors.ts scripts/configure-web-origin.mjs tests/gmail-ingestion.test.ts .github/workflows/preview.yml
+          git add packages/shared/src/gmail-candidates.ts packages/ui/src/backend-required-screen.ts packages/ui/src/detected-finances-screen.ts packages/ui/src/gmail-screen.ts packages/ui/src/public-auth-screen.ts packages/ui/src/shell.ts backend/api/src/financial-mail-parser.ts backend/api/src/gmail-controller.ts backend/api/src/gmail-import-service.ts backend/api/src/gmail-service.ts backend/api/src/web-cors.ts scripts/configure-web-origin.mjs tests/gmail-ingestion.test.ts
           git diff --cached --quiet && exit 0
           git commit -m 'fix(p17): normalize quality checks'
           git push origin HEAD:feature/p17-real-app
