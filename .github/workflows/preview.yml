@@ -12,10 +12,10 @@ on:
         'feature/p11-functional-dashboard',
         'feature/p15-gmail-connection-ui',
         'feature/p16-bcp-review',
-        'feature/p17-gmail-automation',
+        'feature/p17-real-app',
       ]
   pull_request:
-    paths: ['apps/**', 'packages/**', 'tests/**', 'scripts/**']
+    paths: ['apps/**', 'packages/**', 'tests/**', 'scripts/**', 'backend/**']
 permissions:
   contents: read
 concurrency:
@@ -43,14 +43,17 @@ jobs:
             docs/evidence/
             playwright-report/
             test-results/
-      - name: Build public application
+      - name: Build authenticated web application
+        env:
+          FINANZAS_API_ORIGIN: ${{ vars.FINANZAS_API_ORIGIN }}
         run: |
           npm exec ng -- build web --base-href /finanzas-personales/
+          node scripts/configure-web-origin.mjs
           npm exec ng -- build mobile --base-href /finanzas-personales/mobile/
           mkdir -p dist/pages/mobile
           cp -R dist/web/browser/. dist/pages/
           cp -R dist/mobile/browser/. dist/pages/mobile/
-          printf '{"commit":"%s","environment":"public-application"}\n' "$GITHUB_SHA" > dist/pages/build-info.json
+          printf '{"commit":"%s","environment":"authenticated-web"}\n' "$GITHUB_SHA" > dist/pages/build-info.json
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa02
         with:
           path: dist/pages
