@@ -22,7 +22,9 @@ import { Component } from '@angular/core';
           <span aria-hidden="true">✉</span>
           <div>
             <strong>Gmail se conecta por separado</strong>
-            <p>Cuando el API esté disponible podrás autorizar solo lectura y revisar lo detectado.</p>
+            <p>
+              Cuando el API esté disponible podrás autorizar solo lectura y revisar lo detectado.
+            </p>
           </div>
         </div>
       </div>

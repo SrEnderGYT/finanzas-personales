@@ -83,7 +83,11 @@ describe('financial Gmail ingestion', () => {
       ],
     });
     expect(valid[0]?.amountMinor).toBe('12900');
-    expect(() => normalizeGmailCandidates({ items: [{ ...valid[0], amountMinor: '-1' }] })).toThrow();
-    expect(() => normalizeGmailCandidates({ items: [{ ...valid[0], status: 'approved' }] })).toThrow();
+    expect(() =>
+      normalizeGmailCandidates({ items: [{ ...valid[0], amountMinor: '-1' }] }),
+    ).toThrow();
+    expect(() =>
+      normalizeGmailCandidates({ items: [{ ...valid[0], status: 'approved' }] }),
+    ).toThrow();
   });
 });

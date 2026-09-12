@@ -99,7 +99,10 @@ export function normalizeGmailCandidates(value: unknown): GmailFinancialCandidat
     if (currency !== undefined && currency !== 'PEN' && currency !== 'USD')
       throw new Error('GMAIL_CANDIDATE_INVALID');
     const amountMinor = row['amountMinor'];
-    if (amountMinor !== undefined && (typeof amountMinor !== 'string' || !/^\d{1,20}$/.test(amountMinor)))
+    if (
+      amountMinor !== undefined &&
+      (typeof amountMinor !== 'string' || !/^\d{1,20}$/.test(amountMinor))
+    )
       throw new Error('GMAIL_CANDIDATE_INVALID');
     const dueAt = row['dueAt'];
     if (dueAt !== undefined && (typeof dueAt !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dueAt)))
@@ -113,7 +116,9 @@ export function normalizeGmailCandidates(value: unknown): GmailFinancialCandidat
       summary,
       occurredAt: instant(row['occurredAt']),
       createdAt: instant(row['createdAt']),
-      ...(optionalText(row['institution'], 160) ? { institution: row['institution'] as string } : {}),
+      ...(optionalText(row['institution'], 160)
+        ? { institution: row['institution'] as string }
+        : {}),
       ...(optionalText(row['merchant'], 240) ? { merchant: row['merchant'] as string } : {}),
       ...(currency ? { currency } : {}),
       ...(amountMinor ? { amountMinor } : {}),

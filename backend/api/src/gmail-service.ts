@@ -1,9 +1,6 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
-import {
-  GMAIL_READONLY_SCOPE,
-  type GmailConnectionService,
-} from './gmail-controller';
+import { GMAIL_READONLY_SCOPE, type GmailConnectionService } from './gmail-controller';
 import { GmailSecrets } from './gmail-secrets';
 import { parseFinancialMail } from './financial-mail-parser';
 
@@ -39,7 +36,8 @@ function userId(value: string) {
 
 function plainHttpsUrl(value: string, name: string) {
   const url = new URL(value);
-  if (url.protocol !== 'https:' || url.username || url.password) throw new Error(`${name} must use HTTPS`);
+  if (url.protocol !== 'https:' || url.username || url.password)
+    throw new Error(`${name} must use HTTPS`);
   return url;
 }
 
@@ -53,7 +51,8 @@ function isoDate(value: Date) {
 }
 
 function jsonRecord(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid Gmail response');
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new Error('Invalid Gmail response');
   return value as Record<string, unknown>;
 }
 
@@ -68,8 +67,10 @@ export class LiveGmailService implements GmailConnectionService {
     private readonly secrets: GmailSecrets,
     private readonly options: GmailServiceOptions,
   ) {
-    if (!options.clientId || options.clientId.length > 512) throw new Error('Invalid Gmail client id');
-    if (!options.clientSecret || options.clientSecret.length > 1024) throw new Error('Invalid Gmail client secret');
+    if (!options.clientId || options.clientId.length > 512)
+      throw new Error('Invalid Gmail client id');
+    if (!options.clientSecret || options.clientSecret.length > 1024)
+      throw new Error('Invalid Gmail client secret');
     this.redirectUri = plainHttpsUrl(options.redirectUri, 'Gmail redirect URI').href;
     this.appReturnUrl = plainHttpsUrl(options.appReturnUrl, 'Gmail app return URL').href;
     this.maxMessages = Math.min(Math.max(options.maxMessages ?? 1500, 100), 5000);
@@ -110,7 +111,10 @@ export class LiveGmailService implements GmailConnectionService {
   async start(rawUserId: string, rangeDays: number) {
     const id = userId(rawUserId);
     const state = randomBytes(32).toString('base64url');
-    await this.pool.query('DELETE FROM app.gmail_oauth_flows WHERE expires_at <= now() OR user_id=$1', [id]);
+    await this.pool.query(
+      'DELETE FROM app.gmail_oauth_flows WHERE expires_at <= now() OR user_id=$1',
+      [id],
+    );
     await this.pool.query(
       `INSERT INTO app.gmail_oauth_flows(state_hash,user_id,range_days)
        VALUES($1,$2,$3)`,
@@ -131,8 +135,7 @@ export class LiveGmailService implements GmailConnectionService {
   async complete(state: string, code: string) {
     if (!STATE.test(state) || !CODE.test(code)) throw new Error('Invalid Gmail callback');
     const client = await this.pool.connect();
-    let id = '';
-    let rangeDays = 30;
+    let authorization: { id: string; rangeDays: number } | undefined;
     try {
       await client.query('BEGIN');
       const flow = await client.query(
@@ -141,10 +144,13 @@ export class LiveGmailService implements GmailConnectionService {
         [sha256(state)],
       );
       if (flow.rowCount !== 1) throw new Error('Gmail authorization expired');
-      id = userId(String(flow.rows[0].user_id));
-      rangeDays = Number(flow.rows[0].range_days);
-      await client.query('UPDATE app.gmail_oauth_flows SET used_at=now() WHERE state_hash=$1', [sha256(state)]);
+      const id = userId(String(flow.rows[0].user_id));
+      const rangeDays = Number(flow.rows[0].range_days);
+      await client.query('UPDATE app.gmail_oauth_flows SET used_at=now() WHERE state_hash=$1', [
+        sha256(state),
+      ]);
       await client.query('COMMIT');
+      authorization = { id, rangeDays };
     } catch (error) {
       await client.query('ROLLBACK').catch(() => undefined);
       throw error;
@@ -152,6 +158,8 @@ export class LiveGmailService implements GmailConnectionService {
       client.release();
     }
 
+    if (!authorization) throw new Error('Gmail authorization expired');
+    const { id, rangeDays } = authorization;
     const token = await this.exchangeCode(code);
     const profile = await this.profile(token.accessToken);
     await this.pool.query(
@@ -177,7 +185,8 @@ export class LiveGmailService implements GmailConnectionService {
       `SELECT refresh_token_envelope,range_days,state FROM app.gmail_connections WHERE user_id=$1`,
       [id],
     );
-    if (result.rowCount !== 1 || result.rows[0].state !== 'connected') throw new Error('Gmail is not connected');
+    if (result.rowCount !== 1 || result.rows[0].state !== 'connected')
+      throw new Error('Gmail is not connected');
     const refreshToken = this.secrets.open(id, result.rows[0].refresh_token_envelope);
     let accessToken: string;
     try {
@@ -237,7 +246,8 @@ export class LiveGmailService implements GmailConnectionService {
 
   async candidates(rawUserId: string, status = 'pending') {
     const id = userId(rawUserId);
-    if (!['pending', 'confirmed', 'discarded', 'all'].includes(status)) throw new Error('Invalid candidate status');
+    if (!['pending', 'confirmed', 'discarded', 'all'].includes(status))
+      throw new Error('Invalid candidate status');
     const result = await this.pool.query(
       `SELECT id,source_message_id,kind,institution,merchant,currency,amount_minor,
               occurred_at,due_at,confidence,status,summary,created_at
@@ -255,7 +265,12 @@ export class LiveGmailService implements GmailConnectionService {
       ...(typeof row.currency === 'string' ? { currency: row.currency } : {}),
       ...(row.amount_minor !== null ? { amountMinor: String(row.amount_minor) } : {}),
       occurredAt: new Date(row.occurred_at).toISOString(),
-      ...(row.due_at ? { dueAt: row.due_at instanceof Date ? isoDate(row.due_at) : String(row.due_at).slice(0, 10) } : {}),
+      ...(row.due_at
+        ? {
+            dueAt:
+              row.due_at instanceof Date ? isoDate(row.due_at) : String(row.due_at).slice(0, 10),
+          }
+        : {}),
       confidence: Number(row.confidence),
       status: String(row.status),
       summary: String(row.summary),
@@ -275,17 +290,24 @@ export class LiveGmailService implements GmailConnectionService {
   }
 
   private async ingestMessage(id: string, messageId: string, accessToken: string) {
-    const url = new URL(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(messageId)}`);
+    const url = new URL(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(messageId)}`,
+    );
     url.searchParams.set('format', 'metadata');
-    for (const header of ['From', 'Subject', 'Date']) url.searchParams.append('metadataHeaders', header);
+    for (const header of ['From', 'Subject', 'Date'])
+      url.searchParams.append('metadataHeaders', header);
     const data = jsonRecord(await this.googleJson(url, accessToken));
-    const payload = data['payload'] && typeof data['payload'] === 'object' && !Array.isArray(data['payload'])
-      ? (data['payload'] as Record<string, unknown>)
-      : {};
+    const payload =
+      data['payload'] && typeof data['payload'] === 'object' && !Array.isArray(data['payload'])
+        ? (data['payload'] as Record<string, unknown>)
+        : {};
     const headers = Array.isArray(payload['headers']) ? payload['headers'] : [];
     const header = (name: string) => {
       const found = headers.find(
-        (value) => value && typeof value === 'object' && !Array.isArray(value) &&
+        (value) =>
+          value &&
+          typeof value === 'object' &&
+          !Array.isArray(value) &&
           String((value as Record<string, unknown>)['name']).toLowerCase() === name.toLowerCase(),
       ) as Record<string, unknown> | undefined;
       return text(found?.['value'], name === 'Subject' ? 1024 : 512);
@@ -293,9 +315,10 @@ export class LiveGmailService implements GmailConnectionService {
     const sender = header('From');
     const subject = header('Subject');
     const snippet = text(data['snippet'], 2048);
-    const internal = typeof data['internalDate'] === 'string' && /^\d{10,16}$/.test(data['internalDate'])
-      ? Number(data['internalDate'])
-      : NaN;
+    const internal =
+      typeof data['internalDate'] === 'string' && /^\d{10,16}$/.test(data['internalDate'])
+        ? Number(data['internalDate'])
+        : NaN;
     const fallbackDate = Date.parse(header('Date'));
     const receivedAt = new Date(Number.isFinite(internal) ? internal : fallbackDate);
     if (!Number.isFinite(receivedAt.getTime())) return;
@@ -393,7 +416,10 @@ export class LiveGmailService implements GmailConnectionService {
 
   private async profile(accessToken: string) {
     const data = jsonRecord(
-      await this.googleJson(new URL('https://gmail.googleapis.com/gmail/v1/users/me/profile'), accessToken),
+      await this.googleJson(
+        new URL('https://gmail.googleapis.com/gmail/v1/users/me/profile'),
+        accessToken,
+      ),
     );
     const email = text(data['emailAddress'], 254).toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Invalid Gmail profile');

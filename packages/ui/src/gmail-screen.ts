@@ -73,10 +73,22 @@ type CandidateView = GmailCandidateStatus | 'all';
               <span class="gmail-status connected">Solo lectura</span>
             </div>
             <dl class="gmail-facts">
-              <div><dt>Permiso</dt><dd>Gmail readonly</dd></div>
-              <div><dt>Rango</dt><dd>Últimos {{ snapshot()?.rangeDays }} días</dd></div>
-              <div><dt>Última sincronización</dt><dd>{{ lastSyncLabel() }}</dd></div>
-              <div><dt>Cobertura</dt><dd>{{ coverage() }}</dd></div>
+              <div>
+                <dt>Permiso</dt>
+                <dd>Gmail readonly</dd>
+              </div>
+              <div>
+                <dt>Rango</dt>
+                <dd>Últimos {{ snapshot()?.rangeDays }} días</dd>
+              </div>
+              <div>
+                <dt>Última sincronización</dt>
+                <dd>{{ lastSyncLabel() }}</dd>
+              </div>
+              <div>
+                <dt>Cobertura</dt>
+                <dd>{{ coverage() }}</dd>
+              </div>
             </dl>
             <div class="gmail-actions">
               <button fpButton type="button" [disabled]="busy()" (click)="syncNow()">
@@ -122,7 +134,9 @@ type CandidateView = GmailCandidateStatus | 'all';
             <p class="eyebrow">PRIVACIDAD</p>
             <h2>Qué procesa Finanzas</h2>
             <ul class="gmail-list">
-              <li>Remitente, asunto, fecha y un fragmento corto para detectar eventos financieros.</li>
+              <li>
+                Remitente, asunto, fecha y un fragmento corto para detectar eventos financieros.
+              </li>
               <li>El rango que tú selecciones, con un máximo configurado por el servidor.</li>
               <li>El refresh token cifrado en el servidor; nunca se guarda en el navegador.</li>
             </ul>
@@ -181,14 +195,22 @@ type CandidateView = GmailCandidateStatus | 'all';
                   <div class="candidate-main">
                     <div class="candidate-heading">
                       <span class="candidate-kind">{{ kindLabel(candidate.kind) }}</span>
-                      <span class="candidate-confidence">{{ candidate.confidence }}% confianza</span>
+                      <span class="candidate-confidence"
+                        >{{ candidate.confidence }}% confianza</span
+                      >
                     </div>
                     <h3>{{ candidate.summary }}</h3>
                     <div class="candidate-meta">
-                      @if (candidate.institution) { <span>{{ candidate.institution }}</span> }
-                      @if (candidate.merchant) { <span>{{ candidate.merchant }}</span> }
+                      @if (candidate.institution) {
+                        <span>{{ candidate.institution }}</span>
+                      }
+                      @if (candidate.merchant) {
+                        <span>{{ candidate.merchant }}</span>
+                      }
                       <span>{{ dateLabel(candidate.occurredAt) }}</span>
-                      @if (candidate.dueAt) { <span>Vence {{ candidate.dueAt }}</span> }
+                      @if (candidate.dueAt) {
+                        <span>Vence {{ candidate.dueAt }}</span>
+                      }
                     </div>
                   </div>
                   <div class="candidate-side">
@@ -240,7 +262,9 @@ type CandidateView = GmailCandidateStatus | 'all';
                 <option [ngValue]="365">Último año</option>
               </select>
             </label>
-            <p class="gmail-scope">Permiso solicitado: <code>{{ readonlyScope }}</code></p>
+            <p class="gmail-scope">
+              Permiso solicitado: <code>{{ readonlyScope }}</code>
+            </p>
             <button fpButton type="button" [disabled]="busy()" (click)="connect()">
               Conectar mi Gmail
             </button>
@@ -306,7 +330,11 @@ export class GmailScreen implements OnInit {
 
   lastSyncLabel() {
     const value = this.snapshot()?.lastSyncAt;
-    return value ? new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : 'Aún no realizada';
+    return value
+      ? new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium', timeStyle: 'short' }).format(
+          new Date(value),
+        )
+      : 'Aún no realizada';
   }
 
   candidateViewLabel() {
@@ -335,11 +363,17 @@ export class GmailScreen implements OnInit {
   }
 
   statusLabel(status: GmailCandidateStatus) {
-    return status === 'pending' ? 'Pendiente' : status === 'confirmed' ? 'Confirmado' : 'Descartado';
+    return status === 'pending'
+      ? 'Pendiente'
+      : status === 'confirmed'
+        ? 'Confirmado'
+        : 'Descartado';
   }
 
   dateLabel(value: string) {
-    return new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
+    return new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium', timeStyle: 'short' }).format(
+      new Date(value),
+    );
   }
 
   amountLabel(candidate: GmailFinancialCandidate) {
@@ -429,7 +463,11 @@ export class GmailScreen implements OnInit {
     if (!this.auth.signedIn || this.busy()) return;
     await this.action(async () => {
       await this.auth.gmail('connection', 'DELETE');
-      this.snapshot.set({ state: 'disconnected', scope: GMAIL_READONLY_SCOPE, rangeDays: this.rangeDays });
+      this.snapshot.set({
+        state: 'disconnected',
+        scope: GMAIL_READONLY_SCOPE,
+        rangeDays: this.rangeDays,
+      });
       this.candidates.set([]);
       this.disconnectArmed.set(false);
       this.message.set('Gmail quedó desconectado de Finanzas.');

@@ -76,7 +76,8 @@ function money(text: string) {
     const amountMinor = amountToMinor(match[2]!);
     if (amountMinor === undefined) continue;
     const token = match[1]!.toUpperCase();
-    const currency: 'PEN' | 'USD' = token.includes('US') || token === 'USD' || token === '$' ? 'USD' : 'PEN';
+    const currency: 'PEN' | 'USD' =
+      token.includes('US') || token === 'USD' || token === '$' ? 'USD' : 'PEN';
     return { amountMinor, currency };
   }
   return {};
@@ -85,13 +86,29 @@ function money(text: string) {
 function classify(text: string): { kind: FinancialMailKind; confidence: number } | undefined {
   if (/estado de cuenta|fecha de corte|pago m[ií]nimo|l[ií]nea de cr[eé]dito/i.test(text))
     return { kind: 'card_statement', confidence: 90 };
-  if (/suscripci[oó]n|membres[ií]a|renovaci[oó]n autom[aá]tica|pago recurrente|pr[oó]ximo cobro/i.test(text))
+  if (
+    /suscripci[oó]n|membres[ií]a|renovaci[oó]n autom[aá]tica|pago recurrente|pr[oó]ximo cobro/i.test(
+      text,
+    )
+  )
     return { kind: 'subscription', confidence: 88 };
-  if (/pr[eé]stamo|deuda|cuota (?:mensual|pendiente|por pagar)|saldo pendiente|vencimiento de (?:cuota|cr[eé]dito)/i.test(text))
+  if (
+    /pr[eé]stamo|deuda|cuota (?:mensual|pendiente|por pagar)|saldo pendiente|vencimiento de (?:cuota|cr[eé]dito)/i.test(
+      text,
+    )
+  )
     return { kind: 'debt', confidence: 86 };
-  if (/compra (?:con|realizada).*tarjeta|consumo.*tarjeta|operaci[oó]n.*tarjeta|cargo.*tarjeta/i.test(text))
+  if (
+    /compra (?:con|realizada).*tarjeta|consumo.*tarjeta|operaci[oó]n.*tarjeta|cargo.*tarjeta/i.test(
+      text,
+    )
+  )
     return { kind: 'card_charge', confidence: 89 };
-  if (/abono|dep[oó]sito|transferencia recibida|ingreso|pago recibido|sueldo|remuneraci[oó]n/i.test(text))
+  if (
+    /abono|dep[oó]sito|transferencia recibida|ingreso|pago recibido|sueldo|remuneraci[oó]n/i.test(
+      text,
+    )
+  )
     return { kind: 'income', confidence: 82 };
   if (/transferencia|yape|plin/i.test(text)) return { kind: 'transfer', confidence: 74 };
   if (/pago realizado|pagaste|pago procesado|pago de tarjeta/i.test(text))

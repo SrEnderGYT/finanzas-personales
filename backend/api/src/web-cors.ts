@@ -9,7 +9,14 @@ function normalizeOrigins(values: readonly string[]) {
     const trimmed = value.trim();
     if (!trimmed) continue;
     const url = new URL(trimmed);
-    if (url.protocol !== 'https:' || url.username || url.password || url.pathname !== '/' || url.search || url.hash)
+    if (
+      url.protocol !== 'https:' ||
+      url.username ||
+      url.password ||
+      url.pathname !== '/' ||
+      url.search ||
+      url.hash
+    )
       throw new Error('WEB_ALLOWED_ORIGINS must contain HTTPS origins only.');
     result.add(url.origin);
   }

@@ -69,7 +69,12 @@ export class GmailImportService {
     const row = result.rows[0];
     if (!row || !['pending', 'confirmed'].includes(row.status))
       throw new Error('GMAIL_IMPORT_CANDIDATE');
-    const kind = row.kind === 'income' ? 'income' : ['expense', 'card_charge', 'subscription'].includes(row.kind) ? 'expense' : undefined;
+    const kind =
+      row.kind === 'income'
+        ? 'income'
+        : ['expense', 'card_charge', 'subscription'].includes(row.kind)
+          ? 'expense'
+          : undefined;
     if (!kind || !row.currency || !row.amount_minor || BigInt(row.amount_minor) <= 0n)
       throw new Error('GMAIL_IMPORT_NOT_POSTABLE');
 

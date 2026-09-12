@@ -2,7 +2,10 @@ import { Component, OnInit, computed, inject, input, signal } from '@angular/cor
 import { RouterLink } from '@angular/router';
 import { AUTH_CLIENT } from './auth-provider';
 import { UI_PRIMITIVES } from './primitives';
-import { normalizeGmailConnection, type GmailConnectionSnapshot } from '../../shared/src/gmail-connection';
+import {
+  normalizeGmailConnection,
+  type GmailConnectionSnapshot,
+} from '../../shared/src/gmail-connection';
 import {
   normalizeGmailCandidates,
   type GmailFinancialCandidate,
@@ -75,12 +78,23 @@ export type DetectedFinanceView = 'cards' | 'subscriptions' | 'debts';
             <div class="institution-grid">
               @for (institution of institutions(); track institution.name) {
                 <article class="institution-card">
-                  <span class="institution-mark">{{ institution.name.slice(0, 2).toUpperCase() }}</span>
+                  <span class="institution-mark">{{
+                    institution.name.slice(0, 2).toUpperCase()
+                  }}</span>
                   <div>
                     <strong>{{ institution.name }}</strong>
-                    <p>{{ institution.events }} evento{{ institution.events === 1 ? '' : 's' }} detectado{{ institution.events === 1 ? '' : 's' }}</p>
+                    <p>
+                      {{ institution.events }} evento{{
+                        institution.events === 1 ? '' : 's'
+                      }}
+                      detectado{{ institution.events === 1 ? '' : 's' }}
+                    </p>
                   </div>
-                  <span>{{ institution.pending }} pendiente{{ institution.pending === 1 ? '' : 's' }}</span>
+                  <span
+                    >{{ institution.pending }} pendiente{{
+                      institution.pending === 1 ? '' : 's'
+                    }}</span
+                  >
                 </article>
               }
             </div>
@@ -111,13 +125,19 @@ export type DetectedFinanceView = 'cards' | 'subscriptions' | 'debts';
                   <div class="detected-main">
                     <div class="detected-tags">
                       <span>{{ kindLabel(item.kind) }}</span>
-                      @if (item.institution) { <span>{{ item.institution }}</span> }
-                      <span [class.pending]="item.status === 'pending'">{{ statusLabel(item.status) }}</span>
+                      @if (item.institution) {
+                        <span>{{ item.institution }}</span>
+                      }
+                      <span [class.pending]="item.status === 'pending'">{{
+                        statusLabel(item.status)
+                      }}</span>
                     </div>
                     <h3>{{ item.summary }}</h3>
                     <p>
                       {{ dateLabel(item.occurredAt) }}
-                      @if (item.dueAt) { · Vence {{ item.dueAt }} }
+                      @if (item.dueAt) {
+                        · Vence {{ item.dueAt }}
+                      }
                     </p>
                   </div>
                   <div class="detected-amount">
@@ -152,7 +172,9 @@ export class DetectedFinancesScreen implements OnInit {
     return this.candidates().filter((candidate) => allowed.has(candidate.kind));
   });
 
-  readonly pendingCount = computed(() => this.visible().filter((item) => item.status === 'pending').length);
+  readonly pendingCount = computed(
+    () => this.visible().filter((item) => item.status === 'pending').length,
+  );
 
   readonly institutions = computed(() => {
     const grouped = new Map<string, { events: number; pending: number }>();
@@ -173,11 +195,19 @@ export class DetectedFinancesScreen implements OnInit {
   }
 
   title() {
-    return this.view() === 'cards' ? 'Tarjetas' : this.view() === 'subscriptions' ? 'Suscripciones' : 'Deudas';
+    return this.view() === 'cards'
+      ? 'Tarjetas'
+      : this.view() === 'subscriptions'
+        ? 'Suscripciones'
+        : 'Deudas';
   }
 
   eyebrow() {
-    return this.view() === 'cards' ? 'TARJETAS Y ESTADOS DE CUENTA' : this.view() === 'subscriptions' ? 'PAGOS RECURRENTES' : 'OBLIGACIONES Y CUOTAS';
+    return this.view() === 'cards'
+      ? 'TARJETAS Y ESTADOS DE CUENTA'
+      : this.view() === 'subscriptions'
+        ? 'PAGOS RECURRENTES'
+        : 'OBLIGACIONES Y CUOTAS';
   }
 
   description() {
@@ -189,16 +219,26 @@ export class DetectedFinancesScreen implements OnInit {
   }
 
   listTitle() {
-    return this.view() === 'cards' ? 'Actividad de tarjetas' : this.view() === 'subscriptions' ? 'Suscripciones encontradas' : 'Deudas y vencimientos encontrados';
+    return this.view() === 'cards'
+      ? 'Actividad de tarjetas'
+      : this.view() === 'subscriptions'
+        ? 'Suscripciones encontradas'
+        : 'Deudas y vencimientos encontrados';
   }
 
   emptySubject() {
-    return this.view() === 'cards' ? 'actividad de tarjetas' : this.view() === 'subscriptions' ? 'suscripciones' : 'deudas';
+    return this.view() === 'cards'
+      ? 'actividad de tarjetas'
+      : this.view() === 'subscriptions'
+        ? 'suscripciones'
+        : 'deudas';
   }
 
   coverage() {
     const value = this.connection();
-    return value?.coverageFrom && value.coverageTo ? `${value.coverageFrom} — ${value.coverageTo}` : 'aún no disponible';
+    return value?.coverageFrom && value.coverageTo
+      ? `${value.coverageFrom} — ${value.coverageTo}`
+      : 'aún no disponible';
   }
 
   total(currency: 'PEN' | 'USD') {
@@ -227,7 +267,11 @@ export class DetectedFinancesScreen implements OnInit {
   }
 
   statusLabel(status: GmailFinancialCandidate['status']) {
-    return status === 'pending' ? 'Pendiente' : status === 'confirmed' ? 'Confirmado' : 'Descartado';
+    return status === 'pending'
+      ? 'Pendiente'
+      : status === 'confirmed'
+        ? 'Confirmado'
+        : 'Descartado';
   }
 
   dateLabel(value: string) {
@@ -253,7 +297,9 @@ export class DetectedFinancesScreen implements OnInit {
         this.candidates.set([]);
         return;
       }
-      this.candidates.set(normalizeGmailCandidates(await this.auth.gmail('candidates?status=all', 'GET')));
+      this.candidates.set(
+        normalizeGmailCandidates(await this.auth.gmail('candidates?status=all', 'GET')),
+      );
     } catch {
       this.error.set('Comprueba tu sesión y el estado de Gmail e inténtalo nuevamente.');
     } finally {

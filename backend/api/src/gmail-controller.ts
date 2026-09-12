@@ -217,7 +217,8 @@ export class GmailController {
     } catch {
       throw new ServiceUnavailableException();
     }
-    if (url.protocol !== 'https:' || url.username || url.password) throw new ServiceUnavailableException();
+    if (url.protocol !== 'https:' || url.username || url.password)
+      throw new ServiceUnavailableException();
     return reply.code(303).header('Location', url.href).send();
   }
 
@@ -244,10 +245,7 @@ export class GmailController {
 
   @Post('candidates/:id/confirm')
   @HttpCode(204)
-  async confirm(
-    @Headers('authorization') token: string | undefined,
-    @Param('id') id: string,
-  ) {
+  async confirm(@Headers('authorization') token: string | undefined, @Param('id') id: string) {
     const userId = await this.user(token);
     const service = this.service();
     if (!service.review) throw new ServiceUnavailableException();
@@ -256,10 +254,7 @@ export class GmailController {
 
   @Post('candidates/:id/discard')
   @HttpCode(204)
-  async discard(
-    @Headers('authorization') token: string | undefined,
-    @Param('id') id: string,
-  ) {
+  async discard(@Headers('authorization') token: string | undefined, @Param('id') id: string) {
     const userId = await this.user(token);
     const service = this.service();
     if (!service.review) throw new ServiceUnavailableException();

@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
+import process from 'node:process';
+import { URL } from 'node:url';
 
 const origin = process.env['FINANZAS_API_ORIGIN']?.trim();
 if (!origin) {
