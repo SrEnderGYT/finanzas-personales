@@ -27,7 +27,10 @@ function fold(value: string) {
 }
 
 const NON_MOVEMENT =
-  /\b(gana(?:r)?|sorteo|premio|millas?|puntos?|descuentos?|dscto|promocion|oferta|beneficio|preventa|encuesta|tu opinion|califica tu experiencia|por vencer|vencera pronto|se cobrara (?:manana|en \d+ dias?)|faltan \d+ dias? para el cobro|error (?:en el )?pago|pago pendiente|aun no se pago|no se pudo procesar|has recibido una boleta|facturacion electronica|nuevo comprobante electronico|comprobante electronico|certificado de no adeudo|respuesta a reclamo)\b/i;
+  /\b(gana(?:r)?|sorteo|premio|millas?|puntos?|descuentos?|dscto|promocion|promo|oferta|beneficio|preventa|encuesta|tu opinion|califica tu experiencia|canjea|acumula|cupon|codigo promocional|campana exclusiva|imperdible|oportunidad unica|solo por hoy|2x1|3x2|por vencer|esta por vencer|estan por vencer|vencera pronto|proximo vencimiento|pago por vencer|cuota por vencer|pago programado|cobro programado|se cobrara (?:manana|en \d+ dias?)|faltan \d+ dias? para el cobro|vence en \d+ dias?|error (?:en el )?pago|pago pendiente|aun no se pago|pago no completado|cobro no realizado|intento de pago|intento de compra|operacion anulada|no se pudo procesar|has recibido una boleta|facturacion electronica|nuevo comprobante electronico|comprobante electronico|certificado de no adeudo|respuesta a reclamo)\b/i;
+
+const REFUND_SIGNAL =
+  /\b(devolucion|reembolso|reverso|reversion|extorno|te devolvimos|devolvimos|te retornamos|retornamos (?:el )?monto|retorno de (?:una )?(?:compra|operacion)|abono por devolucion|cargo revertido|operacion revertida)\b/i;
 
 const CATEGORY_RULES: readonly [RegExp, AutomaticFinanceCategory][] = [
   [
@@ -36,7 +39,7 @@ const CATEGORY_RULES: readonly [RegExp, AutomaticFinanceCategory][] = [
   ],
   [/\b(wong|plaza vea|pvea|tottus|metro|vivanda|makro|vega|mass|supermercado)\b/i, 'Supermercado'],
   [
-    /\b(uber|didi|yango|cabify|taxi|rides?|beat|inDrive|pasaje urbano|metropolitano)\b/i,
+    /\b(uber|didi|yango|cabify|taxi|rides?|beat|indrive|pasaje urbano|metropolitano)\b/i,
     'Transporte',
   ],
   [
@@ -65,8 +68,16 @@ const CATEGORY_RULES: readonly [RegExp, AutomaticFinanceCategory][] = [
   ],
 ];
 
+function semanticText(candidate: GmailFinancialCandidate) {
+  return fold(`${candidate.summary} ${candidate.merchant ?? ''}`);
+}
+
 export function isObviousNonMovement(candidate: GmailFinancialCandidate) {
-  return NON_MOVEMENT.test(fold(`${candidate.summary} ${candidate.merchant ?? ''}`));
+  return NON_MOVEMENT.test(semanticText(candidate));
+}
+
+export function hasRefundSignal(candidate: GmailFinancialCandidate) {
+  return REFUND_SIGNAL.test(semanticText(candidate));
 }
 
 export function isReviewableGmailCandidate(candidate: GmailFinancialCandidate) {
@@ -75,7 +86,7 @@ export function isReviewableGmailCandidate(candidate: GmailFinancialCandidate) {
 }
 
 export function isDashboardGmailMovement(candidate: GmailFinancialCandidate) {
-  if (!isReviewableGmailCandidate(candidate)) return false;
+  if (!isReviewableGmailCandidate(candidate) || hasRefundSignal(candidate)) return false;
   return (
     candidate.kind === 'expense' ||
     candidate.kind === 'card_charge' ||
@@ -85,8 +96,8 @@ export function isDashboardGmailMovement(candidate: GmailFinancialCandidate) {
 }
 
 export function automaticCategory(candidate: GmailFinancialCandidate): AutomaticFinanceCategory {
+  if (hasRefundSignal(candidate) || candidate.kind === 'refund') return 'Devoluciones';
   if (candidate.kind === 'income') return 'Ingresos';
-  if (candidate.kind === 'refund') return 'Devoluciones';
   if (candidate.kind === 'subscription') return 'Suscripciones';
 
   const text = `${candidate.merchant ?? ''} ${candidate.summary}`;
