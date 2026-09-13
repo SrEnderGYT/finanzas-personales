@@ -1,4 +1,4 @@
-name: P17 finance review and insights fix
+name: P17 cleanup
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 jobs:
-  apply:
+  cleanup:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -23,16 +23,23 @@ jobs:
           cache: npm
       - run: npm install --global npm@11.6.1
       - run: npm ci
-      - run: python scripts/p17_finance_ux_fix.py
-      - run: python scripts/p17_finance_ux_postfix.py
-      - run: npm exec prettier -- --write backend/api/src/financial-mail-parser.ts backend/api/src/gmail-service.ts packages/ui/src/gmail-screen.ts packages/ui/src/gmail-screen.css packages/ui/src/detected-finances-screen.ts packages/ui/src/product-screen.ts packages/ui/src/manual-screen.css tests/gmail-ingestion.test.ts
-      - run: npm run typecheck
-      - run: npm exec vitest -- run tests/gmail-ingestion.test.ts
-      - run: npm run build:web
-      - name: Commit product changes
+      - name: Replace screenshot-derived test amount with synthetic fixture
         run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('tests/gmail-ingestion.test.ts')
+          text = path.read_text()
+          text = text.replace('Tu deuda total de Visa Access es S/ 6,332.05.', 'Tu deuda total de Visa Access es S/ 1,234.56.')
+          text = text.replace("amountMinor: 633205", "amountMinor: 123456")
+          path.write_text(text)
+          PY
+      - run: npm exec prettier -- --write tests/gmail-ingestion.test.ts
+      - run: npm exec vitest -- run tests/gmail-ingestion.test.ts
+      - name: Remove temporary repair tooling and commit
+        run: |
+          rm -f scripts/p17_finance_ux_fix.py scripts/p17_finance_ux_postfix.py .github/workflows/p17-finance-ux-fix.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add backend/api packages/ui tests/gmail-ingestion.test.ts
-          git commit -m "feat(finance): bulk review cards subscriptions and insights"
+          git add -A
+          git commit -m "chore(finance): clean temporary repair tooling"
           git push origin HEAD:feature/p17-real-app
