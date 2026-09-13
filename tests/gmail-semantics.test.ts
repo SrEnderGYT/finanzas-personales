@@ -54,12 +54,8 @@ describe('Gmail finance semantics', () => {
     expect(automaticCategory(candidate('expense', 'Compra realizada', 'Wong'))).toBe(
       'Supermercado',
     );
-    expect(automaticCategory(candidate('expense', 'Compra realizada', 'Uber'))).toBe(
-      'Transporte',
-    );
-    expect(automaticCategory(candidate('card_charge', 'Compra realizada', 'LATAM'))).toBe(
-      'Viajes',
-    );
+    expect(automaticCategory(candidate('expense', 'Compra realizada', 'Uber'))).toBe('Transporte');
+    expect(automaticCategory(candidate('card_charge', 'Compra realizada', 'LATAM'))).toBe('Viajes');
   });
 
   it('does not count refunds as new income or expense', () => {
