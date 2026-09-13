@@ -1,0 +1,299 @@
+name: P17 finance review and insights fix
+
+on:
+  push:
+    branches: [feature/p17-real-app]
+    paths:
+      - .github/workflows/p17-finance-ux-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: feature/p17-real-app
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm install --global npm@11.6.1
+      - run: npm ci
+      - name: Apply product fixes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f'anchor not found in {path}: {old[:120]!r}')
+              p.write_text(text.replace(old, new, 1))
+
+          # Parser: tighten promotion rules and separate Interbank Visa Access from cards.
+          replace(
+              'backend/api/src/financial-mail-parser.ts',
+              "descuentos?|beneficio(?:s)?|ll[eé]vate|regalo con tu compra",
+              "descuentos?|dscto(?:s)?|beneficio(?:s)?|ll[eé]vate|regalo con tu compra",
+          )
+          replace(
+              'backend/api/src/financial-mail-parser.ts',
+              "const subscriptionCancellation =",
+              "const interbankAccessLoan = /\\b(?:ibk\\s+)?visa access\\b/i;\n\nconst subscriptionCancellation =",
+          )
+          replace(
+              'backend/api/src/financial-mail-parser.ts',
+              "  if (!hasAmount) return undefined;\n\n  if (\n    /\\b(estado de cuenta",
+              "  if (!hasAmount) return undefined;\n\n  // Interbank comercializa Visa Access con apariencia de tarjeta, pero en este producto\n  // se modela como préstamo/deuda y nunca como consumo de tarjeta.\n  if (interbankAccessLoan.test(text)) return { kind: 'debt', confidence: 96 };\n\n  if (\n    /\\b(estado de cuenta",
+          )
+
+          # Gmail: minimum useful history is 90 days so recurring charges can be found reliably.
+          replace(
+              'backend/api/src/gmail-service.ts',
+              "return { state: 'disconnected', scope: GMAIL_READONLY_SCOPE, rangeDays: 30 };",
+              "return { state: 'disconnected', scope: GMAIL_READONLY_SCOPE, rangeDays: 90 };",
+          )
+          replace(
+              'backend/api/src/gmail-service.ts',
+              "      rangeDays: Number(value['range_days']),",
+              "      rangeDays: Math.max(90, Number(value['range_days'])),",
+          )
+          replace(
+              'backend/api/src/gmail-service.ts',
+              "  async start(rawUserId: string, rangeDays: number) {\n    const id = userId(rawUserId);\n    const state = randomBytes(32).toString('base64url');",
+              "  async start(rawUserId: string, rangeDays: number) {\n    const id = userId(rawUserId);\n    const effectiveRangeDays = Math.max(90, rangeDays);\n    const state = randomBytes(32).toString('base64url');",
+          )
+          replace(
+              'backend/api/src/gmail-service.ts',
+              "      [sha256(state), id, rangeDays],",
+              "      [sha256(state), id, effectiveRangeDays],",
+          )
+          replace(
+              'backend/api/src/gmail-service.ts',
+              "    const rangeDays = Number(result.rows[0].range_days);",
+              "    const rangeDays = Math.max(90, Number(result.rows[0].range_days));",
+          )
+
+          # Gmail bulk selection / CSV export / minimum 90-day UI.
+          replace(
+              'packages/ui/src/gmail-screen.ts',
+              "                <option [ngValue]=\"7\">Últimos 7 días</option>\n                <option [ngValue]=\"30\">Últimos 30 días</option>\n                <option [ngValue]=\"90\">Últimos 90 días</option>",
+              "                <option [ngValue]=\"90\">Últimos 90 días</option>",
+          )
+          replace(
+              'packages/ui/src/gmail-screen.ts',
+              "          @if (candidateBusy()) {",
+              "          @if (!candidateBusy() && candidates().length > 0) {\n            <div class=\"gmail-bulk-toolbar\" aria-label=\"Acciones para elementos seleccionados\">\n              <label class=\"gmail-select-all\">\n                <input\n                  type=\"checkbox\"\n                  [checked]=\"allVisibleSelected()\"\n                  (change)=\"toggleAllVisible($any($event.target).checked)\"\n                />\n                Seleccionar visibles\n              </label>\n              <strong>{{ selectedCount() }} seleccionados</strong>\n              <div class=\"gmail-bulk-actions\">\n                <button\n                  fpButton\n                  type=\"button\"\n                  [disabled]=\"selectedPendingCount() === 0\"\n                  (click)=\"reviewSelected('confirmed')\"\n                >\n                  Confirmar seleccionados\n                </button>\n                <button\n                  fpButton\n                  class=\"secondary\"\n                  type=\"button\"\n                  [disabled]=\"selectedPendingCount() === 0\"\n                  (click)=\"reviewSelected('discarded')\"\n                >\n                  Descartar seleccionados\n                </button>\n                <button\n                  fpButton\n                  class=\"secondary\"\n                  type=\"button\"\n                  [disabled]=\"selectedCount() === 0\"\n                  (click)=\"downloadSelected()\"\n                >\n                  Descargar CSV\n                </button>\n              </div>\n            </div>\n          }\n\n          @if (candidateBusy()) {",
+          )
+          replace(
+              'packages/ui/src/gmail-screen.ts',
+              "                <article class=\"gmail-candidate\">\n                  <div class=\"candidate-main\">\n                    <div class=\"candidate-heading\">",
+              "                <article class=\"gmail-candidate\" [class.selected]=\"isSelected(candidate.id)\">\n                  <div class=\"candidate-main\">\n                    <div class=\"candidate-heading\">\n                      <label class=\"candidate-selector\">\n                        <input\n                          type=\"checkbox\"\n                          [checked]=\"isSelected(candidate.id)\"\n                          (change)=\"toggleCandidate(candidate.id, $any($event.target).checked)\"\n                        />\n                        Seleccionar\n                      </label>",
+          )
+          replace(
+              'packages/ui/src/gmail-screen.ts',
+              "  readonly disconnectArmed = signal(false);\n  readonly readonlyScope = GMAIL_READONLY_SCOPE;",
+              "  readonly disconnectArmed = signal(false);\n  readonly selectedIds = signal<Set<string>>(new Set());\n  readonly selectedCount = computed(() => {\n    const visible = new Set(this.candidates().map((candidate) => candidate.id));\n    return [...this.selectedIds()].filter((id) => visible.has(id)).length;\n  });\n  readonly selectedPendingCount = computed(() =>\n    this.candidates().filter(\n      (candidate) => candidate.status === 'pending' && this.selectedIds().has(candidate.id),\n    ).length,\n  );\n  readonly allVisibleSelected = computed(\n    () =>\n      this.candidates().length > 0 &&\n      this.candidates().every((candidate) => this.selectedIds().has(candidate.id)),\n  );\n  readonly readonlyScope = GMAIL_READONLY_SCOPE;",
+          )
+          replace('packages/ui/src/gmail-screen.ts', '  rangeDays = 30;', '  rangeDays = 90;')
+          replace(
+              'packages/ui/src/gmail-screen.ts',
+              "  private money(value: bigint) {",
+              "  isSelected(id: string) {\n    return this.selectedIds().has(id);\n  }\n\n  toggleCandidate(id: string, checked: boolean) {\n    const next = new Set(this.selectedIds());\n    if (checked) next.add(id);\n    else next.delete(id);\n    this.selectedIds.set(next);\n  }\n\n  toggleAllVisible(checked: boolean) {\n    const next = new Set(this.selectedIds());\n    for (const candidate of this.candidates()) {\n      if (checked) next.add(candidate.id);\n      else next.delete(candidate.id);\n    }\n    this.selectedIds.set(next);\n  }\n\n  async reviewSelected(status: 'confirmed' | 'discarded') {\n    if (this.candidateBusy()) return;\n    const ids = this.candidates()\n      .filter((candidate) => candidate.status === 'pending' && this.selectedIds().has(candidate.id))\n      .map((candidate) => candidate.id);\n    if (ids.length === 0) return;\n    this.candidateBusy.set(true);\n    this.error.set('');\n    try {\n      await Promise.all(\n        ids.map((id) =>\n          this.auth.gmail(\n            `candidates/${id}/${status === 'confirmed' ? 'confirm' : 'discard'}`,\n            'POST',\n          ),\n        ),\n      );\n      this.selectedIds.set(new Set());\n      const value = await this.auth.gmail(`candidates?status=${this.candidateView}`, 'GET');\n      this.allCandidates.set(normalizeGmailCandidates(value));\n      this.message.set(\n        status === 'confirmed'\n          ? `${ids.length} hallazgo(s) confirmados.`\n          : `${ids.length} hallazgo(s) descartados.`,\n      );\n    } catch {\n      this.error.set('No se pudieron actualizar todos los elementos seleccionados. Recarga la bandeja.');\n    } finally {\n      this.candidateBusy.set(false);\n    }\n  }\n\n  downloadSelected() {\n    const rows = this.candidates().filter((candidate) => this.selectedIds().has(candidate.id));\n    if (rows.length === 0) return;\n    const cell = (value: unknown) => `\"${String(value ?? '').replaceAll('\\\"', '\\\"\\\"')}\"`;\n    const lines = [\n      ['tipo', 'estado', 'institucion', 'comercio', 'moneda', 'importe', 'fecha', 'resumen'],\n      ...rows.map((candidate) => [\n        this.kindLabel(candidate.kind),\n        this.statusLabel(candidate.status),\n        candidate.institution ?? '',\n        candidate.merchant ?? '',\n        candidate.currency ?? '',\n        candidate.amountMinor ? this.money(BigInt(candidate.amountMinor)) : '',\n        candidate.occurredAt,\n        candidate.summary,\n      ]),\n    ].map((row) => row.map(cell).join(','));\n    const blob = new Blob([`\\uFEFF${lines.join('\\n')}`], { type: 'text/csv;charset=utf-8' });\n    const url = URL.createObjectURL(blob);\n    const link = document.createElement('a');\n    link.href = url;\n    link.download = `gmail-finanzas-${this.candidateMonth()}.csv`;\n    document.body.appendChild(link);\n    link.click();\n    link.remove();\n    URL.revokeObjectURL(url);\n    this.message.set(`${rows.length} elemento(s) exportados a CSV.`);\n  }\n\n  private money(value: bigint) {",
+          )
+          replace(
+              'packages/ui/src/gmail-screen.ts',
+              "      this.allCandidates.set(normalizeGmailCandidates(value));\n    } catch (error) {",
+              "      this.allCandidates.set(normalizeGmailCandidates(value));\n      this.selectedIds.set(new Set());\n    } catch (error) {",
+          )
+
+          # Cards: keep Visa Access out of credit cards and distinguish product names when possible.
+          replace(
+              'packages/ui/src/detected-finances-screen.ts',
+              "      if (this.view() === 'debts' && !candidate.institution) return false;",
+              "      if (this.view() === 'cards' && this.isAccessLoan(candidate)) return false;\n      if (this.view() === 'debts' && !candidate.institution) return false;",
+          )
+          replace(
+              'packages/ui/src/detected-finances-screen.ts',
+              "        !!item.institution &&\n        ['card_charge', 'card_statement', 'payment'].includes(item.kind),",
+              "        !!item.institution &&\n        !this.isAccessLoan(item) &&\n        ['card_charge', 'card_statement', 'payment'].includes(item.kind),",
+          )
+          replace(
+              'packages/ui/src/detected-finances-screen.ts',
+              "      const current = grouped.get(item.institution) ?? { events: 0, pending: 0 };\n      current.events++;\n      if (item.status === 'pending') current.pending++;\n      grouped.set(item.institution, current);",
+              "      const product = this.cardProductLabel(item);\n      const current = grouped.get(product) ?? { events: 0, pending: 0 };\n      current.events++;\n      if (item.status === 'pending') current.pending++;\n      grouped.set(product, current);",
+          )
+          replace(
+              'packages/ui/src/detected-finances-screen.ts',
+              "  ngOnInit() {",
+              "  isAccessLoan(item: GmailFinancialCandidate) {\n    return item.institution === 'Interbank' && /\\b(?:ibk\\s+)?visa access\\b/i.test(item.summary);\n  }\n\n  cardProductLabel(item: GmailFinancialCandidate) {\n    const institution = item.institution ?? 'Tarjeta';\n    const text = `${item.summary} ${item.merchant ?? ''}`;\n    if (/\\bvisa infinite sapphire\\b|\\bsapphire\\b/i.test(text))\n      return `${institution} Visa Infinite Sapphire`;\n    if (/\\bvisa platinum\\b/i.test(text)) return `${institution} Visa Platinum`;\n    if (/\\bmastercard\\b/i.test(text)) return `${institution} Mastercard`;\n    return institution;\n  }\n\n  ngOnInit() {",
+          )
+          replace(
+              'packages/ui/src/detected-finances-screen.ts',
+              "        ? 'Cobros recurrentes reales detectados por importe y proveedor, no promociones ni bajas.'",
+              "        ? 'Cobros recurrentes reales detectados en una ventana mínima de 90 días, por importe y proveedor; no promociones ni bajas.'",
+          )
+
+          # Inicio: add a real expense composition chart based only on confirmed monthly movements.
+          replace(
+              'packages/ui/src/product-screen.ts',
+              "            <section class=\"manual-card\">\n              <header class=\"product-section-heading\">\n                <div>\n                  <h2>Actividad reciente</h2>",
+              "            <section class=\"manual-card expense-chart-card\" aria-label=\"Distribución de gastos del mes\">\n              <header class=\"product-section-heading\">\n                <div>\n                  <h2>En qué se va tu dinero este mes</h2>\n                  <p>Distribución por categoría usando únicamente gastos confirmados.</p>\n                </div>\n                <a routerLink=\"/analisis\">Abrir análisis</a>\n              </header>\n              @for (row of monthlyCategories().slice(0, 8); track row.currency + row.category) {\n                <article class=\"expense-chart-row\">\n                  <div class=\"expense-chart-label\">\n                    <strong>{{ row.category }}</strong>\n                    <span>{{ exact(row.currency, row.minor) }}</span>\n                  </div>\n                  <div class=\"expense-chart-track\" aria-hidden=\"true\">\n                    <span [style.width.%]=\"categoryShare(row.currency, row.minor)\"></span>\n                  </div>\n                  <small>{{ categoryShare(row.currency, row.minor) }}% de tus gastos {{ row.currency }}</small>\n                </article>\n              } @empty {\n                <p class=\"empty-local\">Confirma consumos para construir el gráfico del mes.</p>\n              }\n            </section>\n\n            <section class=\"manual-card\">\n              <header class=\"product-section-heading\">\n                <div>\n                  <h2>Actividad reciente</h2>",
+          )
+          replace(
+              'packages/ui/src/product-screen.ts',
+              "  clearFilters() {",
+              "  categoryShare(currency: string, minor: bigint) {\n    const total = this.monthlyCategories()\n      .filter((row) => row.currency === currency)\n      .reduce((sum, row) => sum + row.minor, 0n);\n    if (total <= 0n || minor <= 0n) return 0;\n    return Math.max(1, Math.min(100, Number((minor * 100n) / total)));\n  }\n\n  clearFilters() {",
+          )
+
+          # Styles for bulk review and the expense chart.
+          Path('packages/ui/src/gmail-screen.css').write_text(
+              Path('packages/ui/src/gmail-screen.css').read_text()
+              + """
+
+.gmail-bulk-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 14px 0 18px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, #635bff 6%, var(--surface, #fff));
+}
+
+.gmail-select-all,
+.candidate-selector {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px !important;
+  margin: 0 !important;
+  font-weight: 700;
+}
+
+.gmail-select-all input,
+.candidate-selector input {
+  width: 18px;
+  height: 18px;
+  accent-color: #635bff;
+}
+
+.gmail-bulk-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.gmail-candidate.selected {
+  border-color: color-mix(in srgb, #635bff 65%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, #635bff 12%, transparent);
+}
+
+@media (max-width: 760px) {
+  .gmail-bulk-actions,
+  .gmail-bulk-actions > button {
+    width: 100%;
+  }
+}
+"""
+          )
+          Path('packages/ui/src/manual-screen.css').write_text(
+              Path('packages/ui/src/manual-screen.css').read_text()
+              + """
+
+.expense-chart-card {
+  margin: 18px 0;
+}
+
+.expense-chart-row {
+  padding: 14px 0;
+  border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.expense-chart-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.expense-chart-label span,
+.expense-chart-row small {
+  font-size: 0.82rem;
+  opacity: 0.75;
+}
+
+.expense-chart-track {
+  width: 100%;
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 9%, transparent);
+}
+
+.expense-chart-track > span {
+  display: block;
+  height: 100%;
+  min-width: 4px;
+  border-radius: inherit;
+  background: #635bff;
+}
+
+.expense-chart-row small {
+  display: block;
+  margin-top: 6px;
+}
+"""
+          )
+
+          # Migration for existing connections / false positives already stored.
+          Path('backend/api/migrations/025_gmail_90d_products_cleanup.sql').write_text("""-- Keep enough Gmail history to detect recurring subscriptions and correct known product semantics.
+UPDATE app.gmail_connections
+SET range_days = 90,
+    updated_at = now()
+WHERE range_days < 90;
+
+-- Interbank Visa Access is treated as a loan/debt product, not a credit-card purchase stream.
+UPDATE app.gmail_financial_candidates
+SET kind = 'debt',
+    confidence = GREATEST(confidence, 96)
+WHERE institution = 'Interbank'
+  AND summary ~* '(^|[^[:alnum:]])(IBK[[:space:]]+)?Visa Access([^[:alnum:]]|$)'
+  AND status <> 'discarded';
+
+-- Remove only still-pending commercial false positives; preserve reviewed history.
+DELETE FROM app.gmail_financial_candidates
+WHERE status = 'pending'
+  AND summary ~* '(gana(?:r)?|puntos?|millas?|sacar[[:space:]]+millas|participa|sorteo|premio|descuentos?|dscto|oferta|promoci[oó]n|beneficio|preventa|ll[eé]vate|regalo con tu compra|pr[oó]xima compra|compra favorita|cashback.*(?:sorteo|premio|gana)|cambia.*y gana|pasajes?.*desde)';
+""")
+
+          # Regression tests from the reported false positives and product semantics.
+          replace(
+              'tests/gmail-ingestion.test.ts',
+              "  it('classifies a card-payment receipt as payment, never as income', () => {",
+              "  it('ignores the additional Plin, miles and discount promotions seen in the review inbox', () => {\n    expect(\n      mail(\n        'Hoy tenemos sesión de cómo sacar millas con plin sin que te baneen! Los veo a las 9PM!',\n        'Reserva tu acceso por S/ 9.00.',\n        'Comunidad <promo@example.com>',\n      ),\n    ).toBeUndefined();\n    expect(\n      mail(\n        'Gana hasta S/300 con Plin BBVA',\n        'Participa usando Plin.',\n        'BBVA <beneficios@bbva.pe>',\n      ),\n    ).toBeUndefined();\n    expect(\n      mail(\n        '¡Llévate S/100 de dscto en pisos para tu hogar!',\n        'Compra desde hoy.',\n        'Tienda <promo@example.com>',\n      ),\n    ).toBeUndefined();\n  });\n\n  it('treats Interbank Visa Access as debt, not as a credit card', () => {\n    expect(\n      mail(\n        'IBK Visa Access - deuda total',\n        'Tu deuda total de Visa Access es S/ 6,332.05.',\n        'Interbank <avisos@interbank.pe>',\n      ),\n    ).toMatchObject({ kind: 'debt', institution: 'Interbank', amountMinor: 633205 });\n  });\n\n  it('classifies a card-payment receipt as payment, never as income', () => {",
+          )
+          PY
+      - name: Format
+        run: npm exec prettier -- --write backend/api/src/financial-mail-parser.ts backend/api/src/gmail-service.ts packages/ui/src/gmail-screen.ts packages/ui/src/gmail-screen.css packages/ui/src/detected-finances-screen.ts packages/ui/src/product-screen.ts packages/ui/src/manual-screen.css tests/gmail-ingestion.test.ts
+      - name: Validate focused changes
+        run: |
+          npm run typecheck
+          npm exec vitest -- run tests/gmail-ingestion.test.ts
+          npm run build:web
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/api packages/ui tests/gmail-ingestion.test.ts
+          git commit -m "feat(finance): bulk review cards subscriptions and insights"
+          git push origin HEAD:feature/p17-real-app
