@@ -136,10 +136,10 @@ describe('financial Gmail ingestion', () => {
     expect(
       mail(
         'IBK Visa Access - deuda total',
-        'Tu deuda total de Visa Access es S/ 6,332.05.',
+        'Tu deuda total de Visa Access es S/ 1,234.56.',
         'Interbank <avisos@interbank.pe>',
       ),
-    ).toMatchObject({ kind: 'debt', institution: 'Interbank', amountMinor: 633205 });
+    ).toMatchObject({ kind: 'debt', institution: 'Interbank', amountMinor: 123456 });
   });
 
   it('classifies a card-payment receipt as payment, never as income', () => {
