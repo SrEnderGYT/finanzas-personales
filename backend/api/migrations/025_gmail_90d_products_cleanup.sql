@@ -1,4 +1,4 @@
--- Use a minimum three-month Gmail history for recurring-subscription detection.
+-- Use at least 90 days of Gmail history so recurring charges can be evaluated across three months.
 UPDATE app.gmail_connections
 SET range_days = 90,
     updated_at = now()
