@@ -157,9 +157,7 @@ describe('PostgreSQL 17 — user isolation with the actual restricted runtime ro
     const signatureCharacter = segments[2][signatureIndex];
     const replacement = signatureCharacter === 'A' ? 'B' : 'A';
     const tamperedSignature =
-      segments[2].slice(0, signatureIndex) +
-      replacement +
-      segments[2].slice(signatureIndex + 1);
+      segments[2].slice(0, signatureIndex) + replacement + segments[2].slice(signatureIndex + 1);
     const tampered = `${segments[0]}.${segments[1]}.${tamperedSignature}`;
     const invalid = await fetch(`${base}/v1/me`, {
       headers: { authorization: `Bearer ${tampered}` },
