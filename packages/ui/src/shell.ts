@@ -1,4 +1,4 @@
-import { Component, InjectionToken, inject } from '@angular/core';
+import { Component, DestroyRef, InjectionToken, inject, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { ProductWorkspace } from './product-workspace';
 import { UI_PRIMITIVES } from './primitives';
@@ -9,7 +9,7 @@ export const MOBILE_MODE = new InjectionToken<boolean>('MOBILE_MODE', { factory:
   selector: 'fp-shell',
   imports: [RouterLink, RouterLinkActive, RouterOutlet, ...UI_PRIMITIVES],
   template: `
-    @if (!product.auth.signedIn) {
+    @if (!signedIn()) {
       <div class="auth-only-shell">
         <a class="skip-link" href="#content">Saltar al contenido</a>
         <main id="content" class="auth-only-content"><router-outlet /></main>
@@ -90,6 +90,7 @@ export const MOBILE_MODE = new InjectionToken<boolean>('MOBILE_MODE', { factory:
 export class Shell {
   readonly mobile = inject(MOBILE_MODE);
   readonly product = inject(ProductWorkspace);
+  readonly signedIn = signal(this.product.auth.signedIn);
   readonly menu = [
     { path: '/inicio', label: 'Inicio', icon: '⌂' },
     { path: '/movimientos', label: 'Movimientos', icon: '⇅' },
@@ -103,4 +104,11 @@ export class Shell {
     { path: '/analisis', label: 'Análisis', icon: '▥' },
     { path: '/configuracion', label: 'Configuración', icon: '⚙' },
   ];
+
+  constructor() {
+    const unsubscribe = this.product.auth.onSessionChange(() =>
+      this.signedIn.set(this.product.auth.signedIn),
+    );
+    inject(DestroyRef).onDestroy(unsubscribe);
+  }
 }
