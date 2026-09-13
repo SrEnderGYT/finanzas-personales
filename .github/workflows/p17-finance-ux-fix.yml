@@ -24,6 +24,7 @@ jobs:
       - run: npm install --global npm@11.6.1
       - run: npm ci
       - run: python scripts/p17_finance_ux_fix.py
+      - run: python scripts/p17_finance_ux_postfix.py
       - run: npm exec prettier -- --write backend/api/src/financial-mail-parser.ts backend/api/src/gmail-service.ts packages/ui/src/gmail-screen.ts packages/ui/src/gmail-screen.css packages/ui/src/detected-finances-screen.ts packages/ui/src/product-screen.ts packages/ui/src/manual-screen.css tests/gmail-ingestion.test.ts
       - run: npm run typecheck
       - run: npm exec vitest -- run tests/gmail-ingestion.test.ts
