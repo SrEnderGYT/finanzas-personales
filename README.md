@@ -16,6 +16,10 @@ La publicación Web es **login-first**: la entrada pública es Acceso y las ruta
 
 Cuando el API privado todavía no está conectado, el login permanece visible pero bloquea el ingreso de credenciales y muestra el estado del servicio. Al habilitar el API HTTPS, el mismo cliente utiliza autenticación real, PostgreSQL, RLS, almacenamiento cifrado y los contratos privados del producto.
 
+## Diseño compartido
+
+Web, PWA, Android e iOS utilizan el mismo sistema visual del producto: navegación oscura compacta, estados activos azul/violeta, paneles financieros densos, métricas por moneda, gráficos, tarjetas e información detectada con comportamiento responsive. Los clientes móviles reutilizan la misma UI Angular mediante Capacitor y agregan ajustes de `safe-area` para Android/iOS, evitando mantener diseños divergentes por plataforma.
+
 ## Finanzas y automatización
 
 - **Inicio y movimientos:** resumen por moneda y actividad confirmada/pendiente del usuario autenticado.
