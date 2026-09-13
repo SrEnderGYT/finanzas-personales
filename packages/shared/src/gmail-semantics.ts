@@ -77,7 +77,10 @@ export function isReviewableGmailCandidate(candidate: GmailFinancialCandidate) {
 export function isDashboardGmailMovement(candidate: GmailFinancialCandidate) {
   if (!isReviewableGmailCandidate(candidate)) return false;
   return (
-    candidate.kind === 'expense' || candidate.kind === 'card_charge' || candidate.kind === 'income'
+    candidate.kind === 'expense' ||
+    candidate.kind === 'card_charge' ||
+    candidate.kind === 'subscription' ||
+    candidate.kind === 'income'
   );
 }
 
