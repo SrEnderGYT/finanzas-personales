@@ -64,7 +64,13 @@
   inset: 0;
   pointer-events: none;
   opacity: 0.35;
-  background: linear-gradient(125deg, rgba(255, 255, 255, 0.03), transparent 24%, transparent 72%, rgba(99, 102, 241, 0.05));
+  background: linear-gradient(
+    125deg,
+    rgba(255, 255, 255, 0.03),
+    transparent 24%,
+    transparent 72%,
+    rgba(99, 102, 241, 0.05)
+  );
 }
 
 .currency-heading {

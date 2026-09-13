@@ -77,7 +77,9 @@
   color: #fff;
   border-color: rgba(101, 111, 255, 0.72);
   background: linear-gradient(90deg, rgba(44, 117, 255, 0.32), rgba(92, 62, 228, 0.34));
-  box-shadow: inset 2px 0 #60a5fa, 0 0 18px rgba(89, 73, 255, 0.2);
+  box-shadow:
+    inset 2px 0 #60a5fa,
+    0 0 18px rgba(89, 73, 255, 0.2);
 }
 
 .sidebar-note {
@@ -102,7 +104,9 @@
   height: 56px;
   border: 2px solid #67e8f9;
   background: linear-gradient(145deg, rgba(34, 211, 238, 0.18), rgba(124, 58, 237, 0.2));
-  box-shadow: 0 0 20px rgba(34, 211, 238, 0.35), 0 0 36px rgba(139, 92, 246, 0.22);
+  box-shadow:
+    0 0 20px rgba(34, 211, 238, 0.35),
+    0 0 36px rgba(139, 92, 246, 0.22);
   clip-path: polygon(50% 0, 92% 15%, 88% 66%, 50% 100%, 12% 66%, 8% 15%);
 }
 
