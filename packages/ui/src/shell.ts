@@ -9,14 +9,14 @@ export const MOBILE_MODE = new InjectionToken<boolean>('MOBILE_MODE', { factory:
   selector: 'fp-shell',
   imports: [RouterLink, RouterLinkActive, RouterOutlet, ...UI_PRIMITIVES],
   template: `
-    @if (!signedIn()) {
-      <div class="auth-only-shell">
-        <a class="skip-link" href="#content">Saltar al contenido</a>
-        <main id="content" class="auth-only-content"><router-outlet /></main>
-      </div>
-    } @else {
-      <div class="workspace" [class.mobile-client]="mobile">
-        <a class="skip-link" href="#content">Saltar al contenido</a>
+    <div
+      class="workspace"
+      [class.auth-only-shell]="!signedIn()"
+      [class.mobile-client]="mobile && signedIn()"
+    >
+      <a class="skip-link" href="#content">Saltar al contenido</a>
+
+      @if (signedIn()) {
         <aside class="sidebar" aria-label="Navegación principal">
           <a routerLink="/inicio" class="brand">
             <span class="brand-mark" aria-hidden="true">f<span>↗</span></span>
@@ -47,8 +47,10 @@ export const MOBILE_MODE = new InjectionToken<boolean>('MOBILE_MODE', { factory:
             </div>
           </a>
         </aside>
+      }
 
-        <div class="main-frame">
+      <div class="main-frame" [class.auth-only-content]="!signedIn()">
+        @if (signedIn()) {
           <header class="topbar">
             <span class="topbar-brand">finanzas<span>.</span></span>
             <span class="breadcrumb">Mi espacio <span>/</span> Finanzas personales</span>
@@ -58,14 +60,18 @@ export const MOBILE_MODE = new InjectionToken<boolean>('MOBILE_MODE', { factory:
               <a class="avatar" routerLink="/configuracion" aria-label="Configuración">F</a>
             </div>
           </header>
+        }
 
-          <main id="content"><router-outlet /></main>
+        <main id="content"><router-outlet /></main>
 
+        @if (signedIn()) {
           <footer class="app-footer">
             <span>Finanzas personales · monedas separadas · espacio local cifrado</span>
           </footer>
-        </div>
+        }
+      </div>
 
+      @if (signedIn()) {
         <nav class="bottom-nav" aria-label="Navegación móvil">
           <a routerLink="/inicio" routerLinkActive="active"
             ><span aria-hidden="true">⌂</span>Inicio</a
@@ -83,8 +89,8 @@ export const MOBILE_MODE = new InjectionToken<boolean>('MOBILE_MODE', { factory:
             <span aria-hidden="true">○</span>Perfil
           </a>
         </nav>
-      </div>
-    }
+      }
+    </div>
   `,
 })
 export class Shell {
