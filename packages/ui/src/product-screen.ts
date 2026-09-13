@@ -15,10 +15,20 @@ import {
   type ProductMovementFilters,
   type ProductMovementItem,
 } from './product-insights';
+import { FinanceDashboard } from './finance-dashboard';
+import { automaticCategory, isDashboardGmailMovement } from '../../shared/src/gmail-semantics';
 
 @Component({
   selector: 'fp-product-screen',
-  imports: [FormsModule, RouterLink, Screen, CorrectionEditor, CatalogCreator, ...UI_PRIMITIVES],
+  imports: [
+    FormsModule,
+    RouterLink,
+    Screen,
+    CorrectionEditor,
+    CatalogCreator,
+    FinanceDashboard,
+    ...UI_PRIMITIVES,
+  ],
   styleUrl: './manual-screen.css',
   template: `
     @if (!workspace.product()) {
@@ -63,80 +73,7 @@ import {
               </article>
             </section>
 
-            @if (summary().currencies.length) {
-              <div class="product-currency-grid">
-                @for (currency of summary().currencies; track currency.currency) {
-                  <section
-                    class="manual-card currency-summary"
-                    [attr.aria-label]="currency.currency"
-                  >
-                    <header>
-                      <div>
-                        <p class="eyebrow">{{ currency.currency }}</p>
-                        <h2>Movimientos confirmados</h2>
-                      </div>
-                      <span>{{ currency.confirmedCount }} operación(es)</span>
-                    </header>
-                    <dl class="money-summary">
-                      <div>
-                        <dt>Ingresos</dt>
-                        <dd>{{ exact(currency.currency, currency.incomeMinor) }}</dd>
-                      </div>
-                      <div>
-                        <dt>Gastos</dt>
-                        <dd>{{ exact(currency.currency, currency.expenseMinor) }}</dd>
-                      </div>
-                      <div>
-                        <dt>Balance registrado</dt>
-                        <dd>{{ exact(currency.currency, currency.balanceMinor) }}</dd>
-                      </div>
-                    </dl>
-                    <p class="zone-note">
-                      Este balance resume movimientos confirmados. No representa el saldo bancario
-                      de tus cuentas.
-                    </p>
-                  </section>
-                }
-              </div>
-            } @else {
-              <section class="manual-card product-empty-state">
-                <h2>Aún no hay movimientos confirmados</h2>
-                <p>
-                  No mostramos cero como si fuera un saldo confirmado. Registra un movimiento y
-                  espera su confirmación para ver el resumen.
-                </p>
-                <a routerLink="/registro">Registrar movimiento</a>
-              </section>
-            }
-
-            <section
-              class="manual-card expense-chart-card"
-              aria-label="Distribución de gastos del mes"
-            >
-              <header class="product-section-heading">
-                <div>
-                  <h2>En qué se va tu dinero este mes</h2>
-                  <p>Distribución por categoría usando únicamente gastos confirmados.</p>
-                </div>
-                <a routerLink="/analisis">Abrir análisis</a>
-              </header>
-              @for (row of monthlyCategories().slice(0, 8); track row.currency + row.category) {
-                <article class="expense-chart-row">
-                  <div class="expense-chart-label">
-                    <strong>{{ row.category }}</strong>
-                    <span>{{ exact(row.currency, row.minor) }}</span>
-                  </div>
-                  <div class="expense-chart-track" aria-hidden="true">
-                    <span [style.width.%]="categoryShare(row.currency, row.minor)"></span>
-                  </div>
-                  <small>
-                    {{ categoryShare(row.currency, row.minor) }}% de tus gastos {{ row.currency }}
-                  </small>
-                </article>
-              } @empty {
-                <p class="empty-local">Confirma consumos para construir el gráfico del mes.</p>
-              }
-            </section>
+            <fp-finance-dashboard [rows]="movementItems()" />
 
             <section class="manual-card">
               <header class="product-section-heading">
@@ -526,14 +463,8 @@ export class ProductScreen {
       ...(row.failure ? { failure: row.failure } : {}),
     }));
     for (const item of this.workspace.gmailConfirmed()) {
-      if (!item.currency || !item.amountMinor) continue;
-      const kind =
-        item.kind === 'income'
-          ? 'income'
-          : ['expense', 'card_charge', 'subscription'].includes(item.kind)
-            ? 'expense'
-            : undefined;
-      if (!kind) continue;
+      if (!isDashboardGmailMovement(item) || !item.currency || !item.amountMinor) continue;
+      const kind = item.kind === 'income' ? 'income' : 'expense';
       const date = new Intl.DateTimeFormat('en-CA', {
         timeZone: 'America/Lima',
         year: 'numeric',
@@ -555,12 +486,7 @@ export class ProductScreen {
         },
         state: 'confirmed',
         account: item.institution ?? item.merchant ?? 'Gmail',
-        category:
-          kind === 'income'
-            ? 'Ingreso detectado'
-            : item.kind === 'subscription'
-              ? 'Suscripción'
-              : 'Consumo detectado',
+        category: automaticCategory(item),
       });
     }
     return rows.sort(

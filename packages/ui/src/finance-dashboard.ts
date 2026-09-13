@@ -9,7 +9,18 @@ interface CategoryTotal {
   color: string;
 }
 
-const PALETTE = ['#635bff', '#14b8a6', '#f59e0b', '#ec4899', '#3b82f6', '#8b5cf6', '#22c55e', '#f97316', '#06b6d4', '#94a3b8'];
+const PALETTE = [
+  '#635bff',
+  '#14b8a6',
+  '#f59e0b',
+  '#ec4899',
+  '#3b82f6',
+  '#8b5cf6',
+  '#22c55e',
+  '#f97316',
+  '#06b6d4',
+  '#94a3b8',
+];
 
 @Component({
   selector: 'fp-finance-dashboard',
@@ -21,7 +32,10 @@ const PALETTE = ['#635bff', '#14b8a6', '#f59e0b', '#ec4899', '#3b82f6', '#8b5cf6
         <div>
           <p class="eyebrow">PANORAMA DEL MES</p>
           <h2>Tu dinero, explicado por categorías</h2>
-          <p>Solo usamos movimientos confirmados. Avisos, promociones, estados de cuenta y pagos fallidos no entran en estos gráficos.</p>
+          <p>
+            Solo usamos movimientos confirmados. Avisos, promociones, estados de cuenta y pagos
+            fallidos no entran en estos gráficos.
+          </p>
         </div>
         <a routerLink="/analisis">Ver análisis completo</a>
       </header>
@@ -125,14 +139,18 @@ const PALETTE = ['#635bff', '#14b8a6', '#f59e0b', '#ec4899', '#3b82f6', '#8b5cf6
           } @else {
             <article class="empty-analytics">
               <strong>Aún no hay gastos confirmados en {{ currency }} este mes.</strong>
-              <p>Cuando se confirme una operación real, aparecerá automáticamente en su categoría.</p>
+              <p>
+                Cuando se confirme una operación real, aparecerá automáticamente en su categoría.
+              </p>
             </article>
           }
         </section>
       } @empty {
         <article class="empty-analytics primary-empty">
           <strong>Aún no hay movimientos confirmados este mes.</strong>
-          <p>Los gráficos se construirán automáticamente a partir de operaciones reales confirmadas.</p>
+          <p>
+            Los gráficos se construirán automáticamente a partir de operaciones reales confirmadas.
+          </p>
         </article>
       }
     </section>
@@ -194,7 +212,10 @@ export class FinanceDashboard {
     const grouped = new Map<string, bigint>();
     for (const row of this.monthRows()) {
       if (row.payload.currency !== currency || row.payload.kind !== 'expense') continue;
-      grouped.set(row.category, (grouped.get(row.category) ?? 0n) + BigInt(row.payload.amountMinor));
+      grouped.set(
+        row.category,
+        (grouped.get(row.category) ?? 0n) + BigInt(row.payload.amountMinor),
+      );
     }
     const ordered = [...grouped.entries()].sort((a, b) =>
       a[1] > b[1] ? -1 : a[1] < b[1] ? 1 : a[0].localeCompare(b[0]),

@@ -106,11 +106,21 @@
   overflow-wrap: anywhere;
 }
 
-.metric-card.expense { color: #ef4444; }
-.metric-card.income { color: #16a34a; }
-.metric-card.balance { color: #635bff; }
-.metric-card.average { color: #0891b2; }
-.metric-card small { color: var(--text, currentColor); }
+.metric-card.expense {
+  color: #ef4444;
+}
+.metric-card.income {
+  color: #16a34a;
+}
+.metric-card.balance {
+  color: #635bff;
+}
+.metric-card.average {
+  color: #0891b2;
+}
+.metric-card small {
+  color: var(--text, currentColor);
+}
 
 .analytics-grid {
   display: grid;

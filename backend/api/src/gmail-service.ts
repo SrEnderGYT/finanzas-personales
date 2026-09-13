@@ -73,7 +73,7 @@ export class LiveGmailService implements GmailConnectionService {
       throw new Error('Invalid Gmail client secret');
     this.redirectUri = plainHttpsUrl(options.redirectUri, 'Gmail redirect URI').href;
     this.appReturnUrl = plainHttpsUrl(options.appReturnUrl, 'Gmail app return URL').href;
-    this.maxMessages = Math.min(Math.max(options.maxMessages ?? 1500, 100), 5000);
+    this.maxMessages = Math.min(Math.max(options.maxMessages ?? 5000, 100), 5000);
     this.transport = options.transport ?? fetch;
   }
 
@@ -206,9 +206,12 @@ export class LiveGmailService implements GmailConnectionService {
     let processed = 0;
     do {
       const url = new URL('https://gmail.googleapis.com/gmail/v1/users/me/messages');
-      url.searchParams.set('maxResults', '100');
+      url.searchParams.set('maxResults', '250');
       url.searchParams.set('includeSpamTrash', 'false');
-      url.searchParams.set('q', `after:${isoDate(from).replaceAll('-', '/')}`);
+      url.searchParams.set(
+        'q',
+        `after:${isoDate(from).replaceAll('-', '/')} -category:promotions -in:spam -in:trash`,
+      );
       if (pageToken) url.searchParams.set('pageToken', pageToken);
       const page = jsonRecord(await this.googleJson(url, accessToken));
       const messages = Array.isArray(page['messages']) ? page['messages'] : [];
@@ -316,6 +319,9 @@ export class LiveGmailService implements GmailConnectionService {
     const sender = header('From');
     const subject = header('Subject');
     const snippet = text(data['snippet'], 2048);
+    const labels = Array.isArray(data['labelIds'])
+      ? data['labelIds'].filter((value): value is string => typeof value === 'string').slice(0, 64)
+      : [];
     const internal =
       typeof data['internalDate'] === 'string' && /^\d{10,16}$/.test(data['internalDate'])
         ? Number(data['internalDate'])
@@ -340,6 +346,7 @@ export class LiveGmailService implements GmailConnectionService {
       subject,
       snippet,
       receivedAt: receivedAt.toISOString(),
+      labels,
     });
     if (!candidate) {
       await this.pool.query(
@@ -350,11 +357,20 @@ export class LiveGmailService implements GmailConnectionService {
       return;
     }
     await this.pool.query(
+      `DELETE FROM app.gmail_financial_candidates
+        WHERE user_id=$1 AND source_message_id=$2 AND status='pending' AND fingerprint<>$3`,
+      [id, messageId, candidate.fingerprint],
+    );
+    await this.pool.query(
       `INSERT INTO app.gmail_financial_candidates(
          id,user_id,source_message_id,kind,institution,merchant,currency,amount_minor,
          occurred_at,confidence,fingerprint,summary
        ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-       ON CONFLICT(user_id,fingerprint) DO NOTHING`,
+       ON CONFLICT(user_id,fingerprint) DO UPDATE SET
+         kind=EXCLUDED.kind,institution=EXCLUDED.institution,merchant=EXCLUDED.merchant,
+         currency=EXCLUDED.currency,amount_minor=EXCLUDED.amount_minor,
+         occurred_at=EXCLUDED.occurred_at,confidence=EXCLUDED.confidence,summary=EXCLUDED.summary
+       WHERE app.gmail_financial_candidates.status='pending'`,
       [
         randomUUID(),
         id,

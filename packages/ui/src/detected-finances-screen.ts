@@ -11,9 +11,10 @@ import {
   type GmailFinancialCandidate,
   type GmailFinancialKind,
 } from '../../shared/src/gmail-candidates';
+import { isReviewableGmailCandidate } from '../../shared/src/gmail-semantics';
 
 export type DetectedFinanceView = 'cards' | 'subscriptions' | 'debts';
-type CardKindFilter = 'all' | 'card_charge' | 'payment' | 'card_statement';
+type CardKindFilter = 'all' | 'card_charge' | 'payment' | 'card_statement' | 'refund';
 
 function monthKey(value: Date) {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -87,6 +88,7 @@ function monthKey(value: Date) {
                 <option value="all">Todos</option>
                 <option value="card_charge">Consumos</option>
                 <option value="payment">Pagos</option>
+                <option value="refund">Devoluciones</option>
                 <option value="card_statement">Deuda / estado</option>
               </select>
             </label>
@@ -218,7 +220,7 @@ export class DetectedFinancesScreen implements OnInit {
   readonly periodRows = computed(() => {
     const allowed = new Set<GmailFinancialKind>(
       this.view() === 'cards'
-        ? ['card_charge', 'card_statement', 'payment']
+        ? ['card_charge', 'card_statement', 'payment', 'refund']
         : this.view() === 'subscriptions'
           ? ['subscription']
           : ['debt', 'card_statement'],
@@ -226,6 +228,7 @@ export class DetectedFinancesScreen implements OnInit {
     return this.candidates().filter((candidate) => {
       if (
         candidate.status === 'discarded' ||
+        !isReviewableGmailCandidate(candidate) ||
         !allowed.has(candidate.kind) ||
         !candidate.amountMinor ||
         !candidate.currency
@@ -242,9 +245,10 @@ export class DetectedFinancesScreen implements OnInit {
     this.candidates().filter(
       (item) =>
         item.status !== 'discarded' &&
+        isReviewableGmailCandidate(item) &&
         !!item.institution &&
         !this.isAccessLoan(item) &&
-        ['card_charge', 'card_statement', 'payment'].includes(item.kind),
+        ['card_charge', 'card_statement', 'payment', 'refund'].includes(item.kind),
     ),
   );
 
@@ -318,7 +322,7 @@ export class DetectedFinancesScreen implements OnInit {
   }
 
   setCardKind(value: string) {
-    if (['all', 'card_charge', 'payment', 'card_statement'].includes(value))
+    if (['all', 'card_charge', 'payment', 'card_statement', 'refund'].includes(value))
       this.cardKindFilter.set(value as CardKindFilter);
   }
 
@@ -397,6 +401,7 @@ export class DetectedFinancesScreen implements OnInit {
       subscription: 'Suscripción',
       debt: 'Cuota / deuda',
       payment: 'Pago de tarjeta',
+      refund: 'Devolución / reverso',
       unknown: 'Por revisar',
     };
     return labels[kind];

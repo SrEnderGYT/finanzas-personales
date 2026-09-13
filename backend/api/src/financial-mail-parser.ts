@@ -196,7 +196,7 @@ function classify(
     return { kind: 'card_statement', confidence: 94 };
 
   const recurringExecuted =
-    /\b(cobro recurrente (?:realizado|procesado)?|cargo recurrente (?:realizado|procesado)?|pago recurrente (?:realizado|procesado)?|renovaci[oó]n (?:autom[aá]tica )?(?:cobrada|procesada|realizada)|membres[ií]a mensual (?:cobrada|renovada)|suscripci[oó]n mensual (?:cobrada|renovada)|plan mensual (?:cobrado|renovado))\b/i.test(
+    /\b(cobro recurrente(?: realizado| procesado)?|cargo recurrente(?: realizado| procesado)?|pago recurrente(?: realizado| procesado)?|renovaci[oó]n (?:autom[aá]tica )?(?:cobrada|procesada|realizada)|se realiz[oó] el cobro recurrente|membres[ií]a mensual[^\n]{0,100}(?:cobrada|renovada|se renov[oó])|suscripci[oó]n mensual[^\n]{0,100}(?:cobrada|renovada|se renov[oó])|plan mensual[^\n]{0,100}(?:cobrado|renovado|se renov[oó]))\b/i.test(
       text,
     );
   const receiptForKnownSubscription =

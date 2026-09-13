@@ -6,13 +6,19 @@ import { normalizeGmailCandidates } from '../packages/shared/src/gmail-candidate
 const USER = '10000000-0000-4000-8000-000000000001';
 const receivedAt = '2026-09-12T03:00:00.000Z';
 
-function mail(subject: string, snippet: string, sender = 'BCP <avisos@bcp.com.pe>') {
+function mail(
+  subject: string,
+  snippet: string,
+  sender = 'BCP <avisos@bcp.com.pe>',
+  labels: readonly string[] = [],
+) {
   return parseFinancialMail({
     messageId: `${subject}-${snippet}`.slice(0, 128),
     sender,
     subject,
     snippet,
     receivedAt,
+    labels,
   });
 }
 
@@ -151,19 +157,21 @@ describe('financial Gmail ingestion', () => {
     ).toMatchObject({ kind: 'payment', institution: 'BCP', currency: 'PEN', amountMinor: 10000 });
   });
 
-  it('keeps billed services with an amount without treating bank receipts as expenses', () => {
+  it('does not turn invoices into expenses unless an executed payment is explicit', () => {
     expect(
       mail(
-        'Recibo Claro - Setiembre 998270930',
-        'Tu recibo Claro del mes tiene un importe de S/ 29.90.',
-        'Claro <recibos@claro.com.pe>',
+        'Recibo Claro - Setiembre',
+        'Tu recibo del mes tiene un importe de S/ 29.90 y vence pronto.',
+        'Claro <recibos@example.test>',
       ),
-    ).toMatchObject({
-      kind: 'expense',
-      merchant: 'Claro',
-      currency: 'PEN',
-      amountMinor: 2990,
-    });
+    ).toBeUndefined();
+    expect(
+      mail(
+        'Pago de servicio realizado',
+        'Tu pago realizado de Claro por S/ 29.90 fue completado.',
+        'Claro <avisos@example.test>',
+      ),
+    ).toMatchObject({ kind: 'expense', merchant: 'Claro', currency: 'PEN', amountMinor: 2990 });
   });
 
   it('detects recurring services from real recurring-charge language and known merchants', () => {
@@ -229,6 +237,69 @@ describe('financial Gmail ingestion', () => {
     expect(
       mail('Estado de cuenta disponible', 'Revisa el detalle de tu estado de cuenta.'),
     ).toBeUndefined();
+  });
+
+  it('separates refunds, pending notices, receipts and debit-card expenses', () => {
+    expect(
+      mail(
+        'Realizamos una devolución de una operación a tu Tarjeta de Débito',
+        'Se ha devuelto el monto de S/ 143.21 a tu cuenta. Monto total devuelto S/ 143.21.',
+      ),
+    ).toMatchObject({ kind: 'refund', currency: 'PEN', amountMinor: 14321 });
+
+    expect(
+      mail(
+        'Realizaste un consumo con tu Tarjeta de Débito',
+        'Realizaste un consumo de S/ 41.70 con tu Tarjeta de Débito en SUPERMERCADO CENTRAL. Por tu seguridad, revisa los datos.',
+      ),
+    ).toMatchObject({ kind: 'expense', merchant: 'SUPERMERCADO CENTRAL', amountMinor: 4170 });
+
+    expect(
+      mail(
+        'Tu suscripción está por vencer',
+        'La siguiente suscripción vencerá pronto. Plan mensual S/ 24.90.',
+        'Proveedor <notices@example.test>',
+      ),
+    ).toBeUndefined();
+
+    expect(
+      mail(
+        'Error de pago. Está pendiente el pago de tu viaje.',
+        'Total S/ 18.40. Aún no se pagó este viaje.',
+        'Movilidad <receipts@example.test>',
+      ),
+    ).toBeUndefined();
+
+    expect(
+      mail(
+        'Has recibido una BOLETA Nro. TEST-001 de COMERCIO EJEMPLO',
+        'Facturación electrónica. MONTO TOTAL: PEN 78.30.',
+        'Documentos <no-reply@example.test>',
+      ),
+    ).toBeUndefined();
+  });
+
+  it('uses Gmail promotion labels and extracts merchants from bank notifications', () => {
+    expect(
+      mail(
+        'Beneficio especial para ti',
+        'Compra desde S/ 120.00.',
+        'Banco <marketing@example.test>',
+        ['CATEGORY_PROMOTIONS'],
+      ),
+    ).toBeUndefined();
+
+    expect(
+      mail(
+        'Realizaste un consumo con tu Tarjeta Interbank Visa Platinum',
+        'Tarjeta: ****0000 Comercio: TIENDA EJEMPLO Monto: S/. 64.20 Fecha: 01/09/2026',
+        'Interbank <avisos@example.test>',
+      ),
+    ).toMatchObject({ kind: 'card_charge', merchant: 'TIENDA EJEMPLO', amountMinor: 6420 });
+
+    expect(
+      mail('Retiro de tu guardadito', 'Retiraste de tu guardadito S/ 52.40 hacia tu cuenta.'),
+    ).toMatchObject({ kind: 'transfer', amountMinor: 5240 });
   });
 
   it('encrypts refresh tokens with user-bound authenticated encryption', () => {

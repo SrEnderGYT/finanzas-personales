@@ -17,6 +17,7 @@ import {
   type GmailFinancialKind,
 } from '../../shared/src/gmail-candidates';
 import { SyncHttpError } from '../../shared/src/sync-engine';
+import { isReviewableGmailCandidate } from '../../shared/src/gmail-semantics';
 
 type CandidateView = GmailCandidateStatus | 'all';
 
@@ -370,7 +371,7 @@ export class GmailScreen implements OnInit {
   readonly candidates = computed(() =>
     this.allCandidates().filter(
       (candidate) =>
-        Boolean(candidate.amountMinor && candidate.currency) &&
+        isReviewableGmailCandidate(candidate) &&
         limaMonth(new Date(candidate.occurredAt)) === this.candidateMonth(),
     ),
   );
@@ -464,6 +465,7 @@ export class GmailScreen implements OnInit {
       subscription: 'Suscripción',
       debt: 'Cuota / deuda',
       payment: 'Pago de tarjeta',
+      refund: 'Devolución / reverso',
       unknown: 'Por revisar',
     };
     return labels[kind];
