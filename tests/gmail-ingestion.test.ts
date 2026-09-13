@@ -112,6 +112,36 @@ describe('financial Gmail ingestion', () => {
       expect(mail(subject, snippet, sender)).toBeUndefined();
   });
 
+  it('ignores additional Plin, miles and discount promotions from the review inbox', () => {
+    expect(
+      mail(
+        'Hoy tenemos sesión de cómo sacar millas con plin sin que te baneen! Los veo a las 9PM!',
+        'Reserva tu acceso por S/ 9.00.',
+        'Comunidad <promo@example.com>',
+      ),
+    ).toBeUndefined();
+    expect(
+      mail('Gana hasta S/300 con Plin BBVA', 'Participa usando Plin.', 'BBVA <beneficios@bbva.pe>'),
+    ).toBeUndefined();
+    expect(
+      mail(
+        '¡Llévate S/100 de dscto en pisos para tu hogar!',
+        'Compra desde hoy.',
+        'Tienda <promo@example.com>',
+      ),
+    ).toBeUndefined();
+  });
+
+  it('treats Interbank Visa Access as debt, not as a credit card', () => {
+    expect(
+      mail(
+        'IBK Visa Access - deuda total',
+        'Tu deuda total de Visa Access es S/ 6,332.05.',
+        'Interbank <avisos@interbank.pe>',
+      ),
+    ).toMatchObject({ kind: 'debt', institution: 'Interbank', amountMinor: 633205 });
+  });
+
   it('classifies a card-payment receipt as payment, never as income', () => {
     expect(
       mail(

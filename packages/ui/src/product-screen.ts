@@ -109,6 +109,35 @@ import {
               </section>
             }
 
+            <section
+              class="manual-card expense-chart-card"
+              aria-label="Distribución de gastos del mes"
+            >
+              <header class="product-section-heading">
+                <div>
+                  <h2>En qué se va tu dinero este mes</h2>
+                  <p>Distribución por categoría usando únicamente gastos confirmados.</p>
+                </div>
+                <a routerLink="/analisis">Abrir análisis</a>
+              </header>
+              @for (row of monthlyCategories().slice(0, 8); track row.currency + row.category) {
+                <article class="expense-chart-row">
+                  <div class="expense-chart-label">
+                    <strong>{{ row.category }}</strong>
+                    <span>{{ exact(row.currency, row.minor) }}</span>
+                  </div>
+                  <div class="expense-chart-track" aria-hidden="true">
+                    <span [style.width.%]="categoryShare(row.currency, row.minor)"></span>
+                  </div>
+                  <small>
+                    {{ categoryShare(row.currency, row.minor) }}% de tus gastos {{ row.currency }}
+                  </small>
+                </article>
+              } @empty {
+                <p class="empty-local">Confirma consumos para construir el gráfico del mes.</p>
+              }
+            </section>
+
             <section class="manual-card">
               <header class="product-section-heading">
                 <div>
@@ -584,6 +613,14 @@ export class ProductScreen {
   readonly rangeInvalid = computed(
     () => !!this.dateFrom() && !!this.dateTo() && this.dateFrom() > this.dateTo(),
   );
+
+  categoryShare(currency: string, minor: bigint) {
+    const total = this.monthlyCategories()
+      .filter((row) => row.currency === currency)
+      .reduce((sum, row) => sum + row.minor, 0n);
+    if (total <= 0n || minor <= 0n) return 0;
+    return Math.max(1, Math.min(100, Number((minor * 100n) / total)));
+  }
 
   clearFilters() {
     this.query.set('');

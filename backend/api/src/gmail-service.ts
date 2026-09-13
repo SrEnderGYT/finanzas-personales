@@ -85,12 +85,12 @@ export class LiveGmailService implements GmailConnectionService {
       [id],
     );
     if (row.rowCount === 0)
-      return { state: 'disconnected', scope: GMAIL_READONLY_SCOPE, rangeDays: 30 };
+      return { state: 'disconnected', scope: GMAIL_READONLY_SCOPE, rangeDays: 90 };
     const value = row.rows[0] as Record<string, unknown>;
     return {
       state: value['state'],
       scope: GMAIL_READONLY_SCOPE,
-      rangeDays: Number(value['range_days']),
+      rangeDays: Math.max(90, Number(value['range_days'])),
       ...(typeof value['email'] === 'string' ? { email: value['email'] } : {}),
       ...(value['last_sync_at'] instanceof Date
         ? { lastSyncAt: value['last_sync_at'].toISOString() }
@@ -110,6 +110,7 @@ export class LiveGmailService implements GmailConnectionService {
 
   async start(rawUserId: string, rangeDays: number) {
     const id = userId(rawUserId);
+    const effectiveRangeDays = Math.max(90, rangeDays);
     const state = randomBytes(32).toString('base64url');
     await this.pool.query(
       'DELETE FROM app.gmail_oauth_flows WHERE expires_at <= now() OR user_id=$1',
@@ -118,7 +119,7 @@ export class LiveGmailService implements GmailConnectionService {
     await this.pool.query(
       `INSERT INTO app.gmail_oauth_flows(state_hash,user_id,range_days)
        VALUES($1,$2,$3)`,
-      [sha256(state), id, rangeDays],
+      [sha256(state), id, effectiveRangeDays],
     );
     const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     url.searchParams.set('client_id', this.options.clientId);
@@ -198,7 +199,7 @@ export class LiveGmailService implements GmailConnectionService {
       );
       throw error;
     }
-    const rangeDays = Number(result.rows[0].range_days);
+    const rangeDays = Math.max(90, Number(result.rows[0].range_days));
     const now = new Date();
     const from = new Date(now.getTime() - rangeDays * 86_400_000);
     let pageToken: string | undefined;

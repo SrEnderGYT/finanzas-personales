@@ -203,6 +203,48 @@ function limaMonth(value: Date) {
             }
           </div>
 
+          @if (!candidateBusy() && candidates().length > 0) {
+            <div class="gmail-bulk-toolbar" aria-label="Acciones para elementos seleccionados">
+              <label class="gmail-select-all">
+                <input
+                  type="checkbox"
+                  [checked]="allVisibleSelected()"
+                  (change)="toggleAllVisible($any($event.target).checked)"
+                />
+                Seleccionar visibles
+              </label>
+              <strong>{{ selectedCount() }} seleccionados</strong>
+              <div class="gmail-bulk-actions">
+                <button
+                  fpButton
+                  type="button"
+                  [disabled]="selectedPendingCount() === 0"
+                  (click)="reviewSelected('confirmed')"
+                >
+                  Confirmar seleccionados
+                </button>
+                <button
+                  fpButton
+                  class="secondary"
+                  type="button"
+                  [disabled]="selectedPendingCount() === 0"
+                  (click)="reviewSelected('discarded')"
+                >
+                  Descartar seleccionados
+                </button>
+                <button
+                  fpButton
+                  class="secondary"
+                  type="button"
+                  [disabled]="selectedCount() === 0"
+                  (click)="downloadSelected()"
+                >
+                  Descargar CSV
+                </button>
+              </div>
+            </div>
+          }
+
           @if (candidateBusy()) {
             <p class="gmail-empty" role="status">Cargando detecciones…</p>
           } @else if (candidates().length === 0) {
@@ -216,9 +258,17 @@ function limaMonth(value: Date) {
           } @else {
             <div class="gmail-candidates">
               @for (candidate of candidates(); track candidate.id) {
-                <article class="gmail-candidate">
+                <article class="gmail-candidate" [class.selected]="isSelected(candidate.id)">
                   <div class="candidate-main">
                     <div class="candidate-heading">
+                      <label class="candidate-selector">
+                        <input
+                          type="checkbox"
+                          [checked]="isSelected(candidate.id)"
+                          (change)="toggleCandidate(candidate.id, $any($event.target).checked)"
+                        />
+                        Seleccionar
+                      </label>
                       <span class="candidate-kind">{{ kindLabel(candidate.kind) }}</span>
                       <span class="candidate-confidence"
                         >{{ candidate.confidence }}% confianza</span
@@ -280,8 +330,6 @@ function limaMonth(value: Date) {
             <label>
               Rango inicial
               <select fpSelect [(ngModel)]="rangeDays" [disabled]="busy()">
-                <option [ngValue]="7">Últimos 7 días</option>
-                <option [ngValue]="30">Últimos 30 días</option>
                 <option [ngValue]="90">Últimos 90 días</option>
                 <option [ngValue]="180">Últimos 180 días</option>
                 <option [ngValue]="365">Último año</option>
@@ -332,6 +380,22 @@ export class GmailScreen implements OnInit {
   readonly message = signal('');
   readonly error = signal('');
   readonly disconnectArmed = signal(false);
+  readonly selectedIds = signal<Set<string>>(new Set());
+  readonly selectedCount = computed(() => {
+    const visible = new Set(this.candidates().map((candidate) => candidate.id));
+    return [...this.selectedIds()].filter((id) => visible.has(id)).length;
+  });
+  readonly selectedPendingCount = computed(
+    () =>
+      this.candidates().filter(
+        (candidate) => candidate.status === 'pending' && this.selectedIds().has(candidate.id),
+      ).length,
+  );
+  readonly allVisibleSelected = computed(
+    () =>
+      this.candidates().length > 0 &&
+      this.candidates().every((candidate) => this.selectedIds().has(candidate.id)),
+  );
   readonly readonlyScope = GMAIL_READONLY_SCOPE;
   readonly candidateTotals = computed(() => {
     let pen = 0n;
@@ -347,7 +411,7 @@ export class GmailScreen implements OnInit {
       usd: usd === 0n ? '' : this.money(usd),
     };
   });
-  rangeDays = 30;
+  rangeDays = 90;
   candidateView: CandidateView = 'pending';
 
   ngOnInit() {
@@ -426,6 +490,91 @@ export class GmailScreen implements OnInit {
     return `${candidate.currency === 'PEN' ? 'S/' : 'US$'} ${this.money(BigInt(candidate.amountMinor))}`;
   }
 
+  isSelected(id: string) {
+    return this.selectedIds().has(id);
+  }
+
+  toggleCandidate(id: string, checked: boolean) {
+    const next = new Set(this.selectedIds());
+    if (checked) next.add(id);
+    else next.delete(id);
+    this.selectedIds.set(next);
+  }
+
+  toggleAllVisible(checked: boolean) {
+    const next = new Set(this.selectedIds());
+    for (const candidate of this.candidates()) {
+      if (checked) next.add(candidate.id);
+      else next.delete(candidate.id);
+    }
+    this.selectedIds.set(next);
+  }
+
+  async reviewSelected(status: 'confirmed' | 'discarded') {
+    if (this.candidateBusy()) return;
+    const ids = this.candidates()
+      .filter((candidate) => candidate.status === 'pending' && this.selectedIds().has(candidate.id))
+      .map((candidate) => candidate.id);
+    if (ids.length === 0) return;
+    this.candidateBusy.set(true);
+    this.error.set('');
+    try {
+      await Promise.all(
+        ids.map((id) =>
+          this.auth.gmail(
+            `candidates/${id}/${status === 'confirmed' ? 'confirm' : 'discard'}`,
+            'POST',
+          ),
+        ),
+      );
+      this.selectedIds.set(new Set());
+      const value = await this.auth.gmail(`candidates?status=${this.candidateView}`, 'GET');
+      this.allCandidates.set(normalizeGmailCandidates(value));
+      this.message.set(
+        status === 'confirmed'
+          ? `${ids.length} hallazgo(s) confirmados.`
+          : `${ids.length} hallazgo(s) descartados.`,
+      );
+    } catch {
+      this.error.set(
+        'No se pudieron actualizar todos los elementos seleccionados. Recarga la bandeja.',
+      );
+    } finally {
+      this.candidateBusy.set(false);
+    }
+  }
+
+  downloadSelected() {
+    const rows = this.candidates().filter((candidate) => this.selectedIds().has(candidate.id));
+    if (rows.length === 0) return;
+    const cell = (value: unknown) => `"${String(value ?? '').replaceAll('"', '""')}"`;
+    const lines = [
+      ['tipo', 'estado', 'institucion', 'comercio', 'moneda', 'importe', 'fecha', 'resumen'],
+      ...rows.map((candidate) => [
+        this.kindLabel(candidate.kind),
+        this.statusLabel(candidate.status),
+        candidate.institution ?? '',
+        candidate.merchant ?? '',
+        candidate.currency ?? '',
+        candidate.amountMinor ? this.money(BigInt(candidate.amountMinor)) : '',
+        candidate.occurredAt,
+        candidate.summary,
+      ]),
+    ].map((row) => row.map(cell).join(','));
+    const blob = new Blob([String.fromCharCode(0xfeff) + lines.join(String.fromCharCode(10))], {
+      type: 'text/csv;charset=utf-8',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `gmail-finanzas-${this.candidateMonth()}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    this.message.set(`${rows.length} elemento(s) exportados a CSV.`);
+  }
+
   private money(value: bigint) {
     const whole = value / 100n;
     const cents = (value % 100n).toString().padStart(2, '0');
@@ -451,6 +600,7 @@ export class GmailScreen implements OnInit {
     try {
       const value = await this.auth.gmail(`candidates?status=${this.candidateView}`, 'GET');
       this.allCandidates.set(normalizeGmailCandidates(value));
+      this.selectedIds.set(new Set());
     } catch (error) {
       if (error instanceof SyncHttpError && error.status === 401) {
         this.error.set('Tu sesión terminó. Vuelve a iniciar sesión.');

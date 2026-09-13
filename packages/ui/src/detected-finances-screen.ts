@@ -232,6 +232,7 @@ export class DetectedFinancesScreen implements OnInit {
       )
         return false;
       if (monthKey(new Date(candidate.occurredAt)) !== this.month()) return false;
+      if (this.view() === 'cards' && this.isAccessLoan(candidate)) return false;
       if (this.view() === 'debts' && !candidate.institution) return false;
       return true;
     });
@@ -242,6 +243,7 @@ export class DetectedFinancesScreen implements OnInit {
       (item) =>
         item.status !== 'discarded' &&
         !!item.institution &&
+        !this.isAccessLoan(item) &&
         ['card_charge', 'card_statement', 'payment'].includes(item.kind),
     ),
   );
@@ -278,15 +280,30 @@ export class DetectedFinancesScreen implements OnInit {
     const grouped = new Map<string, { events: number; pending: number }>();
     for (const item of this.allCardRows()) {
       if (!item.institution) continue;
-      const current = grouped.get(item.institution) ?? { events: 0, pending: 0 };
+      const product = this.cardProductLabel(item);
+      const current = grouped.get(product) ?? { events: 0, pending: 0 };
       current.events++;
       if (item.status === 'pending') current.pending++;
-      grouped.set(item.institution, current);
+      grouped.set(product, current);
     }
     return [...grouped.entries()]
       .map(([name, value]) => ({ name, ...value }))
       .sort((a, b) => b.events - a.events || a.name.localeCompare(b.name));
   });
+
+  isAccessLoan(item: GmailFinancialCandidate) {
+    return item.institution === 'Interbank' && /(?:ibk\s+)?visa access/i.test(item.summary);
+  }
+
+  cardProductLabel(item: GmailFinancialCandidate) {
+    const institution = item.institution ?? 'Tarjeta';
+    const text = `${item.summary} ${item.merchant ?? ''}`;
+    if (/visa infinite sapphire|sapphire/i.test(text))
+      return `${institution} Visa Infinite Sapphire`;
+    if (/visa platinum/i.test(text)) return `${institution} Visa Platinum`;
+    if (/mastercard/i.test(text)) return `${institution} Mastercard`;
+    return institution;
+  }
 
   ngOnInit() {
     void this.load();
@@ -325,7 +342,7 @@ export class DetectedFinancesScreen implements OnInit {
     return this.view() === 'cards'
       ? 'Consumos, pagos y deuda de tarjeta encontrados en tu Gmail autorizado.'
       : this.view() === 'subscriptions'
-        ? 'Cobros recurrentes reales detectados por importe y proveedor, no promociones ni bajas.'
+        ? 'Cobros recurrentes reales detectados en una ventana mínima de 90 días, por importe y proveedor; no promociones ni bajas.'
         : 'Deuda de tarjeta detectada desde estados de cuenta, pagos totales, mínimos y cuotas con importe.';
   }
 
