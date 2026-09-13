@@ -7,6 +7,7 @@ export type GmailFinancialKind =
   | 'subscription'
   | 'debt'
   | 'payment'
+  | 'refund'
   | 'unknown';
 
 export type GmailCandidateStatus = 'pending' | 'confirmed' | 'discarded';
@@ -37,6 +38,7 @@ const KINDS = new Set<GmailFinancialKind>([
   'subscription',
   'debt',
   'payment',
+  'refund',
   'unknown',
 ]);
 const STATUSES = new Set<GmailCandidateStatus>(['pending', 'confirmed', 'discarded']);
