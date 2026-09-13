@@ -292,16 +292,16 @@ export class DetectedFinancesScreen implements OnInit {
   });
 
   isAccessLoan(item: GmailFinancialCandidate) {
-    return item.institution === 'Interbank' && /(?:ibk\s+)?visa access/i.test(item.summary);
+    return item.institution === 'Interbank' && /\b(?:ibk\s+)?visa access\b/i.test(item.summary);
   }
 
   cardProductLabel(item: GmailFinancialCandidate) {
     const institution = item.institution ?? 'Tarjeta';
     const text = `${item.summary} ${item.merchant ?? ''}`;
-    if (/visa infinite sapphire|sapphire/i.test(text))
+    if (/\bvisa infinite sapphire\b|\bsapphire\b/i.test(text))
       return `${institution} Visa Infinite Sapphire`;
-    if (/visa platinum/i.test(text)) return `${institution} Visa Platinum`;
-    if (/mastercard/i.test(text)) return `${institution} Mastercard`;
+    if (/\bvisa platinum\b/i.test(text)) return `${institution} Visa Platinum`;
+    if (/\bmastercard\b/i.test(text)) return `${institution} Mastercard`;
     return institution;
   }
 
