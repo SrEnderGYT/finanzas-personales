@@ -18,26 +18,35 @@ export const MOBILE_MODE = new InjectionToken<boolean>('MOBILE_MODE', { factory:
 
       @if (signedIn()) {
         <aside class="sidebar" aria-label="Navegación principal">
-          <a routerLink="/inicio" class="brand">
+          <a routerLink="/inicio" class="brand" aria-label="Ir a Inicio">
             <span class="brand-mark" aria-hidden="true">f<span>↗</span></span>
-            finanzas<span class="brand-dot">.</span>
+            <span class="brand-word">finanzas<span class="brand-dot">.</span></span>
           </a>
 
-          <span class="nav-caption">MIS FINANZAS</span>
+          <span class="nav-caption">TU ESPACIO FINANCIERO</span>
           <nav>
             @for (item of menu; track item.path) {
               <a [routerLink]="item.path" routerLinkActive="active">
-                <span aria-hidden="true">{{ item.icon }}</span
-                >{{ item.label }}
+                <span class="nav-icon" aria-hidden="true">{{ item.icon }}</span>
+                <span class="nav-copy">
+                  <strong>{{ item.label }}</strong>
+                  @if (item.hint) {
+                    <small>{{ item.hint }}</small>
+                  }
+                </span>
               </a>
             }
           </nav>
 
-          <div class="sidebar-note">
-            <span aria-hidden="true">◇</span>
-            <strong>Tu información, bajo control.</strong>
-            <p>Los datos financieros pertenecen únicamente a tu sesión.</p>
-          </div>
+          <section class="sidebar-note" aria-label="Protección de datos">
+            <div class="security-visual" aria-hidden="true">
+              <span class="shield-ring"></span>
+              <span class="shield-core">◇</span>
+            </div>
+            <strong>Blindaje de tus datos</strong>
+            <p>Cifrado local, controles de sesión y acceso únicamente dentro de tu espacio.</p>
+            <a routerLink="/configuracion" class="security-link">Gestionar seguridad</a>
+          </section>
 
           <a routerLink="/acceso" class="profile-mini">
             <span class="avatar">F</span>
@@ -45,6 +54,7 @@ export const MOBILE_MODE = new InjectionToken<boolean>('MOBILE_MODE', { factory:
               <strong>Mi cuenta</strong>
               <small>Sesión activa</small>
             </div>
+            <span class="profile-chevron" aria-hidden="true">›</span>
           </a>
         </aside>
       }
@@ -55,8 +65,10 @@ export const MOBILE_MODE = new InjectionToken<boolean>('MOBILE_MODE', { factory:
             <span class="topbar-brand">finanzas<span>.</span></span>
             <span class="breadcrumb">Mi espacio <span>/</span> Finanzas personales</span>
             <div class="topbar-actions">
-              <a routerLink="/acceso" class="auth-entry">Mi cuenta</a>
-              <fp-badge>Sesión activa</fp-badge>
+              <span class="session-copy">
+                <strong>Mi cuenta</strong>
+                <small>Sesión activa</small>
+              </span>
               <a class="avatar" routerLink="/configuracion" aria-label="Configuración">F</a>
             </div>
           </header>
@@ -66,25 +78,25 @@ export const MOBILE_MODE = new InjectionToken<boolean>('MOBILE_MODE', { factory:
 
         @if (signedIn()) {
           <footer class="app-footer">
-            <span>Finanzas personales · monedas separadas · espacio local cifrado</span>
+            <span>Finanzas personales · monedas separadas · datos protegidos por sesión</span>
           </footer>
         }
       </div>
 
       @if (signedIn()) {
         <nav class="bottom-nav" aria-label="Navegación móvil">
-          <a routerLink="/inicio" routerLinkActive="active"
-            ><span aria-hidden="true">⌂</span>Inicio</a
-          >
+          <a routerLink="/inicio" routerLinkActive="active">
+            <span aria-hidden="true">⌂</span>Inicio
+          </a>
           <a routerLink="/movimientos" routerLinkActive="active">
             <span aria-hidden="true">⇅</span>Movimientos
           </a>
           <a routerLink="/registro" class="add-tab" aria-label="Registrar movimiento">
             <span>+</span>
           </a>
-          <a routerLink="/gmail" routerLinkActive="active"
-            ><span aria-hidden="true">✉</span>Gmail</a
-          >
+          <a routerLink="/gmail" routerLinkActive="active">
+            <span aria-hidden="true">✉</span>Gmail
+          </a>
           <a routerLink="/configuracion" routerLinkActive="active">
             <span aria-hidden="true">○</span>Perfil
           </a>
@@ -99,8 +111,8 @@ export class Shell {
   readonly signedIn = signal(this.product.auth.signedIn);
   readonly menu = [
     { path: '/inicio', label: 'Inicio', icon: '⌂' },
-    { path: '/movimientos', label: 'Movimientos', icon: '⇅' },
-    { path: '/registro', label: 'Registrar movimiento', icon: '+' },
+    { path: '/movimientos', label: 'Movimientos', icon: '☷', hint: 'Registro financiero' },
+    { path: '/registro', label: 'Registrar movimiento', icon: '＋', hint: 'Gasto o ingreso' },
     { path: '/cuentas', label: 'Cuentas', icon: '▣' },
     { path: '/gmail', label: 'Gmail', icon: '✉' },
     { path: '/tarjetas', label: 'Tarjetas', icon: '▤' },
