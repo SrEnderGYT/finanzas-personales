@@ -18,10 +18,7 @@
             "index": "apps/web/src/index.html",
             "tsConfig": "apps/web/tsconfig.app.json",
             "outputPath": "dist/web",
-            "styles": [
-              "apps/web/src/styles.css",
-              "packages/ui/src/reference-design-v2.css"
-            ],
+            "styles": ["apps/web/src/styles.css", "packages/ui/src/reference-design-v2.css"],
             "assets": [
               {
                 "glob": "**/*",
@@ -70,10 +67,7 @@
             "index": "apps/mobile/src/index.html",
             "tsConfig": "apps/mobile/tsconfig.app.json",
             "outputPath": "dist/mobile",
-            "styles": [
-              "apps/mobile/src/styles.css",
-              "packages/ui/src/reference-design-v2.css"
-            ],
+            "styles": ["apps/mobile/src/styles.css", "packages/ui/src/reference-design-v2.css"],
             "assets": [
               {
                 "glob": "**/*",

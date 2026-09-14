@@ -84,8 +84,12 @@ body::before {
   width: var(--ref-sidebar-width) !important;
   padding: 18px 12px 14px !important;
   border-right: 1px solid rgba(115, 139, 175, 0.16) !important;
-  background:
-    linear-gradient(180deg, rgba(15, 31, 52, 0.99) 0%, rgba(8, 19, 33, 0.995) 50%, rgba(6, 15, 27, 1) 100%) !important;
+  background: linear-gradient(
+    180deg,
+    rgba(15, 31, 52, 0.99) 0%,
+    rgba(8, 19, 33, 0.995) 50%,
+    rgba(6, 15, 27, 1) 100%
+  ) !important;
   box-shadow: 16px 0 44px rgba(1, 7, 17, 0.18) !important;
 }
 
@@ -400,8 +404,7 @@ a:focus-visible {
 .empty-analytics {
   border: 1px solid var(--ref-stroke) !important;
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.016), transparent 44%),
-    rgba(13, 28, 48, 0.93) !important;
+    linear-gradient(145deg, rgba(255, 255, 255, 0.016), transparent 44%), rgba(13, 28, 48, 0.93) !important;
   box-shadow: var(--ref-shadow-soft) !important;
   backdrop-filter: blur(14px);
 }
