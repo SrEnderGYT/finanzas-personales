@@ -89,7 +89,7 @@ public class ManualOutboxTest {
     waitFor("!!document.querySelector('.manual-page')");
     click("Preparar perfil conectado");
     if (damaged != null) {
-      waitFor("document.querySelector('.manual-feedback').textContent.includes('No se completó')");
+      waitFor("document.querySelector('.manual-feedback').textContent.includes('No se pudo abrir el espacio cifrado')");
       assertEquals("0", js("document.querySelectorAll('[name=amount]').length"));
       byte[] header = new byte[16];
       try (FileInputStream input = new FileInputStream(damaged)) { assertEquals(16, input.read(header)); }
