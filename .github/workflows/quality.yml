@@ -9,7 +9,15 @@ on:
         type: choice
         default: full
         options:
-          [full, sync-server, correction-server, postgres-contract, correction-browser, android]
+          [
+            full,
+            sync-server,
+            correction-server,
+            postgres-contract,
+            correction-browser,
+            product-browser,
+            android,
+          ]
 permissions:
   contents: read
 jobs:
@@ -26,7 +34,7 @@ jobs:
           BASE_SHA: ${{ github.event.before || github.event.pull_request.base.sha }}
         run: node scripts/ci-native-changes.mjs
   quality:
-    if: github.event_name != 'workflow_dispatch' || (inputs.scope != 'android' && inputs.scope != 'correction-browser')
+    if: github.event_name != 'workflow_dispatch' || (inputs.scope != 'android' && inputs.scope != 'correction-browser' && inputs.scope != 'product-browser')
     name: Lint, tests y builds
     runs-on: ubuntu-latest
     steps:
@@ -66,7 +74,7 @@ jobs:
           path: dist/
   android:
     needs: changes
-    if: inputs.scope == 'android' || (inputs.scope != 'correction-browser' && inputs.scope != 'sync-server' && inputs.scope != 'correction-server' && inputs.scope != 'postgres-contract' && needs.changes.outputs.native == 'true')
+    if: inputs.scope == 'android' || (inputs.scope != 'correction-browser' && inputs.scope != 'product-browser' && inputs.scope != 'sync-server' && inputs.scope != 'correction-server' && inputs.scope != 'postgres-contract' && needs.changes.outputs.native == 'true')
     name: Android debug APK
     runs-on: ubuntu-latest
     steps:
@@ -108,7 +116,7 @@ jobs:
           retention-days: 14
   ios:
     needs: changes
-    if: inputs.scope != 'android' && inputs.scope != 'correction-browser' && inputs.scope != 'sync-server' && inputs.scope != 'correction-server' && inputs.scope != 'postgres-contract' && needs.changes.outputs.native == 'true'
+    if: inputs.scope != 'android' && inputs.scope != 'correction-browser' && inputs.scope != 'product-browser' && inputs.scope != 'sync-server' && inputs.scope != 'correction-server' && inputs.scope != 'postgres-contract' && needs.changes.outputs.native == 'true'
     name: iOS simulator sin firma
     runs-on: macos-latest
     steps:

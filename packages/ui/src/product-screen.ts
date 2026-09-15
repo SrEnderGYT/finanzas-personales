@@ -8,6 +8,7 @@ import { Money, type ManualPayload, type MovementVersion } from '../../domain/sr
 import { CorrectionEditor } from './correction-editor';
 import { movementVersion } from '../../shared/src/sync-engine';
 import { CatalogCreator } from './catalog-creator';
+import { DeviceAccess } from './device-access';
 import {
   filterProductMovements,
   formatMinorExact,
@@ -26,6 +27,7 @@ import { automaticCategory, isDashboardGmailMovement } from '../../shared/src/gm
     Screen,
     CorrectionEditor,
     CatalogCreator,
+    DeviceAccess,
     FinanceDashboard,
     ...UI_PRIMITIVES,
   ],
@@ -222,8 +224,12 @@ import { automaticCategory, isDashboardGmailMovement } from '../../shared/src/gm
                       {{ row.failure }}. El registro se conserva y no se reintenta automáticamente.
                     </p>
                   }
-                  @if (movementHead(row.id); as head) {
-                    <fp-correction-editor [movement]="head" />
+                  @if (workspace.localReady()) {
+                    @if (movementHead(row.id); as head) {
+                      <fp-correction-editor [movement]="head" />
+                    }
+                  } @else {
+                    <a routerLink="/dispositivo">Desbloquear para corregir</a>
                   }
                 </div>
                 <span class="pending-badge">{{ status(row.state) }}</span>
@@ -259,8 +265,10 @@ import { automaticCategory, isDashboardGmailMovement } from '../../shared/src/gm
             }
           </section>
         } @else if (view() === 'cuentas') {
-          @if (workspace.unlocked()) {
+          @if (workspace.localReady()) {
             <fp-catalog-creator />
+          } @else {
+            <fp-device-access />
           }
           <section class="manual-card">
             <h2>Tus cuentas</h2>
@@ -365,6 +373,7 @@ import { automaticCategory, isDashboardGmailMovement } from '../../shared/src/gm
             }
           </section>
         } @else if (view() === 'configuracion') {
+          <fp-device-access />
           <section class="manual-card">
             <h2>Tu acceso</h2>
             <a routerLink="/acceso">Administrar sesión</a>

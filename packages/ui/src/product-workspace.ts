@@ -31,6 +31,13 @@ export class ProductWorkspace {
   readonly gmailConfirmed = signal<GmailFinancialCandidate[]>([]);
   readonly remoteOwner = signal('');
   readonly remoteLoading = signal(false);
+  localReady() {
+    return (
+      this.unlocked() &&
+      this.session?.vault.profile.mode === 'product' &&
+      this.session.vault.unlocked
+    );
+  }
   private correctionAbort: AbortController | undefined;
   session: ManualSession | undefined;
   epoch = 0;
@@ -80,6 +87,11 @@ export class ProductWorkspace {
     this.error.set('');
   }
   async openRemote() {
+    if (this.localReady()) {
+      await this.refresh();
+      await this.syncNow();
+      return;
+    }
     if (!this.auth.signedIn || this.remoteLoading()) return;
     this.remoteLoading.set(true);
     this.state.set('syncing');
@@ -189,6 +201,17 @@ export class ProductWorkspace {
       this.state.set(navigator.onLine ? state : 'offline');
       await this.refresh();
       if (epoch !== this.epoch) return;
+      if (state === 'idle' && this.auth.canUseOwner(session.vault.profile.ownerId)) {
+        try {
+          const gmail = normalizeGmailCandidates(
+            await this.auth.gmail('candidates?status=confirmed', 'GET'),
+          );
+          if (epoch === this.epoch) this.gmailConfirmed.set(gmail);
+        } catch {
+          // Gmail remains optional and does not change the durable manual receipt.
+        }
+        if (epoch !== this.epoch) return;
+      }
       if (state === 'session_required') {
         this.auth.expireSession();
         return;

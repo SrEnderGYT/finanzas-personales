@@ -1,4 +1,4 @@
-import { Component, DestroyRef, InjectionToken, inject, signal } from '@angular/core';
+import { Component, DestroyRef, InjectionToken, inject, signal, computed } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { ProductWorkspace } from './product-workspace';
 import { UI_PRIMITIVES } from './primitives';
@@ -108,7 +108,8 @@ export const MOBILE_MODE = new InjectionToken<boolean>('MOBILE_MODE', { factory:
 export class Shell {
   readonly mobile = inject(MOBILE_MODE);
   readonly product = inject(ProductWorkspace);
-  readonly signedIn = signal(this.product.auth.signedIn);
+  private readonly serverSignedIn = signal(this.product.auth.signedIn);
+  readonly signedIn = computed(() => this.serverSignedIn() || this.product.localReady());
   readonly menu = [
     { path: '/inicio', label: 'Inicio', icon: '⌂' },
     { path: '/movimientos', label: 'Movimientos', icon: '☷', hint: 'Registro financiero' },
@@ -125,7 +126,7 @@ export class Shell {
 
   constructor() {
     const unsubscribe = this.product.auth.onSessionChange(() =>
-      this.signedIn.set(this.product.auth.signedIn),
+      this.serverSignedIn.set(this.product.auth.signedIn),
     );
     inject(DestroyRef).onDestroy(unsubscribe);
   }

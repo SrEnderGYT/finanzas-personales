@@ -1,9 +1,10 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, signal, effect } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AUTH_CLIENT } from './auth-provider';
 import { ProductWorkspace } from './product-workspace';
 import { UI_PRIMITIVES } from './primitives';
+import { DeviceAccess } from './device-access';
 import {
   Money,
   financialDate,
@@ -11,13 +12,13 @@ import {
   manualAmount,
   normalizeManual,
   validateManualReferences,
-  type CatalogEnvelope,
-  type ManualCatalog,
+  canonical,
+  type ManualCommand,
 } from '../../domain/src';
 
 @Component({
   selector: 'fp-manual-screen',
-  imports: [FormsModule, RouterLink, ...UI_PRIMITIVES],
+  imports: [FormsModule, RouterLink, DeviceAccess, ...UI_PRIMITIVES],
   styleUrl: './manual-screen.css',
   template: `
     <section class="manual-page">
@@ -26,14 +27,16 @@ import {
           <p class="eyebrow">REGISTRAR MOVIMIENTO</p>
           <h1>Registrar movimiento</h1>
           <p>
-            Agrega un gasto o ingreso directamente a tu cuenta. No necesitas desbloquear otra
-            bóveda.
+            Registra un gasto o ingreso. Se conserva cifrado antes de enviarlo y solo se confirma
+            cuando el servidor devuelve su recibo.
           </p>
         </div>
         <a routerLink="/movimientos">Volver a movimientos</a>
       </header>
 
-      @if (busy() && !catalog()) {
+      @if (!workspace.localReady()) {
+        <fp-device-access />
+      } @else if (busy() && !catalog()) {
         <section class="manual-card product-empty-state" role="status">
           <h2>Preparando tus cuentas y categorías…</h2>
           <p>Usamos tu sesión activa para cargar el catálogo financiero.</p>
@@ -135,26 +138,41 @@ import {
             type="submit"
             [disabled]="busy() || !activeAccounts().length || !compatibleCategories().length"
           >
-            Guardar movimiento
+            Guardar pendiente
           </button>
           <p class="zone-note">
-            Se registra en tu cuenta autenticada y aparece en Movimientos al confirmarse el
-            servidor.
+            Fecha financiera obligatoria · America/Lima. Sin conexión permanece pendiente en este
+            dispositivo; los pendientes no alteran los saldos confirmados.
           </p>
         </form>
       }
       <p class="manual-feedback" role="status" aria-live="polite">{{ message() }}</p>
+      @if (workspace.localReady()) {
+        <section class="manual-card" aria-label="Registros guardados en este dispositivo">
+          @for (row of workspace.rows(); track row.command.operationId) {
+            <article class="pending-row">
+              <strong>{{ row.command.payload.kind === 'expense' ? 'Gasto' : 'Ingreso' }}</strong>
+              <span
+                >{{ row.command.payload.businessDate }} · {{ row.command.payload.timezone }}</span
+              >
+              <span>{{
+                row.state === 'confirmed' ? 'Confirmado' : 'Pendiente de confirmación'
+              }}</span>
+            </article>
+          }
+        </section>
+      }
     </section>
   `,
 })
-export class ManualScreen implements OnInit {
+export class ManualScreen {
   readonly auth = inject(AUTH_CLIENT);
   readonly workspace = inject(ProductWorkspace);
-  readonly catalog = signal<ManualCatalog | undefined>(undefined);
+  readonly catalog = this.workspace.catalog;
   readonly busy = signal(false);
   readonly message = signal('');
   readonly errors = signal<Record<string, string>>({});
-  ownerId = '';
+  private intent: ManualCommand | undefined;
   kind: 'expense' | 'income' = 'expense';
   accountId = '';
   categoryId = '';
@@ -162,8 +180,18 @@ export class ManualScreen implements OnInit {
   businessDate = localDate(new Date(), 'America/Lima');
   note = '';
 
-  ngOnInit() {
-    void this.load();
+  constructor() {
+    effect(() => {
+      if (!this.workspace.localReady()) {
+        this.intent = undefined;
+        this.amount = '';
+        this.note = '';
+        this.accountId = '';
+        this.categoryId = '';
+        this.errors.set({});
+        this.message.set('');
+      }
+    });
   }
 
   activeAccounts() {
@@ -186,104 +214,11 @@ export class ManualScreen implements OnInit {
     this.categoryId = '';
   }
 
-  private envelope(command: CatalogEnvelope['command']): CatalogEnvelope {
-    return {
-      operationId: crypto.randomUUID(),
-      deviceId: crypto.randomUUID(),
-      schemaVersion: 1,
-      baseVersion: '0',
-      command,
-    };
-  }
-
-  private async ensureDefaults(loaded: { ownerId: string; catalog: ManualCatalog }) {
-    const signal = AbortSignal.timeout(15000);
-    if (!loaded.catalog.accounts.length) {
-      await this.auth.createCatalog(
-        loaded.ownerId,
-        this.envelope({
-          type: 'account.create',
-          id: crypto.randomUUID(),
-          payload: {
-            name: 'Principal PEN',
-            type: 'other',
-            currency: 'PEN',
-            state: 'active',
-            position: 0,
-          },
-        }),
-        signal,
-      );
-      await this.auth.createCatalog(
-        loaded.ownerId,
-        this.envelope({
-          type: 'account.create',
-          id: crypto.randomUUID(),
-          payload: {
-            name: 'Principal USD',
-            type: 'other',
-            currency: 'USD',
-            state: 'active',
-            position: 1,
-          },
-        }),
-        signal,
-      );
-    }
-    if (!loaded.catalog.categories.length) {
-      const defaults = [
-        ['Alimentación', 'expense'],
-        ['Transporte', 'expense'],
-        ['Servicios', 'expense'],
-        ['Compras', 'expense'],
-        ['Otros gastos', 'expense'],
-        ['Ingresos', 'income'],
-      ] as const;
-      for (const [name, kind] of defaults)
-        await this.auth.createCatalog(
-          loaded.ownerId,
-          this.envelope({
-            type: 'category.create',
-            id: crypto.randomUUID(),
-            payload: {
-              name,
-              kind,
-              state: 'active',
-              position: defaults.findIndex((x) => x[0] === name),
-            },
-          }),
-          signal,
-        );
-    }
-  }
-
-  async load() {
-    if (!this.auth.signedIn || this.busy()) return;
-    this.busy.set(true);
-    this.message.set('');
-    try {
-      let loaded = await this.auth.manualCatalog();
-      if (!loaded.catalog.accounts.length || !loaded.catalog.categories.length) {
-        await this.ensureDefaults(loaded);
-        loaded = await this.auth.manualCatalog();
-      }
-      this.ownerId = loaded.ownerId;
-      this.catalog.set(loaded.catalog);
-      this.workspace.catalog.set(loaded.catalog);
-      this.workspace.remoteOwner.set(loaded.ownerId);
-      this.workspace.unlocked.set(true);
-      if (!this.accountId) this.accountId = this.activeAccounts()[0]?.id ?? '';
-      this.message.set('Cuentas y categorías listas.');
-    } catch {
-      this.message.set('No pudimos cargar tus cuentas y categorías. Reintenta en unos segundos.');
-    } finally {
-      this.busy.set(false);
-    }
-  }
-
   async save() {
     const catalog = this.catalog();
-    if (this.busy() || !catalog || !this.ownerId) return;
+    const session = this.workspace.session,
+      epoch = this.workspace.epoch;
+    if (this.busy() || !catalog || !session || !this.workspace.localReady()) return;
     const errors: Record<string, string> = {};
     if (!this.accountId) errors['account'] = 'Elige una cuenta.';
     if (!this.categoryId) errors['category'] = 'Elige una categoría.';
@@ -309,9 +244,9 @@ export class ManualScreen implements OnInit {
     try {
       const command = normalizeManual(
         {
-          operationId: crypto.randomUUID(),
-          movementId: crypto.randomUUID(),
-          deviceId: crypto.randomUUID(),
+          operationId: this.intent?.operationId ?? crypto.randomUUID(),
+          movementId: this.intent?.movementId ?? crypto.randomUUID(),
+          deviceId: this.intent?.deviceId ?? crypto.randomUUID(),
           schemaVersion: 1,
           baseVersion: '0',
           payload: {
@@ -327,16 +262,27 @@ export class ManualScreen implements OnInit {
         { now: () => new Date() },
       );
       validateManualReferences(command, catalog);
+      if (this.intent && canonical(this.intent) !== canonical(command)) {
+        this.message.set(
+          'Conserva los datos del intento anterior al reintentar. Su identificador no cambia.',
+        );
+        return;
+      }
+      this.intent = command;
       this.busy.set(true);
-      await this.auth.syncApi(this.ownerId).send(command, AbortSignal.timeout(15000));
+      await session.outbox.enqueue(command, catalog);
+      if (epoch !== this.workspace.epoch) return;
+      this.intent = undefined;
       this.amount = '';
       this.note = '';
-      this.message.set('Movimiento guardado y confirmado.');
-      await this.workspace.openRemote();
+      this.message.set('Guardado en este dispositivo. Pendiente de envío.');
+      await this.workspace.refresh();
+      if (epoch === this.workspace.epoch) void this.workspace.syncNow();
     } catch {
-      this.message.set(
-        'No pudimos guardar el movimiento. Revisa los datos o tu conexión e inténtalo nuevamente.',
-      );
+      if (epoch === this.workspace.epoch)
+        this.message.set(
+          'No pudimos comprobar el guardado local. Conserva los datos y reintenta; no se enviará un duplicado.',
+        );
     } finally {
       this.busy.set(false);
     }

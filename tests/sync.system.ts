@@ -62,7 +62,10 @@ test('real product: offline expense, lost commit response, one journal, encrypte
     });
     expect(result.status()).toBe(201);
   }
-  await page.locator('.sidebar').getByRole('link', { name: 'Registrar movimiento' }).click();
+  await page
+    .locator('.sidebar')
+    .getByRole('link', { name: /Registrar movimiento/ })
+    .click();
   await page.getByRole('button', { name: 'Preparar perfil conectado' }).click();
   await page.getByLabel('Frase local').fill('Synthetic browser vault phrase');
   await page.getByRole('button', { name: 'Crear espacio cifrado' }).click();
@@ -77,7 +80,10 @@ test('real product: offline expense, lost commit response, one journal, encrypte
   await page.locator('textarea[name=note]').fill('Registro sintético offline');
   await page.getByRole('button', { name: 'Guardar pendiente', exact: true }).click();
   await expect(page.locator('.pending-row')).toHaveCount(1);
-  await page.locator('.sidebar').getByRole('link', { name: 'Movimientos', exact: true }).click();
+  await page
+    .locator('.sidebar')
+    .getByRole('link', { name: /^Movimientos/ })
+    .click();
   await expect(page.locator('[data-state=pending]')).toHaveCount(1);
   let sent = 0,
     recovered = false;
@@ -125,14 +131,18 @@ test('real product: offline expense, lost commit response, one journal, encrypte
   }
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.unrouteAll({ behavior: 'wait' });
-  await page.reload(); // No token is persisted; local unlock does not revive server authentication.
-  await page.locator('.sidebar').getByRole('link', { name: 'Registrar movimiento' }).click();
+  await page.reload(); // Local unlock must not restore server authentication.
+  await page.getByRole('link', { name: 'Abrir espacio local sin conexión' }).click();
   await page.getByRole('button', { name: /Perfil local/ }).click();
   await page.getByLabel('Frase local').fill('Synthetic browser vault phrase');
   await context.setOffline(true);
   await page.getByRole('button', { name: 'Desbloquear', exact: true }).click();
+  await page.getByRole('link', { name: 'Registrar movimiento', exact: true }).last().click();
   await expect(page.locator('.pending-row')).toHaveCount(1);
-  await page.locator('.sidebar').getByRole('link', { name: 'Movimientos', exact: true }).click();
+  await page
+    .locator('.sidebar')
+    .getByRole('link', { name: /^Movimientos/ })
+    .click();
   await expect(page.locator('[data-state=confirmed]')).toHaveCount(1);
   await expect(page.getByText('2026-01-01 · America/Lima', { exact: true })).toBeVisible();
   await context.setOffline(false);
