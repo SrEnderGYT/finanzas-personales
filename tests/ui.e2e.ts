@@ -1,4 +1,7 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, chromium } from '@playwright/test';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import AxeBuilder from '@axe-core/playwright';
 
 test('mobile boots into login without a configured native API', async ({ page }) => {
@@ -64,24 +67,43 @@ test('login-first surface is responsive and WCAG AA in both themes', async ({ pa
   }
 });
 
-test('public web does not keep the legacy Angular service worker or finance caches', async ({
-  page,
-}) => {
-  await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Un lugar para tenerlo claro.' })).toBeVisible();
-  await expect
-    .poll(async () =>
-      page.evaluate(async () => {
-        if (!('serviceWorker' in navigator)) return [];
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        return registrations.map((registration) => registration.scope);
-      }),
-    )
-    .toEqual([]);
-  expect(
+test('PWA reopens offline into login without caching financial API responses', async () => {
+  const profile = await mkdtemp(join(tmpdir(), 'finanzas-pwa-'));
+  let browser = await chromium.launchPersistentContext(profile);
+  try {
+    const page = await browser.newPage();
+    await page.goto('http://127.0.0.1:4173/');
+    await page.evaluate(() => navigator.serviceWorker.ready);
+    await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
+    await expect
+      .poll(() =>
+        page.evaluate(async () => !!(await caches.match(location.origin + '/index.html'))),
+      )
+      .toBe(true);
     await page.evaluate(async () => {
-      if (!('caches' in window)) return [];
-      return caches.keys();
-    }),
-  ).toEqual([]);
+      await fetch('/v1/me');
+    });
+    const cachedUrls = await page.evaluate(async () => {
+      const urls: string[] = [];
+      for (const name of await caches.keys()) {
+        for (const request of await (await caches.open(name)).keys()) urls.push(request.url);
+      }
+      return urls;
+    });
+    expect(cachedUrls.some((url) => url.includes('/v1/'))).toBe(false);
+    await browser.close();
+    browser = await chromium.launchPersistentContext(profile, { offline: true });
+    const reopened = await browser.newPage();
+    await reopened.goto('http://127.0.0.1:4173/');
+    await expect(reopened.getByRole('heading', { name: 'Bienvenido de nuevo' })).toBeVisible();
+    await expect(reopened.locator('.sidebar')).toHaveCount(0);
+    await expect(reopened.getByText(/DEMO/i)).toHaveCount(0);
+    await reopened.getByRole('link', { name: 'Abrir espacio local sin conexión' }).click();
+    await expect(
+      reopened.getByRole('heading', { name: 'Tu espacio en este dispositivo' }),
+    ).toBeVisible();
+  } finally {
+    await browser.close();
+    await rm(profile, { recursive: true, force: true });
+  }
 });

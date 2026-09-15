@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import process from 'node:process';
 import { readFile, writeFile } from 'node:fs/promises';
+import { updateShellHash } from './update-shell-hash.mjs';
 
 for (const args of [
   ['node_modules/@angular/cli/bin/ng.js', 'build', 'web'],
@@ -21,4 +22,5 @@ const index = original.replace(
   'name="finanzas-auth" content="same-origin"',
 );
 await writeFile(path + 'index.html', index);
+await updateShellHash('dist/web/browser', index);
 process.stdout.write('Authenticated staging build ready; no credentials included in assets.\n');

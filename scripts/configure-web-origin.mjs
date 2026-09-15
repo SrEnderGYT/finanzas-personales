@@ -1,7 +1,7 @@
-import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import process from 'node:process';
 import { URL } from 'node:url';
+import { updateShellHash } from './update-shell-hash.mjs';
 
 const origin = process.env['FINANZAS_API_ORIGIN']?.trim();
 if (!origin) {
@@ -40,14 +40,5 @@ let index = setMetaContent(original, 'finanzas-auth', 'remote');
 index = setMetaContent(index, 'finanzas-api-origin', parsed.origin);
 await writeFile(indexPath, index);
 
-try {
-  const swPath = 'dist/web/browser/ngsw.json';
-  const sw = JSON.parse(await readFile(swPath, 'utf8'));
-  if (sw.hashTable?.['/index.html']) {
-    sw.hashTable['/index.html'] = createHash('sha1').update(index).digest('hex');
-    await writeFile(swPath, JSON.stringify(sw));
-  }
-} catch (error) {
-  if (error?.code !== 'ENOENT') throw error;
-}
+await updateShellHash('dist/web/browser', index);
 process.stdout.write(`Web client configured for ${parsed.origin}.\n`);

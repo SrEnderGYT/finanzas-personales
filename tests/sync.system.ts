@@ -139,6 +139,9 @@ test('real product: offline expense, lost commit response, one journal, encrypte
   await page.getByRole('button', { name: 'Desbloquear', exact: true }).click();
   await page.getByRole('link', { name: 'Registrar movimiento', exact: true }).last().click();
   await expect(page.locator('.pending-row')).toHaveCount(1);
+  await expect(page.locator('.session-copy')).toContainText(
+    'Acceso local · sin sesión del servidor',
+  );
   await page
     .locator('.sidebar')
     .getByRole('link', { name: /^Movimientos/ })

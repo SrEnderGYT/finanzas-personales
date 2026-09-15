@@ -52,7 +52,7 @@ export const MOBILE_MODE = new InjectionToken<boolean>('MOBILE_MODE', { factory:
             <span class="avatar">F</span>
             <div>
               <strong>Mi cuenta</strong>
-              <small>Sesión activa</small>
+              <small>{{ sessionLabel() }}</small>
             </div>
             <span class="profile-chevron" aria-hidden="true">›</span>
           </a>
@@ -67,7 +67,7 @@ export const MOBILE_MODE = new InjectionToken<boolean>('MOBILE_MODE', { factory:
             <div class="topbar-actions">
               <span class="session-copy">
                 <strong>Mi cuenta</strong>
-                <small>Sesión activa</small>
+                <small>{{ sessionLabel() }}</small>
               </span>
               <a class="avatar" routerLink="/configuracion" aria-label="Configuración">F</a>
             </div>
@@ -110,6 +110,9 @@ export class Shell {
   readonly product = inject(ProductWorkspace);
   private readonly serverSignedIn = signal(this.product.auth.signedIn);
   readonly signedIn = computed(() => this.serverSignedIn() || this.product.localReady());
+  readonly sessionLabel = computed(() =>
+    this.serverSignedIn() ? 'Sesión activa' : 'Acceso local · sin sesión del servidor',
+  );
   readonly menu = [
     { path: '/inicio', label: 'Inicio', icon: '⌂' },
     { path: '/movimientos', label: 'Movimientos', icon: '☷', hint: 'Registro financiero' },
