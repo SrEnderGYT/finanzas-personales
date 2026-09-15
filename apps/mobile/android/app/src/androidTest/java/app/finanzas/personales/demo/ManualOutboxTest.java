@@ -120,7 +120,7 @@ public class ManualOutboxTest {
     assertTrue(text.contains("PEN 0.10"));
     assertTrue(text.contains("2026-01-01"));
     assertTrue(text.contains("America/Lima"));
-    assertTrue(text.contains("Pendiente de confirmación"));
+    assertTrue(text.contains("Pendiente de confirmaci\u00f3n"));
     boolean checked = false;
     for (String name : instrumentation.getTargetContext().databaseList()) {
       if (!name.startsWith("finanzas_manual_") || !name.endsWith(".db")) continue;
