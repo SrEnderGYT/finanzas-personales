@@ -1,6 +1,18 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
+test('mobile boots into login without a configured native API', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('http://127.0.0.1:4174/');
+  await expect(page.locator('fp-shell')).toHaveCount(1);
+  await expect(page).toHaveURL(/#\/acceso$/);
+  await expect(page.getByRole('heading', { name: 'Bienvenido de nuevo' })).toBeVisible();
+  await expect(page.getByLabel('Correo electrónico')).toBeDisabled();
+  await expect(page.locator('.sidebar')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test('root is login-first and exposes no synthetic financial workspace', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto('/');

@@ -2,7 +2,7 @@ import { Component, isDevMode } from '@angular/core';
 import { bootstrapApplication } from '@angular/platform-browser';
 import { provideRouter, withHashLocation, withComponentInputBinding } from '@angular/router';
 import { provideServiceWorker } from '@angular/service-worker';
-import { Shell, APP_ROUTES, MOBILE_MODE } from '@finanzas/ui';
+import { Shell, APP_ROUTES, MOBILE_MODE, AUTH_CLIENT, browserAuthClient } from '@finanzas/ui';
 import { provideIonicAngular, IonApp } from '@ionic/angular';
 import { nativeAuthConfig } from './native-auth.config';
 import { nativeAuthProviders } from './native-auth.providers';
@@ -17,6 +17,7 @@ class App {}
 bootstrapApplication(App, {
   providers: [
     provideIonicAngular(),
+    { provide: AUTH_CLIENT, useFactory: browserAuthClient },
     ...nativeAuthProviders(nativeAuthConfig),
     { provide: MOBILE_MODE, useValue: true },
     provideRouter(APP_ROUTES, withHashLocation(), withComponentInputBinding()),
