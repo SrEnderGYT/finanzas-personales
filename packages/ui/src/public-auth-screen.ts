@@ -89,8 +89,8 @@ import { UI_PRIMITIVES } from './primitives';
             </button>
 
             <p id="public-login-note" class="login-note">
-              La publicación pública no procesa credenciales. El formulario real se activa cuando
-              el backend privado está conectado.
+              La publicación pública no procesa credenciales. El formulario real se activa cuando el
+              backend privado está conectado.
             </p>
 
             <a fpButton class="explore-button" routerLink="/inicio">Explorar Mis finanzas</a>

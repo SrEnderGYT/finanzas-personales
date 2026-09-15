@@ -10,6 +10,7 @@ import { migrate } from './migrate.mjs';
 import { stagingConfig } from './staging-config.mjs';
 const load = createRequire(import.meta.url);
 const mode = process.env.STAGING_MODE;
+let bootstrapStage = 'not-started';
 const port = Number(process.env.PORT ?? 10000);
 const header = {
   'Cache-Control': 'no-store',
@@ -17,6 +18,7 @@ const header = {
   'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'",
 };
 async function bootstrap(config) {
+  bootstrapStage = 'admin-config';
   if (!process.env.STAGING_ADMIN_URL)
     throw new Error('Bootstrap requires private administrator configuration');
   const url = new URL(process.env.STAGING_ADMIN_URL);
@@ -25,9 +27,12 @@ async function bootstrap(config) {
     url.pathname !== '/' + process.env.STAGING_DATABASE_NAME
   )
     throw new Error('Bootstrap database mismatch');
+  bootstrapStage = 'admin-connect';
   const admin = new pg.Pool({ connectionString: url.href, max: 1, connectionTimeoutMillis: 5000 });
   try {
+    bootstrapStage = 'migrate';
     await migrate(admin);
+    bootstrapStage = 'roles';
     for (const { role, group, password } of config.roles) {
       const exists = await admin.query('SELECT 1 FROM pg_roles WHERE rolname=$1', [role]);
       // Role names are constants and generated passwords are hexadecimal. Never
@@ -40,6 +45,7 @@ async function bootstrap(config) {
   } finally {
     await admin.end();
   }
+  bootstrapStage = 'runtime-check';
   const { UserDatabase } = load('../dist/api/database.js');
   const { EmailAuth } = load('../dist/api/email-auth.js');
   const { EmailOutbox } = load('../dist/api/email-outbox.js');
@@ -50,6 +56,7 @@ async function bootstrap(config) {
     const outbox = new EmailOutbox(Buffer.from(config.runtime.AUTH_MAIL_KEY, 'base64'));
     const auth = new EmailAuth(authPool, outbox);
     await auth.assertRole();
+    bootstrapStage = 'reviewer';
     const email = 'reviewer@example.test';
     const existing = (
       await authPool.query('SELECT verified FROM app.credentials WHERE email=$1', [email])
@@ -72,6 +79,7 @@ async function bootstrap(config) {
     await runtime.end();
     await authPool.end();
   }
+  bootstrapStage = 'ready';
   // No financial API runs while administrator/bootstrap credentials are present.
   createServer((_req, res) =>
     res.writeHead(200, { ...header, 'Content-Type': 'application/json' }).end(
@@ -184,8 +192,10 @@ try {
   const migration = /^\d{3}_[a-z_]+\.sql$/.test(error?.migrationName ?? '')
     ? error.migrationName
     : undefined;
+  const stage =
+    mode === 'bootstrap' && /^[a-z-]+$/.test(bootstrapStage) ? bootstrapStage : undefined;
   process.stderr.write(
-    JSON.stringify({ status: 'staging-start-failed', sqlState, migration }) + '\n',
+    JSON.stringify({ status: 'staging-start-failed', sqlState, migration, stage }) + '\n',
   );
   process.exitCode = 1;
 }

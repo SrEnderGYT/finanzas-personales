@@ -8,6 +8,7 @@ import { Money, type ManualPayload, type MovementVersion } from '../../domain/sr
 import { CorrectionEditor } from './correction-editor';
 import { movementVersion } from '../../shared/src/sync-engine';
 import { CatalogCreator } from './catalog-creator';
+import { DeviceAccess } from './device-access';
 import {
   filterProductMovements,
   formatMinorExact,
@@ -15,10 +16,21 @@ import {
   type ProductMovementFilters,
   type ProductMovementItem,
 } from './product-insights';
+import { FinanceDashboard } from './finance-dashboard';
+import { automaticCategory, isDashboardGmailMovement } from '../../shared/src/gmail-semantics';
 
 @Component({
   selector: 'fp-product-screen',
-  imports: [FormsModule, RouterLink, Screen, CorrectionEditor, CatalogCreator, ...UI_PRIMITIVES],
+  imports: [
+    FormsModule,
+    RouterLink,
+    Screen,
+    CorrectionEditor,
+    CatalogCreator,
+    DeviceAccess,
+    FinanceDashboard,
+    ...UI_PRIMITIVES,
+  ],
   styleUrl: './manual-screen.css',
   template: `
     @if (!workspace.product()) {
@@ -37,12 +49,9 @@ import {
         @if (view() === 'inicio') {
           @if (!workspace.unlocked()) {
             <section class="manual-card product-empty-state">
-              <h2>Abre tu espacio cifrado</h2>
-              <p>
-                Inicia sesión y desbloquea tu perfil local para ver información confirmada y
-                pendientes de este dispositivo.
-              </p>
-              <a routerLink="/registro">Abrir espacio cifrado</a>
+              <h2>Cargando tus finanzas…</h2>
+              <p>Estamos consultando tus movimientos, cuentas y confirmaciones de Gmail.</p>
+              <button fpButton type="button" (click)="workspace.openRemote()">Reintentar</button>
             </section>
           } @else {
             <section class="product-status-grid" aria-label="Estado de tus movimientos">
@@ -66,51 +75,7 @@ import {
               </article>
             </section>
 
-            @if (summary().currencies.length) {
-              <div class="product-currency-grid">
-                @for (currency of summary().currencies; track currency.currency) {
-                  <section
-                    class="manual-card currency-summary"
-                    [attr.aria-label]="currency.currency"
-                  >
-                    <header>
-                      <div>
-                        <p class="eyebrow">{{ currency.currency }}</p>
-                        <h2>Movimientos confirmados</h2>
-                      </div>
-                      <span>{{ currency.confirmedCount }} operación(es)</span>
-                    </header>
-                    <dl class="money-summary">
-                      <div>
-                        <dt>Ingresos</dt>
-                        <dd>{{ exact(currency.currency, currency.incomeMinor) }}</dd>
-                      </div>
-                      <div>
-                        <dt>Gastos</dt>
-                        <dd>{{ exact(currency.currency, currency.expenseMinor) }}</dd>
-                      </div>
-                      <div>
-                        <dt>Balance registrado</dt>
-                        <dd>{{ exact(currency.currency, currency.balanceMinor) }}</dd>
-                      </div>
-                    </dl>
-                    <p class="zone-note">
-                      Este balance resume movimientos confirmados. No representa el saldo bancario
-                      de tus cuentas.
-                    </p>
-                  </section>
-                }
-              </div>
-            } @else {
-              <section class="manual-card product-empty-state">
-                <h2>Aún no hay movimientos confirmados</h2>
-                <p>
-                  No mostramos cero como si fuera un saldo confirmado. Registra un movimiento y
-                  espera su confirmación para ver el resumen.
-                </p>
-                <a routerLink="/registro">Registrar movimiento</a>
-              </section>
-            }
+            <fp-finance-dashboard [rows]="movementItems()" />
 
             <section class="manual-card">
               <header class="product-section-heading">
@@ -259,8 +224,12 @@ import {
                       {{ row.failure }}. El registro se conserva y no se reintenta automáticamente.
                     </p>
                   }
-                  @if (movementHead(row.id); as head) {
-                    <fp-correction-editor [movement]="head" />
+                  @if (workspace.localReady()) {
+                    @if (movementHead(row.id); as head) {
+                      <fp-correction-editor [movement]="head" />
+                    }
+                  } @else {
+                    <a routerLink="/dispositivo">Desbloquear para corregir</a>
                   }
                 </div>
                 <span class="pending-badge">{{ status(row.state) }}</span>
@@ -274,7 +243,7 @@ import {
                       : movementItems().length
                         ? 'No hay movimientos con estos filtros'
                         : 'Aún no hay movimientos'
-                    : 'Abre tu espacio cifrado'
+                    : 'Cargando movimientos'
                 }}
               </h2>
               <p>
@@ -283,27 +252,29 @@ import {
                     ? movementItems().length
                       ? 'Ajusta o limpia los filtros para volver a ver tu actividad.'
                       : 'Registra tu primer gasto o ingreso. Sin conexión quedará pendiente.'
-                    : 'Desbloquea tu perfil para consultar los movimientos guardados en este dispositivo.'
+                    : 'Estamos cargando los movimientos confirmados de tu cuenta.'
                 }}
               </p>
               @if (workspace.unlocked() && movementItems().length) {
                 <button fpButton type="button" (click)="clearFilters()">Limpiar filtros</button>
               } @else {
                 <a routerLink="/registro">{{
-                  workspace.unlocked() ? 'Registrar movimiento' : 'Abrir espacio cifrado'
+                  workspace.unlocked() ? 'Registrar movimiento' : 'Reintentar carga'
                 }}</a>
               }
             }
           </section>
         } @else if (view() === 'cuentas') {
-          @if (workspace.unlocked()) {
+          @if (workspace.localReady()) {
             <fp-catalog-creator />
+          } @else {
+            <fp-device-access />
           }
           <section class="manual-card">
             <h2>Tus cuentas</h2>
             <p>
-              Catálogo local: {{ workspace.catalog()?.downloadedAt ?? 'sin descargar' }}. Los saldos
-              confirmados se consultan en el servidor; esta vista no calcula un saldo local.
+              Catálogo de tu cuenta: {{ workspace.catalog()?.downloadedAt ?? 'cargando' }}. Cuentas
+              y categorías se consultan con tu sesión activa.
             </p>
             @for (account of workspace.catalog()?.accounts ?? []; track account.id) {
               <article class="pending-row">
@@ -314,8 +285,8 @@ import {
                 >
               </article>
             } @empty {
-              <p>Abre tu espacio y descarga el catálogo de tu sesión para ver tus cuentas.</p>
-              <a routerLink="/registro">Abrir espacio</a>
+              <p>No encontramos cuentas todavía.</p>
+              <a routerLink="/registro">Preparar cuentas</a>
             }
           </section>
           @if (workspace.unlocked()) {
@@ -331,14 +302,84 @@ import {
               }
             </section>
           }
+        } @else if (view() === 'presupuestos') {
+          <section class="product-currency-grid">
+            @for (currency of monthlySummary().currencies; track currency.currency) {
+              <article class="manual-card currency-summary">
+                <p class="eyebrow">{{ currency.currency }}</p>
+                <h2>Gasto confirmado del mes</h2>
+                <strong>{{ exact(currency.currency, currency.expenseMinor) }}</strong>
+                <p>{{ currency.confirmedCount }} movimiento(s) confirmado(s) en el periodo.</p>
+              </article>
+            } @empty {
+              <article class="manual-card">
+                <h2>Sin gasto confirmado este mes</h2>
+                <p>Los consumos que confirmes aparecerán aquí automáticamente.</p>
+              </article>
+            }
+          </section>
+          <section class="manual-card">
+            <h2>Seguimiento por categoría</h2>
+            @for (row of monthlyCategories(); track row.currency + row.category) {
+              <article class="pending-row">
+                <strong>{{ row.category }}</strong
+                ><span>{{ exact(row.currency, row.minor) }}</span>
+              </article>
+            } @empty {
+              <p>Aún no hay categorías con consumo confirmado este mes.</p>
+            }
+            <p class="zone-note">
+              Esta vista usa gasto real confirmado. Los límites mensuales personalizados se
+              incorporarán sin inventar montos.
+            </p>
+          </section>
+        } @else if (view() === 'analisis') {
+          <section class="product-currency-grid">
+            @for (currency of summary().currencies; track currency.currency) {
+              <article class="manual-card currency-summary">
+                <p class="eyebrow">{{ currency.currency }}</p>
+                <h2>Resumen confirmado</h2>
+                <dl class="money-summary">
+                  <div>
+                    <dt>Ingresos</dt>
+                    <dd>{{ exact(currency.currency, currency.incomeMinor) }}</dd>
+                  </div>
+                  <div>
+                    <dt>Gastos</dt>
+                    <dd>{{ exact(currency.currency, currency.expenseMinor) }}</dd>
+                  </div>
+                  <div>
+                    <dt>Balance registrado</dt>
+                    <dd>{{ exact(currency.currency, currency.balanceMinor) }}</dd>
+                  </div>
+                </dl>
+              </article>
+            } @empty {
+              <article class="manual-card">
+                <h2>Aún no hay datos confirmados</h2>
+                <p>Confirma consumos o registra un movimiento para comenzar el análisis.</p>
+              </article>
+            }
+          </section>
+          <section class="manual-card">
+            <h2>Gasto del mes por categoría</h2>
+            @for (row of monthlyCategories(); track row.currency + row.category) {
+              <article class="pending-row">
+                <strong>{{ row.category }}</strong
+                ><span>{{ exact(row.currency, row.minor) }}</span>
+              </article>
+            } @empty {
+              <p>Sin gasto confirmado para analizar en el mes actual.</p>
+            }
+          </section>
         } @else if (view() === 'configuracion') {
+          <fp-device-access />
           <section class="manual-card">
             <h2>Tu acceso</h2>
             <a routerLink="/acceso">Administrar sesión</a>
             <button fpButton (click)="workspace.lock()">Bloquear espacio local</button>
-            <h2>Vista de prueba separada</h2>
-            <p>Abre una vista con datos ficticios. Tu espacio privado quedará bloqueado.</p>
-            <button fpButton (click)="workspace.enterDemo()">Abrir modo DEMO</button>
+            <h2>Privacidad local</h2>
+            <p>Bloquea el espacio cifrado cuando termines de usar este dispositivo.</p>
           </section>
         } @else {
           <section class="manual-card">
@@ -363,6 +404,10 @@ export class ProductScreen {
   readonly stateFilter = signal<ProductMovementFilters['state']>('all');
   readonly dateFrom = signal('');
   readonly dateTo = signal('');
+
+  constructor() {
+    if (this.workspace.auth.signedIn) void this.workspace.openRemote();
+  }
 
   readonly title = computed(
     () =>
@@ -417,18 +462,77 @@ export class ProductScreen {
     );
   });
 
-  readonly movementItems = computed<ProductMovementItem[]>(() =>
-    this.movements().map((row) => ({
+  readonly movementItems = computed<ProductMovementItem[]>(() => {
+    const rows: ProductMovementItem[] = this.movements().map((row) => ({
       id: row.id,
       payload: row.payload,
       state: row.state,
       account: this.accountName(row.payload.accountId),
       category: this.categoryName(row.payload.categoryId),
       ...(row.failure ? { failure: row.failure } : {}),
-    })),
-  );
+    }));
+    for (const item of this.workspace.gmailConfirmed()) {
+      if (!isDashboardGmailMovement(item) || !item.currency || !item.amountMinor) continue;
+      const kind = item.kind === 'income' ? 'income' : 'expense';
+      const date = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Lima',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date(item.occurredAt));
+      rows.push({
+        id: `gmail:${item.id}`,
+        payload: {
+          kind,
+          accountId: '00000000-0000-4000-8000-000000000001',
+          categoryId: '00000000-0000-4000-8000-000000000002',
+          currency: item.currency,
+          amountMinor: item.amountMinor,
+          businessDate: date,
+          timezone: 'America/Lima',
+          occurredAt: item.occurredAt,
+          note: item.summary,
+        },
+        state: 'confirmed',
+        account: item.institution ?? item.merchant ?? 'Gmail',
+        category: automaticCategory(item),
+      });
+    }
+    return rows.sort(
+      (a, b) =>
+        b.payload.businessDate.localeCompare(a.payload.businessDate) || a.id.localeCompare(b.id),
+    );
+  });
 
   readonly summary = computed(() => summarizeProductMovements(this.movementItems()));
+  readonly monthKey = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Lima',
+    year: 'numeric',
+    month: '2-digit',
+  }).format(new Date());
+  readonly monthlyItems = computed(() =>
+    this.movementItems().filter(
+      (row) => row.state === 'confirmed' && row.payload.businessDate.startsWith(this.monthKey),
+    ),
+  );
+  readonly monthlySummary = computed(() => summarizeProductMovements(this.monthlyItems()));
+  readonly monthlyCategories = computed(() => {
+    const values = new Map<string, { category: string; currency: string; minor: bigint }>();
+    for (const row of this.monthlyItems()) {
+      if (row.payload.kind !== 'expense') continue;
+      const key = `${row.payload.currency}:${row.category}`;
+      const current = values.get(key) ?? {
+        category: row.category,
+        currency: row.payload.currency,
+        minor: 0n,
+      };
+      current.minor += BigInt(row.payload.amountMinor);
+      values.set(key, current);
+    }
+    return [...values.values()].sort((a, b) =>
+      a.minor > b.minor ? -1 : a.minor < b.minor ? 1 : a.category.localeCompare(b.category),
+    );
+  });
 
   readonly filteredMovements = computed(() =>
     filterProductMovements(this.movementItems(), {
@@ -444,6 +548,14 @@ export class ProductScreen {
   readonly rangeInvalid = computed(
     () => !!this.dateFrom() && !!this.dateTo() && this.dateFrom() > this.dateTo(),
   );
+
+  categoryShare(currency: string, minor: bigint) {
+    const total = this.monthlyCategories()
+      .filter((row) => row.currency === currency)
+      .reduce((sum, row) => sum + row.minor, 0n);
+    if (total <= 0n || minor <= 0n) return 0;
+    return Math.max(1, Math.min(100, Number((minor * 100n) / total)));
+  }
 
   clearFilters() {
     this.query.set('');

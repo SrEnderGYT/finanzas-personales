@@ -35,7 +35,10 @@ test('two independent clients resolve a real 409 with immutable history and lost
   const { token } = (await (await login).json()) as { token: string };
   await expect(page.getByRole('heading', { name: 'Tu sesión', exact: true })).toBeVisible();
   const headers = { authorization: `Bearer ${token}` };
-  await page.locator('.sidebar').getByRole('link', { name: 'Registrar movimiento' }).click();
+  await page
+    .locator('.sidebar')
+    .getByRole('link', { name: /Registrar movimiento/ })
+    .click();
   await page.getByRole('button', { name: 'Preparar perfil conectado' }).click();
   await page.getByLabel('Frase local').fill('Synthetic browser vault phrase');
   await page.getByRole('button', { name: 'Crear espacio cifrado' }).click();
@@ -73,7 +76,10 @@ test('two independent clients resolve a real 409 with immutable history and lost
   await page.getByRole('button', { name: 'Crear categoría', exact: true }).click();
   const categoryId = (await (await categoryCreated).json()).result.changes[0].id as string;
   await expect(page.getByRole('status')).toContainText('Alta confirmada');
-  await page.locator('.sidebar').getByRole('link', { name: 'Registrar movimiento' }).click();
+  await page
+    .locator('.sidebar')
+    .getByRole('link', { name: /Registrar movimiento/ })
+    .click();
   await expect(page.locator('select[name=account] option')).toHaveCount(2);
   await expect(page.locator('.topbar')).not.toContainText('DEMO');
   await expect(page.locator('.sidebar')).not.toContainText('Espacio de prueba');
@@ -83,7 +89,10 @@ test('two independent clients resolve a real 409 with immutable history and lost
   await page.locator('input[name=amount]').fill('0.10');
   await page.locator('input[name=date]').fill('2026-01-01');
   await page.getByRole('button', { name: 'Guardar pendiente', exact: true }).click();
-  await page.locator('.sidebar').getByRole('link', { name: 'Movimientos', exact: true }).click();
+  await page
+    .locator('.sidebar')
+    .getByRole('link', { name: /^Movimientos/ })
+    .click();
   await expect(page.locator('[data-state=pending]')).toHaveCount(1);
   await context.setOffline(false);
   await expect(page.locator('[data-state=confirmed]')).toHaveCount(1);
@@ -98,16 +107,25 @@ test('two independent clients resolve a real 409 with immutable history and lost
     await second.getByLabel('Contraseña', { exact: true }).fill(password);
     await second.getByRole('button', { name: 'Entrar', exact: true }).click();
     await expect(second.getByRole('heading', { name: 'Tu sesión', exact: true })).toBeVisible();
-    await second.locator('.sidebar').getByRole('link', { name: 'Registrar movimiento' }).click();
+    await second
+      .locator('.sidebar')
+      .getByRole('link', { name: /Registrar movimiento/ })
+      .click();
     await second.getByRole('button', { name: 'Preparar perfil conectado' }).click();
     await second.getByLabel('Frase local').fill('Synthetic second client phrase');
     await second.getByRole('button', { name: 'Crear espacio cifrado' }).click();
+    // Creating the vault derives a key and commits its catalog asynchronously.
+    // Navigating away before the form opens intentionally cancels that unlock.
+    await expect(second.locator('input[name=amount]')).toBeVisible();
     await second
       .locator('.sidebar')
-      .getByRole('link', { name: 'Movimientos', exact: true })
+      .getByRole('link', { name: /^Movimientos/ })
       .click();
     await expect(second.locator('[data-state=confirmed]')).toHaveCount(1);
     for (const client of [page, second]) {
+      await expect(
+        client.getByRole('button', { name: 'Corregir movimiento', exact: true }),
+      ).toBeVisible();
       await client.getByRole('button', { name: 'Corregir movimiento', exact: true }).click();
       await client
         .locator('input[name=correction-reason]')
@@ -175,6 +193,8 @@ test('two independent clients resolve a real 409 with immutable history and lost
     );
     expect(corrections.rows[0].n).toBe('2');
   } finally {
-    await secondContext.close();
+    // Timeout teardown can already have closed this context. Preserve the original
+    // failing action instead of replacing it with a cleanup protocol error.
+    await secondContext.close().catch(() => undefined);
   }
 });

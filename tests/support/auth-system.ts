@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { createServer, request } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
@@ -71,11 +71,6 @@ export async function authSystem() {
     'content="disabled"',
     'content="same-origin"',
   );
-  const manifest = JSON.parse(await readFile(resolve(root, 'ngsw.json'), 'utf8')) as {
-    hashTable: Record<string, string>;
-  };
-  // Keep the installed PWA manifest consistent with this isolated staging index.
-  manifest.hashTable['/index.html'] = createHash('sha1').update(index).digest('hex');
   const mime: Record<string, string> = {
     '.html': 'text/html',
     '.js': 'text/javascript',
@@ -118,13 +113,7 @@ export async function authSystem() {
         'Content-Type': mime[extname(path)] ?? 'application/octet-stream',
         'Cache-Control': 'no-store',
       });
-      res.end(
-        extname(path) === '.html'
-          ? index
-          : path === resolve(root, 'ngsw.json')
-            ? JSON.stringify(manifest)
-            : bytes,
-      );
+      res.end(extname(path) === '.html' ? index : bytes);
     } catch {
       res.writeHead(404).end();
     }

@@ -126,17 +126,13 @@ test('real browser registration, encrypted mail, recovery and revocation isolate
   }
 });
 
-test('real PWA returns a connection error offline and can retry server-side logout online', async ({
+test('real web returns a connection error offline and can retry server-side logout online', async ({
   page,
   context,
 }) => {
   const email = `${randomUUID()}@example.test`;
   await register(page, email);
   await login(page, email);
-  await page.evaluate(async () => {
-    await navigator.serviceWorker.ready;
-  });
-  await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
   await context.setOffline(true);
   await page.getByRole('button', { name: 'Cerrar sesión', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'No pudimos conectar' })).toBeVisible();

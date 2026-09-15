@@ -18,7 +18,7 @@
             "index": "apps/web/src/index.html",
             "tsConfig": "apps/web/tsconfig.app.json",
             "outputPath": "dist/web",
-            "styles": ["apps/web/src/styles.css"],
+            "styles": ["apps/web/src/styles.css", "packages/ui/src/reference-design-v2.css"],
             "assets": [
               {
                 "glob": "**/*",
@@ -29,14 +29,14 @@
           "configurations": {
             "production": {
               "outputHashing": "all",
+              "serviceWorker": "apps/web/ngsw-config.json",
               "budgets": [
                 {
                   "type": "initial",
                   "maximumWarning": "1mb",
                   "maximumError": "2mb"
                 }
-              ],
-              "serviceWorker": "apps/web/ngsw-config.json"
+              ]
             },
             "development": {
               "optimization": false,
@@ -68,7 +68,7 @@
             "index": "apps/mobile/src/index.html",
             "tsConfig": "apps/mobile/tsconfig.app.json",
             "outputPath": "dist/mobile",
-            "styles": ["apps/mobile/src/styles.css"],
+            "styles": ["apps/mobile/src/styles.css", "packages/ui/src/reference-design-v2.css"],
             "assets": [
               {
                 "glob": "**/*",
@@ -91,6 +91,11 @@
             "development": {
               "optimization": false,
               "sourceMap": true
+            },
+            "native-storage-test": {
+              "browser": "apps/mobile/src/storage-test-main.ts",
+              "tsConfig": "apps/mobile/tsconfig.storage-test.json",
+              "outputHashing": "all"
             }
           },
           "defaultConfiguration": "production"

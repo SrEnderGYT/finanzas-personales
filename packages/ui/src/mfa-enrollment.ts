@@ -105,11 +105,19 @@ export class MfaEnrollment {
         this.secret.set(await this.nativeReauthenticate(this.client(), this.lifetime.signal));
         return;
       }
+      const remote = this.client().remoteApi;
       const result = await googleReauthentication(
-        () => this.client().google('reauthenticate'),
+        () =>
+          remote
+            ? this.client().startRemoteGoogle('reauthenticate')
+            : this.client().google('reauthenticate'),
         this.lifetime.signal,
       );
-      this.secret.set(await this.client().beginMfaGoogle(result.state, result.code));
+      this.secret.set(
+        remote
+          ? await this.client().beginMfaRemoteGoogle(result.state, result.code)
+          : await this.client().beginMfaGoogle(result.state, result.code),
+      );
     } catch (error) {
       this.error.set(error instanceof Error ? error.message : 'No se pudo verificar tu identidad.');
     } finally {

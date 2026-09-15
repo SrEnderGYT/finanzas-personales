@@ -7,10 +7,14 @@ import {
   Headers,
   HttpCode,
   Inject,
+  Param,
   Post,
+  Query,
+  Res,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import type { FastifyReply } from 'fastify';
 import { type IdentityVerifier } from './auth';
 import { IDENTITY } from './users';
 
@@ -35,6 +39,9 @@ export interface GmailConnectionService {
   start(userId: string, rangeDays: number): Promise<unknown>;
   sync(userId: string): Promise<void>;
   disconnect(userId: string): Promise<void>;
+  complete?(state: string, code: string): Promise<string>;
+  candidates?(userId: string, status?: string): Promise<unknown[]>;
+  review?(userId: string, candidateId: string, status: 'confirmed' | 'discarded'): Promise<void>;
 }
 
 export const GMAIL_CONNECTION = Symbol('GMAIL_CONNECTION');
@@ -147,6 +154,13 @@ function startInput(value: unknown): number {
   return rangeDays(input['rangeDays']);
 }
 
+function candidateStatus(value: unknown) {
+  if (value === undefined) return 'pending';
+  if (value !== 'pending' && value !== 'confirmed' && value !== 'discarded' && value !== 'all')
+    throw new BadRequestException();
+  return value;
+}
+
 @ApiTags('Gmail')
 @ApiBearerAuth()
 @ApiResponse({ status: 401, description: 'Sesión ausente, inválida o revocada' })
@@ -186,13 +200,65 @@ export class GmailController {
     return normalizeStart(await this.service().start(userId, startInput(body)));
   }
 
+  @Get('oauth/callback')
+  @ApiOperation({ summary: 'Completa el consentimiento Gmail y vuelve a la aplicación' })
+  async callback(
+    @Query('state') state: string | undefined,
+    @Query('code') code: string | undefined,
+    @Query('error') error: string | undefined,
+    @Res() reply: FastifyReply,
+  ) {
+    const service = this.service();
+    if (error || !state || !code || !service.complete) throw new BadRequestException();
+    const destination = await service.complete(state, code);
+    let url: URL;
+    try {
+      url = new URL(destination);
+    } catch {
+      throw new ServiceUnavailableException();
+    }
+    if (url.protocol !== 'https:' || url.username || url.password)
+      throw new ServiceUnavailableException();
+    return reply.code(303).header('Location', url.href).send();
+  }
+
   @Post('sync')
   @HttpCode(202)
-  @ApiOperation({ summary: 'Solicita sincronización de la conexión Gmail vigente' })
+  @ApiOperation({ summary: 'Sincroniza mensajes y detecciones financieras de Gmail' })
   async sync(@Headers('authorization') token: string | undefined) {
     const userId = await this.user(token);
     await this.service().sync(userId);
     return { status: 'accepted' as const };
+  }
+
+  @Get('candidates')
+  @ApiOperation({ summary: 'Lista hallazgos financieros detectados en Gmail' })
+  async candidates(
+    @Headers('authorization') token: string | undefined,
+    @Query('status') status: string | undefined,
+  ) {
+    const userId = await this.user(token);
+    const service = this.service();
+    if (!service.candidates) throw new ServiceUnavailableException();
+    return { items: await service.candidates(userId, candidateStatus(status)) };
+  }
+
+  @Post('candidates/:id/confirm')
+  @HttpCode(204)
+  async confirm(@Headers('authorization') token: string | undefined, @Param('id') id: string) {
+    const userId = await this.user(token);
+    const service = this.service();
+    if (!service.review) throw new ServiceUnavailableException();
+    await service.review(userId, id, 'confirmed');
+  }
+
+  @Post('candidates/:id/discard')
+  @HttpCode(204)
+  async discard(@Headers('authorization') token: string | undefined, @Param('id') id: string) {
+    const userId = await this.user(token);
+    const service = this.service();
+    if (!service.review) throw new ServiceUnavailableException();
+    await service.review(userId, id, 'discarded');
   }
 
   @Delete('connection')

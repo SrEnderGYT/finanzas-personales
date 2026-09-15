@@ -1,6 +1,8 @@
 {
   "$schema": "../../node_modules/@angular/service-worker/config/schema.json",
   "index": "/index.html",
+  "appData": { "shell": "p17-login-first" },
+  "dataGroups": [],
   "assetGroups": [
     {
       "name": "shell",
@@ -13,6 +15,8 @@
   "navigationUrls": [
     "/**",
     "!/**/*.*",
+    "!/v1/**",
+    "!/health",
     "!/mobile/**",
     "!/mobile",
     "!/finanzas-personales/mobile/**",

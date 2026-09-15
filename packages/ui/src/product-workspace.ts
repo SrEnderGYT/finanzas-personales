@@ -12,6 +12,10 @@ import {
 import type { OutboxRecord } from '../../shared/src/manual-outbox';
 import type { ManualCatalog } from '../../domain/src';
 import { CorrectionQueue, type CorrectionRecord } from '../../shared/src/correction-queue';
+import {
+  normalizeGmailCandidates,
+  type GmailFinancialCandidate,
+} from '../../shared/src/gmail-candidates';
 @Injectable({ providedIn: 'root' })
 export class ProductWorkspace {
   readonly auth = inject(AUTH_CLIENT);
@@ -24,6 +28,16 @@ export class ProductWorkspace {
   readonly error = signal('');
   readonly corrections = signal<CorrectionRecord[]>([]);
   readonly correcting = signal(false);
+  readonly gmailConfirmed = signal<GmailFinancialCandidate[]>([]);
+  readonly remoteOwner = signal('');
+  readonly remoteLoading = signal(false);
+  localReady() {
+    return (
+      this.unlocked() &&
+      this.session?.vault.profile.mode === 'product' &&
+      this.session.vault.unlocked
+    );
+  }
   private correctionAbort: AbortController | undefined;
   session: ManualSession | undefined;
   epoch = 0;
@@ -35,9 +49,10 @@ export class ProductWorkspace {
     this.auth.onSessionChange(() => {
       this.lock();
       this.product.set(this.auth.enabled || this.auth.signedIn);
+      if (this.auth.signedIn) void this.openRemote();
     });
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) this.lock();
+      if (document.hidden && this.session?.vault.unlocked) this.lock();
     });
     window.addEventListener('online', () => {
       if (!['forbidden', 'invalid'].includes(this.state())) void this.syncNow();
@@ -48,9 +63,10 @@ export class ProductWorkspace {
     });
     if (Capacitor.isNativePlatform())
       void App.addListener('appStateChange', ({ isActive }) => {
-        if (!isActive) this.lock();
-        else if (!['forbidden', 'invalid'].includes(this.state())) void this.syncNow();
+        if (!isActive && this.session?.vault.unlocked) this.lock();
+        else if (isActive && !['forbidden', 'invalid'].includes(this.state())) void this.syncNow();
       });
+    if (this.auth.signedIn) void this.openRemote();
   }
   lock() {
     this.epoch++;
@@ -65,9 +81,72 @@ export class ProductWorkspace {
     this.rows.set([]);
     this.snapshot.set(undefined);
     this.corrections.set([]);
+    this.gmailConfirmed.set([]);
+    this.remoteOwner.set('');
     this.state.set('locked');
     this.error.set('');
   }
+  async openRemote() {
+    if (this.localReady()) {
+      await this.refresh();
+      await this.syncNow();
+      return;
+    }
+    if (!this.auth.signedIn || this.remoteLoading()) return;
+    this.remoteLoading.set(true);
+    this.state.set('syncing');
+    this.error.set('');
+    const epoch = this.epoch;
+    try {
+      const loaded = await this.auth.manualCatalog();
+      if (epoch !== this.epoch) return;
+      const api = this.auth.syncApi(loaded.ownerId);
+      const snapshot: SyncSnapshot = { version: 1, movements: {}, retries: {}, failures: {} };
+      let cursor: string | undefined;
+      let generation: string | undefined;
+      for (let pageNumber = 0; pageNumber < 100; pageNumber++) {
+        const page = await api.pull(cursor, AbortSignal.timeout(15000));
+        if (epoch !== this.epoch) return;
+        if (generation && generation !== page.cursorGeneration)
+          throw new Error('La historia financiera cambió durante la descarga.');
+        generation = page.cursorGeneration;
+        for (const change of page.changes) snapshot.movements[change.movement.id] = change;
+        cursor = page.nextCursor;
+        snapshot.cursor = page.nextCursor;
+        snapshot.generation = page.cursorGeneration;
+        if (!page.hasMore) break;
+        if (pageNumber === 99) throw new Error('La historia financiera es demasiado extensa.');
+      }
+      snapshot.lastSync = new Date().toISOString();
+      let gmail: GmailFinancialCandidate[] = [];
+      try {
+        gmail = normalizeGmailCandidates(
+          await this.auth.gmail('candidates?status=confirmed', 'GET'),
+        );
+      } catch {
+        // Gmail is optional; ledger/manual movements must continue loading without it.
+      }
+      if (epoch !== this.epoch) return;
+      this.remoteOwner.set(loaded.ownerId);
+      this.catalog.set(loaded.catalog);
+      this.snapshot.set(snapshot);
+      this.rows.set([]);
+      this.gmailConfirmed.set(gmail);
+      this.unlocked.set(true);
+      this.state.set('idle');
+    } catch {
+      if (epoch === this.epoch) {
+        this.unlocked.set(false);
+        this.state.set('invalid');
+        this.error.set(
+          'No pudimos cargar tus finanzas desde el servidor. Reintenta en unos segundos.',
+        );
+      }
+    } finally {
+      this.remoteLoading.set(false);
+    }
+  }
+
   async refresh() {
     const session = this.session,
       epoch = this.epoch;
@@ -91,7 +170,10 @@ export class ProductWorkspace {
   }
   async syncNow() {
     const session = this.session;
-    if (!session?.vault.unlocked || session.vault.profile.mode !== 'product') return;
+    if (!session?.vault.unlocked || session.vault.profile.mode !== 'product') {
+      if (this.auth.signedIn) await this.openRemote();
+      return;
+    }
     if (this.syncing) {
       this.rerun = true;
       return;
@@ -119,6 +201,17 @@ export class ProductWorkspace {
       this.state.set(navigator.onLine ? state : 'offline');
       await this.refresh();
       if (epoch !== this.epoch) return;
+      if (state === 'idle' && this.auth.canUseOwner(session.vault.profile.ownerId)) {
+        try {
+          const gmail = normalizeGmailCandidates(
+            await this.auth.gmail('candidates?status=confirmed', 'GET'),
+          );
+          if (epoch === this.epoch) this.gmailConfirmed.set(gmail);
+        } catch {
+          // Gmail remains optional and does not change the durable manual receipt.
+        }
+        if (epoch !== this.epoch) return;
+      }
       if (state === 'session_required') {
         this.auth.expireSession();
         return;
