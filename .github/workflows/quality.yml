@@ -88,6 +88,8 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          packages: platform-tools
       - run: npm install --global npm@11.6.1
       - run: npm ci
       - run: npm run cap:sync
@@ -169,4 +171,5 @@ jobs:
             docs/evidence/P05/mfa-*.png
             docs/evidence/P09/product-*.png
             docs/evidence/P10/conflict-*.png
+            test-results/**/error-context.md
           retention-days: 7

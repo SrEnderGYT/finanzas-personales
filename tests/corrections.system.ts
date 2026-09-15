@@ -187,6 +187,8 @@ test('two independent clients resolve a real 409 with immutable history and lost
     );
     expect(corrections.rows[0].n).toBe('2');
   } finally {
-    await secondContext.close();
+    // Timeout teardown can already have closed this context. Preserve the original
+    // failing action instead of replacing it with a cleanup protocol error.
+    await secondContext.close().catch(() => undefined);
   }
 });
