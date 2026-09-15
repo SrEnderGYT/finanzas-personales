@@ -152,6 +152,7 @@ import {
           @for (row of workspace.rows(); track row.command.operationId) {
             <article class="pending-row">
               <strong>{{ row.command.payload.kind === 'expense' ? 'Gasto' : 'Ingreso' }}</strong>
+              <span>{{ displayMoney(row.command) }}</span>
               <span
                 >{{ row.command.payload.businessDate }} · {{ row.command.payload.timezone }}</span
               >
@@ -206,6 +207,10 @@ export class ManualScreen {
 
   currency() {
     return this.activeAccounts().find((a) => a.id === this.accountId)?.currency ?? 'PEN';
+  }
+  displayMoney(command: ManualCommand) {
+    const n = command.payload.amountMinor;
+    return `${command.payload.currency} ${n.length > 2 ? n.slice(0, -2) : '0'}.${n.slice(-2).padStart(2, '0')}`;
   }
 
   setKind(kind: 'expense' | 'income') {

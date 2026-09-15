@@ -87,7 +87,7 @@ public class ManualOutboxTest {
     waitFor("!!document.querySelector('fp-shell') || !!document.querySelector('main')");
     js("location.hash='/registro'");
     waitFor("!!document.querySelector('.manual-page')");
-    click("Probar con datos DEMO");
+    click("Preparar perfil conectado");
     if (damaged != null) {
       waitFor("document.querySelector('.manual-feedback').textContent.includes('No se completÃ³')");
       assertEquals("0", js("document.querySelectorAll('[name=amount]').length"));
@@ -120,7 +120,7 @@ public class ManualOutboxTest {
     assertTrue(text.contains("PEN 0.10"));
     assertTrue(text.contains("2026-01-01"));
     assertTrue(text.contains("America/Lima"));
-    assertTrue(text.contains("Pendiente local"));
+    assertTrue(text.contains("Pendiente de confirmación"));
     boolean checked = false;
     for (String name : instrumentation.getTargetContext().databaseList()) {
       if (!name.startsWith("finanzas_manual_") || !name.endsWith(".db")) continue;

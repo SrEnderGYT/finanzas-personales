@@ -90,6 +90,11 @@
             "development": {
               "optimization": false,
               "sourceMap": true
+            },
+            "native-storage-test": {
+              "browser": "apps/mobile/src/storage-test-main.ts",
+              "tsConfig": "apps/mobile/tsconfig.storage-test.json",
+              "outputHashing": "all"
             }
           },
           "defaultConfiguration": "production"

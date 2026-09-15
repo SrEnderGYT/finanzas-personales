@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.app.json",
+  "files": ["src/storage-test-main.ts"]
+}
