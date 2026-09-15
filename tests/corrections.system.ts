@@ -114,12 +114,18 @@ test('two independent clients resolve a real 409 with immutable history and lost
     await second.getByRole('button', { name: 'Preparar perfil conectado' }).click();
     await second.getByLabel('Frase local').fill('Synthetic second client phrase');
     await second.getByRole('button', { name: 'Crear espacio cifrado' }).click();
+    // Creating the vault derives a key and commits its catalog asynchronously.
+    // Navigating away before the form opens intentionally cancels that unlock.
+    await expect(second.locator('input[name=amount]')).toBeVisible();
     await second
       .locator('.sidebar')
       .getByRole('link', { name: /^Movimientos/ })
       .click();
     await expect(second.locator('[data-state=confirmed]')).toHaveCount(1);
     for (const client of [page, second]) {
+      await expect(
+        client.getByRole('button', { name: 'Corregir movimiento', exact: true }),
+      ).toBeVisible();
       await client.getByRole('button', { name: 'Corregir movimiento', exact: true }).click();
       await client
         .locator('input[name=correction-reason]')

@@ -144,7 +144,10 @@ export class DeviceAccess implements OnDestroy {
     const epoch = this.workspace.epoch;
     try {
       if (this.existing()) await session.unlock(this.credential);
-      else await session.create(this.credential);
+      else {
+        await session.create(this.credential);
+        this.existing.set(true);
+      }
       this.credential = '';
       if (epoch !== this.workspace.epoch || this.destroyed) {
         session.vault.lock();
